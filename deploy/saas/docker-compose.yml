@@ -1,6 +1,6 @@
 services:
   api:
-    image: ghcr.io/netojaycee/xfinance-api:latest
+    image: ghcr.io/xfindersnigeria/xfinance-api:latest
     restart: always
     ports:
       - "3000:3000"
@@ -18,7 +18,7 @@ services:
       start_period: 40s
 
   web:
-    image: ghcr.io/netojaycee/xfinance-web:latest
+    image: ghcr.io/xfindersnigeria/xfinance-web:latest
     restart: always
     ports:
       - "3001:3001"

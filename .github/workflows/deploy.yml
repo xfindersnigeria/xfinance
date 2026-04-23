@@ -113,7 +113,19 @@ jobs:
             echo ${{ secrets.GHCR_TOKEN }} | \
               docker login ghcr.io -u xfindersnigeria --password-stdin
             cd /app/xfinance
+            # docker compose -f deploy/saas/docker-compose.yml pull
+            # docker compose -f deploy/saas/docker-compose.yml up -d
+            # docker image prune -f
+            # 1. Pull images
             docker compose -f deploy/saas/docker-compose.yml pull
+
+            # 2. Run migrations using the API image
+            docker compose -f deploy/saas/docker-compose.yml run --rm api \
+              npx prisma migrate deploy
+
+            # 3. Start services
             docker compose -f deploy/saas/docker-compose.yml up -d
+
+            # 4. Cleanup
             docker image prune -f
             echo "Deploy complete at $(date)"
