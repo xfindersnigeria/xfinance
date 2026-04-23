@@ -4,6 +4,7 @@
 A multi-tenant Finance and Accounting SaaS built with NestJS (apps/api/) 
 and Next.js (apps/web/). It supports two deployment modes: SaaS and Standalone.
 
+
 ## CRITICAL — Read This First
 Before making ANY changes, read the architecture document:
   ARCHITECTURE.md (at project root)
