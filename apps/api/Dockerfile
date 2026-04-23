@@ -69,4 +69,6 @@ EXPOSE 3000
 
 # Run migrations then start the app
 # CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main"]
-CMD ["sh", "-c", "npx prisma migrate deploy || echo 'migrate failed'; node dist/src/main"]
+CMD ["sh", "-c", "node dist/src/main"]
+
+# CMD ["sh", "-c", "npx prisma migrate deploy || echo 'migrate failed'; node dist/src/main"]
