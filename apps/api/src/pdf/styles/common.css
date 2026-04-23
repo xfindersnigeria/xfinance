@@ -1,0 +1,120 @@
+body {
+  font-family: 'Segoe UI', Arial, sans-serif;
+  color: #222;
+  background: #fff;
+  margin: 0;
+  padding: 0;
+}
+.invoice-container {
+  max-width: 900px;
+  margin: 0 auto;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  padding: 18px 18px 12px 18px;
+}
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+.logo-section {
+  display: flex;
+  align-items: center;
+}
+.company-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  margin-right: 10px;
+}
+.company-details h2 {
+  margin: 0 0 4px 0;
+  font-size: 1.15em;
+}
+.company-details p {
+  margin: 0 0 2px 0;
+  font-size: 0.95em;
+}
+.invoice-info {
+  text-align: right;
+}
+.invoice-info h1 {
+  margin: 0 0 4px 0;
+  font-size: 1.3em;
+  color: #222;
+}
+.invoice-info p {
+  margin: 0 0 2px 0;
+  font-size: 0.95em;
+}
+hr {
+  margin: 10px 0;
+  border: none;
+  border-top: 1px solid #eee;
+}
+.bill-section {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.bill-to, .payment-terms {
+  width: 45%;
+}
+.bill-to p, .payment-terms p {
+  margin: 0 0 2px 0;
+  font-size: 0.95em;
+}
+.items-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 10px;
+  font-size: 0.97em;
+}
+  .items-table th, .items-table td {
+    border-bottom: 1px solid #eee;
+    padding: 4px 7px;
+    text-align: left;
+  }
+  .items-table th {
+    background: #f9f9f9;
+  }
+.summary-section {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+.totals {
+  text-align: right;
+}
+.totals p {
+  margin: 2px 0;
+  font-size: 0.97em;
+}
+.balance-due {
+  background: #eaf3ff;
+  color: #1a4fa3;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-weight: bold;
+  margin-top: 4px;
+}
+.notes-bank-section {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.notes, .bank-details {
+  width: 45%;
+}
+.notes p, .bank-details p {
+  margin: 0 0 2px 0;
+  font-size: 0.95em;
+}
+.footer {
+  text-align: center;
+  color: #888;
+  font-size: 0.95em;
+  margin-top: 12px;
+}

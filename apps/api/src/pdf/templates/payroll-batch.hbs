@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8" />
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Arial, sans-serif; font-size: 11px; color: #333; background: #fff; }
+.container { max-width: 1000px; margin: 0 auto; padding: 28px; }
+.header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #4f46e5; padding-bottom: 14px; margin-bottom: 20px; }
+.title { font-size: 18px; font-weight: bold; color: #1e293b; }
+.subtitle { color: #64748b; font-size: 11px; margin-top: 3px; }
+.meta-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+.meta-box { background: #f8fafc; border-radius: 6px; padding: 10px 12px; }
+.meta-label { font-size: 10px; text-transform: uppercase; color: #94a3b8; margin-bottom: 3px; letter-spacing: 0.4px; }
+.meta-value { font-size: 13px; font-weight: 600; color: #1e293b; }
+.badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 10px; font-weight: 600; }
+.badge-Approved { background: #dcfce7; color: #16a34a; }
+.badge-Pending  { background: #fef9c3; color: #a16207; }
+.badge-Draft    { background: #f1f5f9; color: #475569; }
+.badge-Rejected { background: #fee2e2; color: #dc2626; }
+.section-title { font-size: 12px; font-weight: 700; color: #1e293b; margin-bottom: 8px; margin-top: 4px; }
+table { width: 100%; border-collapse: collapse; font-size: 10px; }
+thead tr { background: #f1f5f9; }
+th { padding: 7px 8px; text-align: left; font-size: 9px; text-transform: uppercase; color: #64748b; letter-spacing: 0.3px; white-space: nowrap; }
+td { padding: 6px 8px; border-bottom: 1px solid #e2e8f0; }
+tr:last-child td { border-bottom: none; }
+.num { text-align: right; }
+.totals-row { background: #f8fafc; font-weight: 700; border-top: 2px solid #cbd5e1; }
+.footer { text-align: center; margin-top: 20px; font-size: 9px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 10px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div>
+      <div class="title">{{batch.batchName}}</div>
+      <div class="subtitle">Batch ID: {{batch.id}}</div>
+    </div>
+    <div style="text-align:right">
+      <span class="badge badge-{{batch.status}}">{{batch.status}}</span>
+      <div class="subtitle" style="margin-top:6px">Generated: {{formatDate batch.createdAt}}</div>
+    </div>
+  </div>
+
+  <div class="meta-grid">
+    <div class="meta-box"><div class="meta-label">Period</div><div class="meta-value">{{batch.period}}</div></div>
+    <div class="meta-box"><div class="meta-label">Pay Date</div><div class="meta-value">{{formatDate batch.paymentDate}}</div></div>
+    <div class="meta-box"><div class="meta-label">Total Employees</div><div class="meta-value">{{batch.totalEmployees}}</div></div>
+    <div class="meta-box"><div class="meta-label">Total Amount</div><div class="meta-value">₦{{batch.totalAmount}}</div></div>
+    <div class="meta-box"><div class="meta-label">Payment Method</div><div class="meta-value">{{batch.paymentMethod}}</div></div>
+    <div class="meta-box"><div class="meta-label">Created By</div><div class="meta-value">{{batch.createdBy.firstName}} {{batch.createdBy.lastName}}</div></div>
+  </div>
+
+  <div class="section-title">Employee Payroll Details</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th><th>Role</th><th>Department</th>
+        <th class="num">Basic</th><th class="num">Allowances</th><th class="num">Bonus</th><th class="num">Overtime</th>
+        <th class="num">Gross</th><th class="num">Stat Ded</th><th class="num">Other Ded</th><th class="num">Net Pay</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each batch.records}}
+      <tr>
+        <td>{{employee.firstName}} {{employee.lastName}}</td>
+        <td>{{employee.position}}</td>
+        <td>{{employee.dept.name}}</td>
+        <td class="num">{{basicSalary}}</td>
+        <td class="num">{{allowances}}</td>
+        <td class="num">{{bonus}}</td>
+        <td class="num">{{overtime}}</td>
+        <td class="num">{{grossPay}}</td>
+        <td class="num">{{statutoryDed}}</td>
+        <td class="num">{{otherDed}}</td>
+        <td class="num" style="font-weight:600;color:#4f46e5">{{netPay}}</td>
+      </tr>
+      {{/each}}
+      <tr class="totals-row">
+        <td colspan="3">Totals</td>
+        <td class="num">{{batch.totalBasicSalary}}</td>
+        <td class="num">{{batch.totalAllowances}}</td>
+        <td class="num">{{batch.totalBonus}}</td>
+        <td class="num">{{batch.totalOvertime}}</td>
+        <td class="num">{{batch.totalGross}}</td>
+        <td class="num">{{batch.totalStatDed}}</td>
+        <td class="num">{{batch.totalOtherDed}}</td>
+        <td class="num" style="color:#4f46e5">{{batch.totalAmount}}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="footer">This payroll report was generated automatically. Please verify with HR before processing payments.</div>
+</div>
+</body>
+</html>

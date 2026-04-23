@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -l \"superadmin\\\\|DEPLOYMENT\\\\|standalone\" C:UsersEdeh JayCeeDesktopprojectsxfinancexfinance/backend/src/**/*.ts)",
+      "Bash(find 'C:\\\\Users\\\\Edeh JayCee\\\\Desktop\\\\projects\\\\xfinance\\\\xfinance/backend/src/accounts' -type f -name *.ts)",
+      "Bash(npx tsc:*)",
+      "Bash(mkdir apps:*)",
+      "Bash(mv backend:*)",
+      "Bash(mv fe:*)",
+      "Bash(mkdir -p deploy/saas deploy/standalone scripts)",
+      "Bash(powershell -Command \"Move-Item -Path 'backend' -Destination 'apps/api'\")",
+      "Bash(powershell -Command \"robocopy fe apps/web /E /MOVE /NFL /NDL /NJH /NJS; exit 0\")",
+      "Bash(npx prisma *)",
+      "Bash(cat apps/api/src/hr-payroll/attendance/attendance.dto.ts)",
+      "Bash(cat apps/api/src/hr-payroll/attendance/dto/attendance.dto.ts)",
+      "Bash(sed -n '227,290p' apps/web/lib/api/hooks/useProducts.ts)",
+      "Bash(sed -n '128,180p' apps/web/lib/api/services/productsService.ts)",
+      "Bash(node extract_colors.js)"
+    ]
+  }
+}

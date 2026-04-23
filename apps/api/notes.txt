@@ -1,0 +1,21 @@
+
+use this to lacte where to enable subcategories
+// start for sub
+
+
+3968.9 Executing gtk+3.0-3.24.51-r0.trigger
+3969.0 70 errors; 373.7 MiB in 136 packages
+------
+Dockerfile:27
+--------------------
+  26 |     # Chromium and the libs it needs on Alpine
+  27 | >>> RUN apk add --no-cache \
+  28 | >>>     chromium \
+  29 | >>>     nss \
+  30 | >>>     freetype \
+  31 | >>>     harfbuzz \
+  32 | >>>     ca-certificates \
+  33 | >>>     ttf-freefont
+  34 |
+--------------------
+ERROR: failed to build: failed to solve: process "/bin/sh -c apk add --no-cache     chromium     nss     freetype     harfbuzz     ca-certificates     ttf-freefont" did not complete successfully: exit code: 70

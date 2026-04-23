@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{subject}}</title>
+    <style>
+      body { background: #f6f9fc; font-family: Arial, sans-serif; margin: 0; padding: 0; }
+      .container { max-width: 600px; margin: 40px auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #eaeaea; }
+      .header { padding: 32px 32px 0 32px; text-align: center; }
+      .logo { margin-bottom: 16px; }
+      .company { font-size: 24px; font-weight: bold; margin: 0; }
+      .content { padding: 24px 32px; }
+      .footer { background: #f6f9fc; padding: 16px 32px; text-align: center; border-radius: 0 0 8px 8px; }
+      .footer-text { font-size: 14px; color: #888; margin: 0; }
+      a { color: #0070f3; text-decoration: none; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <img src="https://x-finance.fevico.com.ng/images/logo.png" width="120" alt="Company Logo" class="logo" />
+        <div class="company">X-Finance</div>
+      </div>
+      <div class="content">
+        {{content}}
+      </div>
+      <div class="footer">
+        <div class="footer-text">© {{year}} X-Finance. All rights reserved.</div>
+        <div class="footer-text">
+          <a href="https://x-finance.fevico.com.ng/privacy">Privacy Policy</a> |
+          <a href="https://x-finance.fevico.com.ng/unsubscribe">Unsubscribe</a>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

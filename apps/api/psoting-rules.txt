@@ -1,0 +1,179 @@
+
+Xfinance
+basic Accounting
+
+Posting rules
+
+Phase 1
+1) Sales Invoice
+Invoice total = T, Net = N, VAT = V
+
+A/R invoice
+
+Dr Accounts Receivable (1120) = T
+Cr service Service Revenue (4120)  for service = N or Cr Product sales Revenue(4110 ) for product  = N
+Cr Tax Payable (2140) = V (if used)
+If inventory + COGS enabled (COGS = C)
+
+Dr COGS (5110) = C
+Cr Inventory (1130) = C
+
+2) Customer Payment (applied to invoice)
+Payment amount = P
+
+Dr cash and cash equivalent = P (user to select option from cash and cash equivalent)
+Cr Accounts Receivable (1120) = P
+3) Cash Receipt (not tied to invoice)
+ Immediate sale
+Dr (cash and cash equivalent) = amount received(customer to select)
+Cr service Service Revenue (4120) = N or Cr Product sales Revenue(4110 ) for product  = N
+Cr Income Payable (2140) = V (if used)
+4) Vendor Bill
+Bill total = T, Net = N, VAT = V
+
+A) Expense bill
+Dr Expense account(to be selected by customer) = N
+Dr Tax Payable (2140) = V (if used)
+Cr Accounts Payable (2110) = T
+
+5) Bill Payment (settle A/P)
+Payment amount = P
+
+Dr Accounts Payable (2110) = P
+Cr (cash and cash equivalent) to be selected by customer  = P
+
+6) Expense (no bill)
+Cash/Bank expense
+Dr Expense account(to be selected by the customer) = net
+Dr Tax Payable (2140) = VAT (if used)
+Cr Bank/Cash = total
+The cheat sheet (what increases what)
+Assets (cash, bank, inventory, AR)
+Debit = increase
+Credit = decrease
+Liabilities (AP, loans, tax payable)
+Credit = increase
+Debit = decrease
+Equity (owner’s capital, retained earnings)
+Credit = increase
+Debit = decrease
+Revenue (sales, service income)
+Credit = increase
+Debit = decrease (usually refunds/returns or revenue corrections)
+Expenses (rent, salaries, fuel, subscriptions)
+Debit = increase
+Credit = decrease (reversals, reimbursements, corrections)
+Quick way to remember:
+
+Debit grows Assets + Expenses
+Credit grows Liabilities + Equity + Revenue
+How accounting software applies this (real examples)
+1) Customer pays you ₦50,000 for a service
+
+Debit Cash/Bank ₦50,000 (Asset ↑)
+Credit Revenue ₦50,000 (Revenue ↑)
+2) You buy fuel ₦10,000 cash
+
+Debit Fuel Expense ₦10,000 (Expense ↑)
+Credit Cash/Bank ₦10,000 (Asset ↓)
+3) You buy inventory ₦200,000 on credit (you’ll pay later)
+
+Debit Inventory ₦200,000 (Asset ↑)
+Credit Accounts Payable ₦200,000 (Liability ↑)
+4) You pay supplier ₦200,000 you owed
+
+Debit Accounts Payable ₦200,000 (Liability ↓)
+Credit Cash/Bank ₦200,000 (Asset ↓)
+Why this matters in software
+Most accounting systems store each transaction as a journal entry with:
+
+lines: account_id, debit_amount, credit_amount
+rule: sum(debits) = sum(credits)
+account types determine how balances display (and what “normal” is):
+Assets/Expenses usually show a debit balance
+Liabilities/Equity/Revenue usually show a credit balance
+
+
+
+Posting Rules
+
+Posting rules
+
+Phase 1
+1) Sales Invoice
+Invoice total = T, Net = N, VAT = V
+
+A/R invoice
+
+Dr Accounts Receivable (1100) = T
+Cr Revenue (4000) = N
+Cr VAT Payable (2100) = V (if used)
+If inventory + COGS enabled (COGS = C)
+
+Dr COGS (5000) = C
+Cr Inventory (1200) = C
+
+2) Customer Payment (applied to invoice)
+Payment amount = P
+
+Dr cash and cash equivalent = P (user to select option from cash and cash equivalent)
+Cr Accounts Receivable (1100) = P
+3) Cash Receipt (not tied to invoice)
+ Immediate sale
+Dr (cash and cash equivalent) = amount received(customer to select)
+Cr Revenue (product or service)= net
+Cr VAT Payable = VAT (if used)
+4) Vendor Bill
+Bill total = T, Net = N, VAT = V
+
+A) Expense bill
+Dr Expense account(to be selected by customer) = N
+Dr Input VAT (1300) = V (if used)
+Cr Accounts Payable (2000) = T
+
+5) Bill Payment (settle A/P)
+Payment amount = P
+
+Dr Accounts Payable (2000) = P
+Cr (cash and cash equivalent) to be selected by customer (1010/1000) = P
+
+6) Expense (no bill)
+Cash/Bank expense
+Dr Expense account = net
+Dr Input VAT (1300) = VAT (if used)
+Cr Bank/Cash = total
+
+Phase 2 *****
+Payroll (accrue + pay)
+Let:
+
+Gross = G
+Employee deductions = D
+Net pay = N = G − D
+Employer contributions/taxes = E
+A) Accrue payroll
+Dr Wages & Salaries (5100) = G
+Cr Payroll Payable (2300) = N
+Cr Payroll Taxes Payable (2310) = D
+Employer portion:
+
+Dr Employer Payroll Taxes/Benefits (5110) = E
+Cr Employer Taxes Payable (2320) = E
+B) Pay employees
+Dr Payroll Payable (2300) = N
+Cr Bank = N
+C) Remit deductions + employer portion
+Dr Payroll Taxes Payable (2310) = D
+Dr Employer Taxes Payable (2320) = E
+Cr Bank = (D + E)
+
+B) Customer deposit / advance
+
+Dr Bank/Cash = deposit
+Cr Customer Deposits (2200) = deposit
+Later when revenue is earned
+
+Dr Customer Deposits (2200) = applied
+Cr Revenue (4000) = net
+Cr VAT Payable (2100) = VAT (if applicable)
+ (Or convert deposit → invoice by applying it to A/R)

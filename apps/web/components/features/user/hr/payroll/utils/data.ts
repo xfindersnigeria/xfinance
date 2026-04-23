@@ -1,0 +1,1 @@
+export const STATUS_OPTIONS = ["Present", "Absent", "Late", "Half Day", "On Leave"];

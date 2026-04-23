@@ -1,0 +1,119 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      push_stable:
+        description: 'Push :stable tag to managed standalone clients?'
+        type: boolean
+        default: false
+      client_tag:
+        description: 'Push to specific client tag? (e.g. acme, zenith) Leave empty to skip.'
+        type: string
+        required: false
+
+jobs:
+  build-api:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./apps/api
+          push: true
+          tags: |
+            ghcr.io/netojaycee/xfinance-api:${{ github.sha }}
+            ghcr.io/netojaycee/xfinance-api:latest
+
+      - name: Push :stable tag (manual trigger only)
+        if: github.event_name == 'workflow_dispatch' && inputs.push_stable == true
+        run: |
+          docker pull ghcr.io/netojaycee/xfinance-api:${{ github.sha }}
+          docker tag ghcr.io/netojaycee/xfinance-api:${{ github.sha }} \
+            ghcr.io/netojaycee/xfinance-api:stable
+          docker push ghcr.io/netojaycee/xfinance-api:stable
+
+      - name: Push specific client tag (manual trigger only)
+        if: github.event_name == 'workflow_dispatch' && inputs.client_tag != ''
+        run: |
+          docker pull ghcr.io/netojaycee/xfinance-api:${{ github.sha }}
+          docker tag ghcr.io/netojaycee/xfinance-api:${{ github.sha }} \
+            ghcr.io/netojaycee/xfinance-api:${{ inputs.client_tag }}
+          docker push ghcr.io/netojaycee/xfinance-api:${{ inputs.client_tag }}
+
+  build-web:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Build and push Web image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./apps/web
+          push: true
+          tags: |
+            ghcr.io/netojaycee/xfinance-web:${{ github.sha }}
+            ghcr.io/netojaycee/xfinance-web:latest
+          build-args: |
+            ENABLE_REWRITE=false
+            API_URL=http://localhost:3000
+
+      - name: Push :stable tag (manual trigger only)
+        if: github.event_name == 'workflow_dispatch' && inputs.push_stable == true
+        run: |
+          docker pull ghcr.io/netojaycee/xfinance-web:${{ github.sha }}
+          docker tag ghcr.io/netojaycee/xfinance-web:${{ github.sha }} \
+            ghcr.io/netojaycee/xfinance-web:stable
+          docker push ghcr.io/netojaycee/xfinance-web:stable
+
+      - name: Push specific client tag (manual trigger only)
+        if: github.event_name == 'workflow_dispatch' && inputs.client_tag != ''
+        run: |
+          docker pull ghcr.io/netojaycee/xfinance-web:${{ github.sha }}
+          docker tag ghcr.io/netojaycee/xfinance-web:${{ github.sha }} \
+            ghcr.io/netojaycee/xfinance-web:${{ inputs.client_tag }}
+          docker push ghcr.io/netojaycee/xfinance-web:${{ inputs.client_tag }}
+
+  deploy-saas:
+    runs-on: ubuntu-latest
+    needs: [build-api, build-web]
+    if: github.event_name == 'push'
+    steps:
+      - name: Deploy to SaaS server
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SAAS_SERVER_HOST }}
+          username: ${{ secrets.SAAS_SERVER_USER }}
+          key: ${{ secrets.SAAS_SERVER_SSH_KEY }}
+          script: |
+            echo ${{ secrets.GHCR_TOKEN }} | \
+              docker login ghcr.io -u netojaycee --password-stdin
+            cd /app/xfinance
+            docker compose -f deploy/saas/docker-compose.yml pull
+            docker compose -f deploy/saas/docker-compose.yml up -d
+            docker image prune -f
+            echo "Deploy complete at $(date)"

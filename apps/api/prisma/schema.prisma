@@ -1,0 +1,1805 @@
+
+generator client {
+  provider = "prisma-client"
+  output   = "./generated"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Group {
+  id                  String                @id @default(cuid())
+  name                String                @unique
+  legalName           String
+  logo                Json
+  taxId               String
+  industry            String
+  address             String
+  city                String
+  province            String
+  postalCode          String
+  country             String
+  email               String
+  phone               String
+  website             String?
+  subdomain           String                @unique
+  subscriptionId      String?
+  billingCycle        BillingCycle?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @default(now()) @updatedAt
+  entities            Entity[]
+  users               User[]
+  accountCategories   AccountCategory[]
+  roles               Role[]
+  subscription        Subscription?
+  subscriptionHistory SubscriptionHistory[]
+  auditLogs           AuditLog[]
+  customization       GroupCustomization?
+}
+
+model GroupCustomization {
+  id              String   @id @default(cuid())
+  groupId         String   @unique
+  primaryColor    String?
+  logoPublicId    String?
+  logoUrl         String?
+  loginBgPublicId String?
+  loginBgUrl      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+  group           Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+}
+
+model Entity {
+  id                   String                 @id @default(cuid())
+  name                 String                 @unique
+  groupId              String
+  address              String?
+  city                 String?
+  country              String?
+  currency             String?
+  email                String?                @unique
+  legalName            String?
+  companyName          String?
+  phoneNumber          String?
+  postalCode           String?
+  logo                 Json?
+  state                String?
+  taxId                String?
+  website              String?
+  yearEnd              String?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @default(now()) @updatedAt
+  account              Account[]
+  asset                Asset[]
+  attendance           AttendanceLog[]
+  bills                Bills[]
+  budget               Budget[]
+  collection           Collection[]
+  customer             Customer[]
+  employee             Employee[]
+  group                Group                  @relation(fields: [groupId], references: [id])
+  expenses             Expenses[]
+  invoice              Invoice[]
+  items                Items[]
+  storeItems           StoreItems[]
+  journal              Journal[]
+  leave                Leave[]
+  paymentReceived      PaymentReceived[]
+  receipt              Receipt[]
+  users                User[]
+  vendor               vendor[]
+  paymentMade          PaymentMade[]
+  bankAccounts         BankAccount[]          @relation("BankAccounts")
+  openingBalances      OpeningBalance[]
+  settings             Settings[]
+  accountTransactions  AccountTransaction[]   @relation("EntityAccountTransactions")
+  auditLogs            AuditLog[]
+  explicitPermissions  ExplicitPermission[]
+  project              Project[]
+  milestones           Milestone[]
+  teamMembers          TeamMember[]
+  supplyIssueHistory   SupplyIssueHistory[]
+  supplyRestockHistory SupplyRestockHistory[]
+  storeSupply          StoreSupply[]
+  departments          Department[]
+  disabledModuleIds    String[]             @default([])
+  statutoryDeductions  StatutoryDeduction[]
+  otherDeductions      OtherDeduction[]
+  productCategories    ProductCategory[]
+  productUnits         ProductUnit[]
+  productBrands        ProductBrand[]
+  inventoryMovements   InventoryMovement[]
+  payrollBatches       PayrollBatch[]
+  payrollRecords       PayrollRecord[]
+
+  @@index([name, taxId, email])
+  @@index([groupId])
+}
+
+model User {
+  id                          String                @id @default(cuid())
+  email                       String                @unique
+  firstName                   String?
+  lastName                    String?
+  department                  String?
+  password                    String?
+  image                       Json?
+  provider                    String?
+  providerId                  String?
+  emailVerified               DateTime?
+  isActive                    Boolean               @default(true)
+  requirePasswordChange       Boolean               @default(true)
+  lastLogin                   DateTime?
+  createdAt                   DateTime              @default(now())
+  updatedAt                   DateTime              @updatedAt
+  systemRole                  systemRole            @default(user)
+  groupId                     String?
+  entityId                    String?
+  roleId                      String?
+  adminEntities               String[]              @default([])
+  auditLogs                   AuditLog[]
+  entity                      Entity?               @relation(fields: [entityId], references: [id])
+  group                       Group?                @relation(fields: [groupId], references: [id])
+  role                        Role?                 @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  invoiceActivities           InvoiceActivity[]
+  explicitPermissions         ExplicitPermission[]
+  subscriptionHistories       SubscriptionHistory[]
+  supplyIssueHistoriesIssued  SupplyIssueHistory[]  @relation("IssuedBy")
+  supplyIssueHistoriesUpdated SupplyIssueHistory[]  @relation("UpdatedBy")
+  supplyRestockBy             SupplyRestockHistory[]
+  payrollBatchesCreated       PayrollBatch[]        @relation("PayrollCreatedBy")
+  payrollBatchesApproved      PayrollBatch[]        @relation("PayrollApprovedBy")
+
+  @@unique([provider, providerId])
+  @@index([email, groupId, isActive])
+}
+
+model Customer {
+  id           String    @id @default(cuid())
+  type         String
+  name         String
+  email        String    @unique
+  phoneNumber  String
+  companyName  String
+  address      String
+  city         String
+  state        String
+  postalCode   String
+  paymentTerms String
+  creditLimit  String
+  note         String?
+  entityId     String
+  groupId      String   // denormalized — extraction handle
+  isActive     Boolean   @default(true)
+  country      String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @default(now()) @updatedAt
+  entity       Entity    @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  invoice      Invoice[]
+  receipt      Receipt[]
+  project      Project[]
+
+  @@index([email, name])
+  @@index([groupId])
+}
+
+model Invoice {
+  id               String               @id @default(cuid())
+  customerId       String
+  entityId         String
+  groupId          String              // denormalized — extraction handle
+  invoiceNumber    String               @unique
+  invoiceDate      DateTime
+  dueDate          DateTime
+  paymentTerms     String
+  currency         String
+  subtotal         Int
+  tax              Int
+  total            Int
+  notes            String?
+  status           InvoiceStatus        @default(Draft)
+  postingStatus    JournalPostingStatus @default(Pending)
+  journalReference String?
+  postedAt         DateTime?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @default(now()) @updatedAt
+  projectId        String?
+  milestoneId      String?
+  customer         Customer             @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  entity           Entity               @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  project          Project?             @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  milestone        Milestone?           @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  paymentReceived  PaymentReceived[]
+  invoiceItem      InvoiceItem[]
+  activities       InvoiceActivity[]
+
+  @@index([invoiceNumber, customerId, currency])
+  @@index([projectId])
+  @@index([milestoneId])
+  @@index([groupId])
+}
+
+model InvoiceActivity {
+  id           String              @id @default(cuid())
+  invoiceId    String
+  groupId      String             // denormalized — extraction handle
+  activityType InvoiceActivityType
+  description  String
+  performedBy  String?
+  metadata     Json?
+  createdAt    DateTime            @default(now())
+  invoice      Invoice             @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  user         User?               @relation(fields: [performedBy], references: [id])
+
+  @@index([invoiceId, createdAt])
+  @@index([invoiceId])
+  @@index([groupId])
+}
+
+model InvoiceItem {
+  id        String    @id @default(cuid())
+  itemId    String
+  item      Items     @relation(fields: [itemId], references: [id])
+  rate      Int
+  quantity  Int
+  total     Int
+  invoiceId String
+  invoice   Invoice   @relation(fields: [invoiceId], references: [id])
+  createdAt DateTime  @default(now())
+  updateAt  DateTime?
+
+  @@index([itemId])
+}
+
+model PaymentMade {
+  id               String               @id @default(cuid())
+  vendorId         String
+  vendor           vendor               @relation(fields: [vendorId], references: [id])
+  billId           String?
+  bill             Bills?               @relation(fields: [billId], references: [id], onDelete: SetNull)
+  paymentDate      DateTime
+  amount           Int
+  paymentMethod    PaymentMethod
+  entityId         String
+  groupId          String              // denormalized — extraction handle
+  entity           Entity               @relation(fields: [entityId], references: [id])
+  accountId        String
+  account          Account              @relation(fields: [accountId], references: [id])
+  reference        String?
+  note             String?
+  status           PaymentMadeStatus    @default(Pending)
+  postingStatus    JournalPostingStatus @default(Pending)
+  journalReference String?
+  postedAt         DateTime?
+  errorMessage     String?
+  errorCode        String?
+
+  @@index([entityId])
+  @@index([billId])
+  @@index([groupId])
+}
+
+model vendor {
+  id            String        @id @default(cuid())
+  name          String
+  type          String
+  displayName   String
+  taxId         String
+  website       String?
+  companyName   String
+  jobTitle      String
+  email         String
+  phone         String
+  city          String
+  province      String
+  postalCode    String
+  country       String
+  paymentTerms  String
+  currency      String
+  accountNumber String
+  creditLimit   String
+  bankName      String
+  accountName   String
+  entityId      String
+  groupId       String       // denormalized — extraction handle
+  routingNumber String?
+  internalNote  String?
+  status        vendorStatus  @default(Active)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @default(now()) @updatedAt
+  bills         Bills[]
+  entity        Entity        @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  expenses      Expenses[]
+  paymentMade   PaymentMade[]
+
+  @@unique([email, phone])
+  @@index([email, entityId])
+  @@index([type, email])
+  @@index([groupId])
+}
+
+model PaymentReceived {
+  id               String               @id @default(cuid())
+  paymentNumber    String
+  invoiceId        String
+  amount           Int
+  total            Int
+  currency         String
+  paidAt           DateTime
+  paymentMethod    String
+  depositTo        String
+  reference        String
+  note             String?
+  postingStatus    JournalPostingStatus @default(Pending)
+  journalReference String?
+  postedAt         DateTime?
+  projectId      String?
+  milestoneId    String?
+  entityId         String
+  groupId          String              // denormalized — extraction handle
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @default(now()) @updatedAt
+  project          Project?             @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  milestone        Milestone?           @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  entity           Entity               @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  invoice          Invoice              @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  account          Account              @relation(fields: [depositTo], references: [id], onDelete: Restrict)
+
+  @@unique([paymentNumber, entityId])
+  @@index([invoiceId])
+  @@index([paymentNumber])
+  @@index([groupId])
+}
+
+model Expenses {
+  id               String               @id @default(cuid())
+  date             DateTime
+  reference        String
+  vendorId         String?
+  vendor           vendor?              @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  paymentMethod    PaymentMethod
+  paymentAccountId String
+  paymentAccount   Account              @relation("PaymentAccount", fields: [paymentAccountId], references: [id], onDelete: Restrict)
+  expenseAccountId String
+  expenseAccount   Account              @relation("ExpenseAccount", fields: [expenseAccountId], references: [id], onDelete: Restrict)
+  amount           Int
+  tax              String
+  description      String?
+  status           ExpenseStatus        @default(draft)
+  postingStatus    JournalPostingStatus @default(Pending)
+  journalReference String?
+  postedAt         DateTime?
+  errorMessage     String?
+  errorCode        String?
+  tags             String[]             @default([])
+  attachment       Json?
+  projectId        String?
+  milestoneId      String?
+  entityId         String
+  groupId          String              // denormalized — extraction handle
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @default(now()) @updatedAt
+  entity           Entity               @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  project          Project?             @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  milestone        Milestone?           @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+
+  @@index([reference, paymentAccountId])
+  @@index([reference, expenseAccountId])
+  @@index([projectId])
+  @@index([milestoneId])
+  @@index([groupId])
+}
+
+model Bills {
+  id                String               @id @default(cuid())
+  billDate          DateTime
+  billNumber        String               @unique
+  vendorId          String
+  dueDate           DateTime
+  poNumber          String?
+  paymentTerms      String
+  subtotal          Int
+  subject           String
+  tax               Int
+  discount          Int
+  total             Int
+  notes             String?
+  attachment        Json?
+  accountsPayableId String
+  status            BillStatus           @default(draft)
+  postingStatus     JournalPostingStatus @default(Pending)
+  journalReference  String?
+  postedAt          DateTime?
+  errorMessage      String?
+  errorCode         String?
+  items             Json
+  projectId         String?
+  milestoneId       String?
+  entityId          String
+  groupId           String              // denormalized — extraction handle
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @default(now()) @updatedAt
+  entity            Entity               @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  vendor            vendor               @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  project           Project?             @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  milestone         Milestone?           @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  paymentRecord     PaymentRecord[]
+  paymentsMade      PaymentMade[]
+  accountsPayable   Account              @relation(fields: [accountsPayableId], references: [id], onDelete: Restrict)
+
+  @@unique([entityId, billNumber])
+  @@index([projectId])
+  @@index([milestoneId])
+  @@index([groupId])
+}
+
+model PaymentRecord {
+  id            String              @id @default(uuid())
+  billId        String
+  paidAt        DateTime
+  paymentMethod PaymentMethod
+  reference     String
+  account       String
+  amount        Int
+  note          String?
+  status        paymentRecordStatus @default(cleared)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @default(now()) @updatedAt
+  bill          Bills               @relation(fields: [billId], references: [id], onDelete: Cascade)
+
+  @@index([billId])
+}
+
+model Receipt {
+  id               String               @id @default(cuid())
+  date             DateTime
+  entityId         String
+  groupId          String              // denormalized — extraction handle
+  paymentMethod    PaymentMethod
+  depositTo        String
+  subtotal         Int
+  tax              Int
+  total            Int
+  status           ReceiptStatus        @default(Void)
+  postingStatus    JournalPostingStatus @default(Pending)
+  journalReference String?
+  postedAt         DateTime?
+  createdAt        DateTime             @default(now())
+  customerId       String
+  receiptNumber    String               @default("123456789")
+  updatedAt        DateTime             @default(now()) @updatedAt
+  customer         Customer             @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  entity           Entity               @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  account          Account              @relation(fields: [depositTo], references: [id])
+  receiptItem      ReceiptItem[]
+
+  @@index([date])
+  @@index([receiptNumber])
+  @@index([groupId])
+}
+
+model ReceiptItem {
+  id        String   @id @default(cuid())
+  itemId    String
+  item      Items    @relation(fields: [itemId], references: [id])
+  quantity  Int
+  rate      Int
+  total     Int
+  receiptId String
+  receipt   Receipt  @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([receiptId])
+  @@index([itemId])
+}
+
+model StoreItems {
+  id             String              @id @default(cuid())
+  name           String
+  categoryId       String
+  sku            String?
+  unitId           String
+  description    String
+  sellingPrice   Int?
+  costPrice      Int?
+  rate           Int?
+  taxable        Boolean             @default(false)
+  currentStock   Int?
+  lowStock       Int?
+  type           StoreItemsType      @default(product)
+  trackInventory Boolean             @default(false)
+  sellOnline     Boolean             @default(false)
+
+  entityId       String
+  groupId        String             // denormalized — extraction handle
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @default(now()) @updatedAt
+  entity         Entity              @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  unit         ProductUnit              @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  category         ProductCategory              @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  collections        CollectionStoreItem[]
+  inventoryMovements InventoryMovement[]
+
+  @@index([entityId, type])
+  @@index([groupId])
+}
+
+model InventoryMovement {
+  id            String     @id @default(cuid())
+  itemId        String
+  type          String     // add | remove | set
+  quantity      Int
+  previousStock Int
+  newStock      Int
+  reason        String
+  notes         String?
+  entityId      String
+  groupId       String
+  createdAt     DateTime   @default(now())
+  item          StoreItems @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  entity        Entity     @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@index([entityId])
+  @@index([groupId])
+}
+
+model Items {
+  id              String        @id @default(cuid())
+  name            String
+  category        String
+  code            String        @unique
+  description     String
+  unitPrice       Int?
+  isTaxable       Boolean       @default(false)
+  isActive        Boolean       @default(true)
+  type            ItemsType     @default(goods)
+  entityId        String
+  groupId         String       // denormalized — extraction handle
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @default(now()) @updatedAt
+  entity          Entity        @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  invoiceItem     InvoiceItem[]
+  receiptItems    ReceiptItem[]
+  incomeAccountId String
+  incomeAccount   Account       @relation(fields: [incomeAccountId], references: [id], onDelete: Restrict)
+
+  @@index([entityId, type])
+  @@index([groupId])
+}
+
+model Collection {
+  id          String              @id @default(cuid())
+  name        String
+  slug        String
+  image       Json?
+  description String
+  visibility  Boolean             @default(false)
+  featured    Boolean             @default(false)
+  entityId    String
+  groupId     String             // denormalized — extraction handle
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @default(now()) @updatedAt
+  entity      Entity              @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  items       CollectionStoreItem[]
+
+  @@unique([slug, entityId])
+  @@index([entityId])
+  @@index([groupId])
+}
+
+model CollectionStoreItem {
+  id           String     @id @default(cuid())
+  collectionId String
+  storeItemId  String
+  sortOrder    Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @default(now()) @updatedAt
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  storeItems   StoreItems @relation(fields: [storeItemId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, storeItemId])
+  @@index([collectionId])
+  @@index([storeItemId])
+}
+
+model Asset {
+  id                 String      @id @default(cuid())
+  serialNumber       String      @unique
+  name               String
+  type               String
+  departmentId         String?
+  department         Department?  @relation(fields: [departmentId], references: [id])
+  assignedId         String
+  assigned           Employee    @relation(fields: [assignedId], references: [id])
+  description        String
+  purchaseDate       DateTime
+  purchaseCost       Int
+  currentValue       Int
+  expiryDate         DateTime
+  trackDepreciation  Boolean     @default(false)
+  depreciationMethod String
+  years              Int
+  salvageValue       Int
+  activeAsset        Boolean     @default(false)
+  status             AssetStatus @default(in_use)
+  entityId           String
+  groupId            String     // denormalized — extraction handle
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @default(now()) @updatedAt
+  entity             Entity      @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@index([id, entityId])
+  @@index([groupId])
+}
+
+model AccountType {
+  id          String            @id @default(cuid())
+  code        String            @unique
+  name        String
+  description String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @default(now()) @updatedAt
+  categories  AccountCategory[]
+}
+
+model AccountCategory {
+  id            String               @id @default(cuid())
+  code          String
+  name          String
+  description   String?
+  groupId       String
+  typeId        String
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @default(now()) @updatedAt
+  group         Group                @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  type          AccountType          @relation(fields: [typeId], references: [id])
+  subCategories AccountSubCategory[]
+
+  @@unique([code, groupId])
+  @@index([groupId, typeId])
+}
+
+model AccountSubCategory {
+  id          String          @id @default(cuid())
+  code        String
+  name        String
+  description String?
+  categoryId  String
+  groupId     String         // denormalized — extraction handle
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @default(now()) @updatedAt
+  category    AccountCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  accounts    Account[]
+
+  @@unique([code, categoryId])
+  @@index([categoryId])
+  @@index([groupId])
+}
+
+model Account {
+  id                  String               @id @default(cuid())
+  name                String
+  code                String
+  description         String
+  entityId            String
+  groupId             String              // denormalized — extraction handle
+  subCategoryId       String
+  balance             Int                  @default(0)
+  linkedType          String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @default(now()) @updatedAt
+  entity              Entity               @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  subCategory         AccountSubCategory   @relation(fields: [subCategoryId], references: [id])
+  budget              Budget[]
+  paymentReceived     PaymentReceived[]
+  paymentMade         PaymentMade[]
+  bankAccount         BankAccount?         @relation("LinkedBankAccount")
+  expenseAccount      Expenses[]           @relation("ExpenseAccount")
+  paymentAccount      Expenses[]           @relation("PaymentAccount")
+  bills               Bills[]
+  openingBalanceItems OpeningBalanceItem[]
+  accountTransactions AccountTransaction[] @relation("AccountTransactions")
+  receipts            Receipt[]
+  items               Items[]
+  statutoryDeductions StatutoryDeduction[]
+
+  @@unique([entityId, code])
+  @@index([id, entityId])
+  @@index([subCategoryId])
+  @@index([groupId])
+}
+
+model Project {
+  id              String        @id @default(cuid())
+  name            String
+  projectNumber   String
+  customerId      String
+  entityId        String
+  groupId         String       // denormalized — extraction handle
+  status          ProjectStatus @default(In_Progress)
+  description     String
+  startDate       DateTime
+  endDate         DateTime
+  billingType     String
+  currency        String
+  budgetedRevenue Int
+  budgetedCost    Int
+  managerId       String
+  projectCode     String?
+  employee        Employee      @relation(fields: [managerId], references: [id])
+  customer        Customer      @relation(fields: [customerId], references: [id])
+  entity          Entity        @relation(fields: [entityId], references: [id])
+  milestones           Milestone[]
+  teamMember           TeamMember[]
+  invoices             Invoice[]
+  expenses             Expenses[]
+  bills                Bills[]
+  supplyIssueHistory   SupplyIssueHistory[]
+  paymentsReceived     PaymentReceived[]
+
+  createdAt            DateTime      @default(now())
+
+  @@index([entityId, id])
+  @@index([groupId])
+}
+
+model Milestone {
+  id          String          @id @default(cuid())
+  projectId   String
+  entityId    String
+  groupId     String         // denormalized — extraction handle
+  name        String
+  description String
+  budget       Float
+  actualAmount Float           @default(0)
+  dueDate      DateTime
+  status       MilestoneStatus @default(Upcoming)
+  project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  entity      Entity          @relation(fields: [entityId], references: [id])
+  invoices    Invoice[]
+  expenses    Expenses[]
+  bills       Bills[]
+  paymentsReceived PaymentReceived[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @default(now()) @updatedAt
+
+  @@index([entityId, projectId])
+  @@index([groupId])
+}
+
+model TeamMember {
+  id             String   @id @default(cuid())
+  name           String
+  email          String
+  role           String
+  projectId      String
+  project        Project  @relation(fields: [projectId], references: [id])
+  entityId       String
+  groupId        String  // denormalized — extraction handle
+  entity         Entity   @relation(fields: [entityId], references: [id])
+  monthlyRate    Int
+  estimatedMonths Int
+  createdAt      DateTime @default(now())
+
+  @@index([groupId])
+}
+
+enum MilestoneStatus {
+  Upcoming
+  In_Progress
+  Completed
+  On_Hold
+}
+
+model Journal {
+  id          String        @id @default(cuid())
+  description String
+  date        DateTime
+  lines       Json
+  reference   String
+  entityId    String
+  groupId     String       // denormalized — extraction handle
+  status      JournalStatus @default(Active)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @default(now()) @updatedAt
+  entity      Entity        @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@index([id, entityId])
+  @@index([groupId])
+}
+
+model Budget {
+  id         String   @id @default(cuid())
+  name       String
+  amount     Int
+  periodType String
+  month      String
+  fiscalYear String
+  note       String?
+  accountId  String
+  entityId   String
+  groupId    String  // denormalized — extraction handle
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+  account    Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  entity     Entity   @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@index([entityId])
+  @@index([groupId])
+}
+
+model Employee {
+  id                 String               @id @default(cuid())
+  firstName          String
+  lastName           String
+  email              String               @unique
+  phoneNumber        String
+  dateOfBirth        DateTime
+  employeeId         String               @unique
+  departmentId       String?
+  position           String
+  profileImage       Json?
+  employmentType     String
+  dateOfHire         DateTime
+  reportingManager   String
+  anualLeave         Int
+  salary             Int
+  allowances         Int
+  perFrequency       String
+  currency           String
+  bankName           String
+  acountType         String
+  accountNumber      String
+  routingNumber      String
+  addressInfo        Json?
+  emergencyContact   Json?
+  note               String?
+  asdraft            Boolean              @default(false)
+  entityId           String
+  groupId            String              // denormalized — extraction handle
+  createdAt          DateTime             @default(now())
+  status             EmployeeStatus       @default(Active)
+  updatedAt          DateTime             @default(now()) @updatedAt
+  attendance         Attendance[]
+  entity             Entity               @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  dept               Department?          @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  leave              Leave[]
+  asset              Asset[]
+  supplyIssueHistory SupplyIssueHistory[]
+  projects           Project[]
+  payrollRecords     PayrollRecord[]
+
+  @@index([employeeId, email, entityId])
+  @@index([groupId])
+}
+
+model Department {
+  id          String           @id @default(cuid())
+  name        String
+  description String?
+  status      DepartmentStatus @default(active)
+  entityId    String
+  groupId     String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @default(now()) @updatedAt
+  entity      Entity           @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  employees   Employee[]
+  assets      Asset[]
+  supplyIssueHistory SupplyIssueHistory[]
+
+  @@index([groupId])
+  @@index([entityId])
+}
+
+model ProductCategory {
+  id          String         @id @default(cuid())
+  name        String
+  color       String?
+  description String?
+  status      DeductionStatus @default(active)
+  entityId    String
+  groupId     String
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @default(now()) @updatedAt
+  entity      Entity          @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  storeitems  StoreItems[]
+  
+  @@index([groupId])
+  @@index([entityId])
+}
+
+model ProductUnit {
+  id           String         @id @default(cuid())
+  name         String
+  abbreviation String
+  type         String
+  status       DeductionStatus @default(active)
+  entityId     String
+  groupId      String
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @default(now()) @updatedAt
+  entity       Entity          @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  storeItems   StoreItems[]
+
+  @@index([groupId])
+  @@index([entityId])
+}
+
+model ProductBrand {
+  id          String         @id @default(cuid())
+  name        String
+  description String?
+  status      DeductionStatus @default(active)
+  entityId    String
+  groupId     String
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @default(now()) @updatedAt
+  entity      Entity          @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@index([groupId])
+  @@index([entityId])
+}
+
+model StatutoryDeduction {
+  id          String                  @id @default(cuid())
+  name        String
+  type        StatutoryDeductionType
+  rate        Float?
+  fixedAmount Float?
+  minAmount   Float?
+  description String?
+  accountId   String?
+  status      DeductionStatus         @default(active)
+  entityId    String
+  groupId     String
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @default(now()) @updatedAt
+  account     Account?                @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  entity      Entity                  @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  tiers       TaxTier[]
+
+  @@index([groupId])
+  @@index([entityId])
+}
+
+model TaxTier {
+  id                   String             @id @default(cuid())
+  statutoryDeductionId String
+  from                 Float
+  to                   Float?
+  rate                 Float
+  statutoryDeduction   StatutoryDeduction @relation(fields: [statutoryDeductionId], references: [id], onDelete: Cascade)
+
+  @@index([statutoryDeductionId])
+}
+
+model OtherDeduction {
+  id          String             @id @default(cuid())
+  name        String
+  type        OtherDeductionType
+  rate        Float
+  description String?
+  status      DeductionStatus    @default(active)
+  entityId    String
+  groupId     String
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @default(now()) @updatedAt
+  entity      Entity             @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@index([groupId])
+  @@index([entityId])
+}
+
+model PayrollBatch {
+  id             String         @id @default(cuid())
+  batchName      String
+  period         String
+  paymentDate    DateTime
+  paymentMethod  String
+  status         PayrollStatus  @default(Draft)
+  totalAmount    Float          @default(0)
+  totalEmployees Int            @default(0)
+  notes          String?
+  entityId       String
+  groupId        String
+  createdById    String?
+  approvedById   String?
+  approvedAt     DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @default(now()) @updatedAt
+  records        PayrollRecord[]
+  entity         Entity         @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  createdBy      User?          @relation("PayrollCreatedBy",  fields: [createdById],  references: [id], onDelete: SetNull)
+  approvedBy     User?          @relation("PayrollApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@index([entityId])
+  @@index([groupId])
+  @@index([status])
+}
+
+model PayrollRecord {
+  id            String        @id @default(cuid())
+  batchId       String
+  employeeId    String
+  basicSalary   Float
+  allowances    Float         @default(0)
+  bonus         Float         @default(0)
+  overtime      Float         @default(0)
+  statutoryDed  Float         @default(0)
+  otherDed      Float         @default(0)
+  grossPay      Float
+  netPay        Float
+  entityId      String
+  groupId       String
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @default(now()) @updatedAt
+  batch         PayrollBatch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  employee      Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  entity        Entity        @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@index([batchId])
+  @@index([employeeId])
+  @@index([entityId])
+  @@index([groupId])
+}
+
+model Settings {
+  id                  String    @id @default(cuid())
+  baseCurrency        String?
+  multiCurrency       Boolean   @default(false)
+  taxCalculation      Boolean   @default(false)
+  dateFormat          DateTime?
+  numberFormat        String?
+  invoicePrefix       String?
+  paymentTerm         String?
+  lateFees            Boolean   @default(false)
+  paymentReminders    Boolean   @default(false)
+  taxRate             Int?
+  billPrefix          String?
+  purchaseOrderPrefix String?
+  approvalRequired    Boolean   @default(false)
+  approvedThreshold   Int?
+  match               Boolean   @default(false)
+  entityId            String
+  groupId             String   // denormalized — extraction handle
+  entity              Entity    @relation(fields: [entityId], references: [id])
+
+  @@index([entityId])
+  @@index([groupId])
+}
+
+model AttendanceLog {
+  id          String       @id @default(cuid())
+  date        DateTime
+  entityId    String
+  groupId     String      // denormalized — extraction handle
+  status      String       @default("Draft")
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  attendances Attendance[]
+  entity      Entity       @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@unique([date, entityId])
+  @@index([date, entityId])
+  @@index([groupId])
+}
+
+model Attendance {
+  id              String        @id @default(cuid())
+  employeeId      String
+  status          String
+  checkInTime     DateTime?
+  checkOutTime    DateTime?
+  notes           String?
+  asdraft         Boolean       @default(false)
+  entityId        String
+  groupId         String       // denormalized — extraction handle
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  attendanceLogId String
+  attendanceLog   AttendanceLog @relation(fields: [attendanceLogId], references: [id], onDelete: Cascade)
+  employee        Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, entityId])
+  @@index([attendanceLogId])
+  @@index([groupId])
+}
+
+model Leave {
+  id               String      @id @default(cuid())
+  employeeId       String
+  leaveType        String
+  days             Int
+  startDate        DateTime
+  endDate          DateTime
+  reason           String
+  entityId         String
+  groupId          String     // denormalized — extraction handle
+  status           LeaveStatus @default(Pending)
+  contact          String
+  emergencyContact String
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @default(now()) @updatedAt
+  employee         Employee    @relation(fields: [employeeId], references: [id])
+  entity           Entity      @relation(fields: [entityId], references: [id])
+
+  @@index([employeeId, status])
+  @@index([groupId])
+}
+
+model Module {
+  id                  String               @id @default(cuid())
+  moduleKey           String
+  displayName         String
+  description         String?
+  menu                String
+  isOptional          Boolean              @default(false)
+  moduleSortOrder     Int                  @default(0)
+  menuSortOrder       Int                  @default(0)
+  scope               ModuleScope          @default(ENTITY)
+  actions             Action[]
+  subscriptionModules SubscriptionModule[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  @@unique([moduleKey, scope])
+}
+
+model Action {
+  id          String           @id @default(cuid())
+  actionName  PermissionAction
+  module      Module           @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  moduleId    String
+  permissions Permission[]
+  createdAt   DateTime         @default(now())
+
+  @@unique([moduleId, actionName])
+}
+
+model Permission {
+  id                      String               @id @default(cuid())
+  action                  Action               @relation(fields: [actionId], references: [id], onDelete: Cascade)
+  actionId                String
+  rolePermissions         RolePermission[]
+  userExplicitPermissions ExplicitPermission[]
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+}
+
+model Role {
+  id              String           @id @default(cuid())
+  name            String
+  description     String?
+  group           Group?           @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId         String?
+  isSystemRole    Boolean          @default(false)
+  scope           RoleScope
+  rolePermissions RolePermission[]
+  users           User[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@unique([groupId, name, scope])
+}
+
+model RolePermission {
+  id           String     @id @default(cuid())
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  roleId       String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  permissionId String
+  createdAt    DateTime   @default(now())
+
+  @@unique([roleId, permissionId])
+}
+
+model ExplicitPermission {
+  id           String     @id @default(cuid())
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  permissionId String
+  entity       Entity     @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  entityId     String
+  groupId      String    // denormalized — extraction handle
+  allowed      Boolean
+  createdAt    DateTime   @default(now())
+
+  @@unique([userId, permissionId, entityId])
+  @@index([groupId])
+}
+
+model SubscriptionModule {
+  id                 String           @id @default(cuid())
+  subscriptionTier   SubscriptionTier @relation(fields: [subscriptionTierId], references: [id], onDelete: Cascade)
+  subscriptionTierId String
+  module             Module           @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  moduleId           String
+  createdAt          DateTime         @default(now())
+
+  @@unique([subscriptionTierId, moduleId])
+}
+
+model Subscription {
+  id      String @id @default(cuid())
+  group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId String @unique
+
+  tier               SubscriptionTier @relation(fields: [subscriptionTierId], references: [id])
+  subscriptionTierId String
+
+  tierName             String
+  maxUsers             Int
+  maxEntities          Int
+  maxTransactionsMonth Int?
+  maxStorageGB         Int?
+  maxApiRatePerHour    Int?
+
+  startDate        DateTime  @default(now())
+  billingStartDate DateTime  @default(now())
+  billingEndDate   DateTime?
+  renewalDate      DateTime?
+
+  isActive Boolean @default(true)
+
+  usedUsers             Int    @default(0)
+  usedEntities          Int    @default(0)
+  usedTransactionsMonth Int?   @default(0)
+  usedStorageGB         Float? @default(0)
+
+  history SubscriptionHistory[]
+  endDate DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([groupId, isActive])
+}
+
+model SubscriptionTier {
+  id           String  @id @default(cuid())
+  name         String  @unique
+  description  String?
+  monthlyPrice Int?
+  yearlyPrice  Int?
+
+  maxUsers             Int?
+  maxEntities          Int?
+  maxTransactionsMonth Int?
+  maxStorageGB         Int?
+  maxApiRatePerHour    Int?
+
+  apiAccess       Boolean?
+  webhooks        Boolean?
+  sso             Boolean?
+  customBranding  Boolean?
+  prioritySupport Boolean?
+
+  subscriptions       Subscription[]
+  subscriptionModules SubscriptionModule[]
+
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  subscriptionHistories SubscriptionHistory[]
+
+  previousTiers SubscriptionHistory[] @relation("PreviousTier")
+  newTiers      SubscriptionHistory[] @relation("NewTier")
+}
+
+model SubscriptionHistory {
+  id      String @id @default(cuid())
+  group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId String
+
+  previousTier     SubscriptionTier? @relation("PreviousTier", fields: [previousTierId], references: [id], onDelete: SetNull)
+  previousTierId   String?
+  previousTierName String?
+
+  newTier     SubscriptionTier @relation("NewTier", fields: [newTierId], references: [id], onDelete: Restrict)
+  newTierId   String
+  newTierName String
+
+  changeReason    String
+  changedBy       User?   @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
+  changedByUserId String?
+
+  effectiveDate      DateTime
+  createdAt          DateTime          @default(now())
+  subscriptionTier   SubscriptionTier? @relation(fields: [subscriptionTierId], references: [id])
+  subscriptionTierId String?
+  subscription       Subscription?     @relation(fields: [subscriptionId], references: [id])
+  subscriptionId     String?
+
+  @@index([groupId, createdAt])
+}
+
+model SubscriptionSettings {
+  id String @id @default(cuid())
+
+  trialPeriodEnabled Boolean @default(true)
+  trialDurationDays  Int     @default(14)
+
+  autoRenewalEnabled Boolean @default(true)
+  proratePayments    Boolean @default(true)
+
+  paymentReminders Boolean @default(true)
+  gracePeriodDays  Int     @default(7)
+
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@unique([id])
+}
+
+model AuditLog {
+  id                   String   @id @default(cuid())
+  user                 User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId               String?
+  group                Group?   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId              String?
+  entity               Entity?  @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  entityId             String?
+  module               String
+  method               String
+  action               String
+  resourceType         String
+  resourceId           String
+  changes              Json
+  ipAddress            String?
+  userAgent            String?
+  impersonatedGroupId  String?
+  impersonatedEntityId String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([groupId, createdAt])
+  @@index([groupId, entityId, createdAt])
+  @@index([userId, createdAt])
+  @@index([module, action, createdAt])
+}
+
+model SupplyIssueHistory {
+  id          String      @id @default(cuid())
+  supplyId    String
+  quantity    Int
+  issuedTo    String
+  type        String
+  purpose     String
+  issuedById  String
+  updatedById String?
+  notes       String?
+  issueDate   DateTime
+  entityId    String
+  groupId     String     // denormalized — extraction handle
+  projectId   String?
+  departmentId String?
+  employeeId  String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @default(now()) @updatedAt
+  supply      StoreSupply @relation(fields: [supplyId], references: [id], onDelete: Cascade)
+  entity      Entity      @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  project     Project?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  employee    Employee?   @relation(fields: [employeeId], references: [id])
+  department    Department?   @relation(fields: [departmentId], references: [id])
+  issuedBy    User        @relation("IssuedBy", fields: [issuedById], references: [id])
+  updatedBy   User?       @relation("UpdatedBy", fields: [updatedById], references: [id])
+
+  @@index([entityId])
+  @@index([supplyId])
+  @@index([groupId])
+  @@index([projectId])
+}
+
+model SupplyRestockHistory {
+  id          String      @id @default(cuid())
+  supplyId    String
+  quantity    Int
+  unitPrice   Float
+  totalCost   Float
+  supplier    String
+  restockedById String
+  notes       String?
+  restockDate DateTime
+  entityId    String
+  groupId     String     // denormalized — extraction handle
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @default(now()) @updatedAt
+  supply      StoreSupply @relation(fields: [supplyId], references: [id], onDelete: Cascade)
+  entity      Entity      @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  restockedBy User        @relation(fields: [restockedById], references: [id])
+
+  @@index([entityId])
+  @@index([supplyId])
+  @@index([groupId])
+}
+
+model StoreSupply {
+  id                   String               @id @default(cuid())
+  name                 String
+  category             String
+  sku                  String?
+  description          String?
+  unitPrice            Float
+  quantity             Int
+  minQuantity          Int
+  location             String?
+  supplier             String?
+  entityId             String
+  groupId              String              // denormalized — extraction handle
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @default(now()) @updatedAt
+  entity               Entity               @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  supplyIssueHistory   SupplyIssueHistory[]
+  supplyRestockHistory SupplyRestockHistory[]
+
+  @@index([entityId])
+  @@index([groupId])
+}
+
+model BankAccount {
+  id              String            @id @default(cuid())
+  accountName     String
+  bankName        String
+  accountType     String
+  currency        String
+  accountNumber   String
+  routingNumber   String?
+  status          BankAccountStatus @default(active)
+  linkedAccountId String            @unique
+  entityId        String
+  groupId         String           // denormalized — extraction handle
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @default(now()) @updatedAt
+  entity          Entity            @relation("BankAccounts", fields: [entityId], references: [id], onDelete: Cascade)
+  linkedAccount   Account           @relation("LinkedBankAccount", fields: [linkedAccountId], references: [id])
+  reconciliations BankReconciliation[]
+
+  @@unique([entityId, accountNumber])
+  @@index([entityId, linkedAccountId])
+  @@index([accountNumber])
+  @@index([groupId])
+}
+
+model AccountTransaction {
+  id                String                   @id @default(cuid())
+  date              DateTime
+  description       String
+  reference         String?
+  type              AccountTransactionType
+  status            TransactionPostingStatus @default(Pending)
+  accountId         String
+  debitAmount       Int                      @default(0)
+  creditAmount      Int                      @default(0)
+  runningBalance    Int?
+  payee             String?
+  method            String?
+  entityId          String
+  groupId           String                  // denormalized — extraction handle
+  relatedEntityId   String?
+  relatedEntityType String?
+  metadata                    Json?
+  clearedInReconciliationId   String?
+  createdAt                   DateTime                 @default(now())
+  updatedAt                   DateTime                 @default(now()) @updatedAt
+  account                     Account                  @relation("AccountTransactions", fields: [accountId], references: [id], onDelete: Restrict)
+  entity                      Entity                   @relation("EntityAccountTransactions", fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@index([entityId, accountId, date])
+  @@index([date, type])
+  @@index([accountId, date])
+  @@index([relatedEntityId, relatedEntityType])
+  @@index([groupId])
+  @@index([clearedInReconciliationId])
+}
+
+model BankReconciliation {
+  id                     String                   @id @default(cuid())
+  bankAccountId          String
+  entityId               String
+  groupId                String
+  statementEndDate       DateTime
+  statementEndingBalance Float
+  status                 BankReconciliationStatus @default(DRAFT)
+  notes                  String?
+  createdBy              String
+  completedBy            String?
+  completedAt            DateTime?
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @default(now()) @updatedAt
+
+  bankAccount            BankAccount              @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  statementTransactions  BankStatementTransaction[]
+  matches                BankReconciliationMatch[]
+
+  @@index([entityId])
+  @@index([bankAccountId])
+  @@index([groupId])
+  @@index([status])
+}
+
+model BankStatementTransaction {
+  id               String             @id @default(cuid())
+  reconciliationId String
+  entityId         String
+  groupId          String
+  date             DateTime
+  description      String
+  reference        String?
+  amount           Float
+  category         String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @default(now()) @updatedAt
+
+  reconciliation   BankReconciliation @relation(fields: [reconciliationId], references: [id], onDelete: Cascade)
+  match            BankReconciliationMatch?
+
+  @@index([reconciliationId])
+  @@index([entityId])
+  @@index([groupId])
+}
+
+model BankReconciliationMatch {
+  id                     String                   @id @default(cuid())
+  reconciliationId       String
+  statementTransactionId String                   @unique
+  bookTransactionId      String
+  entityId               String
+  groupId                String
+  createdAt              DateTime                 @default(now())
+
+  reconciliation         BankReconciliation       @relation(fields: [reconciliationId], references: [id], onDelete: Cascade)
+  statementTransaction   BankStatementTransaction @relation(fields: [statementTransactionId], references: [id], onDelete: Cascade)
+
+  @@index([reconciliationId])
+  @@index([bookTransactionId])
+  @@index([entityId])
+  @@index([groupId])
+}
+
+model OpeningBalance {
+  id          String               @id @default(cuid())
+  entityId    String
+  groupId     String              // denormalized — extraction handle
+  fiscalYear  String?
+  date        DateTime
+  totalCredit Int                  @default(0)
+  totalDebit  Int                  @default(0)
+  difference  Int                  @default(0)
+  status      OpeningBalanceStatus @default(Draft)
+  note        String?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @default(now()) @updatedAt
+  entity      Entity               @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  items       OpeningBalanceItem[]
+
+  @@unique([entityId, fiscalYear])
+  @@index([entityId, date])
+  @@index([groupId])
+}
+
+model OpeningBalanceItem {
+  id               String         @id @default(cuid())
+  openingBalanceId String
+  accountId        String
+  debit            Int            @default(0)
+  credit           Int            @default(0)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @default(now()) @updatedAt
+  openingBalance   OpeningBalance @relation(fields: [openingBalanceId], references: [id], onDelete: Cascade)
+  account          Account        @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@unique([openingBalanceId, accountId])
+  @@index([openingBalanceId])
+  @@index([accountId])
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum RoleScope {
+  ADMIN
+  USER
+}
+
+enum ModuleScope {
+  SUPERADMIN
+  GROUP
+  ENTITY
+}
+
+enum PermissionAction {
+  View
+  Create
+  Edit
+  Delete
+  Approve
+  Export
+  Import
+}
+
+enum ProjectStatus {
+  Completed
+  Planning
+  In_Progress
+  On_Hold
+}
+
+enum BillingCycle {
+  Monthly
+  Annual
+}
+
+enum PaymentMadeStatus {
+  Pending
+  Cleared
+}
+
+enum systemRole {
+  superadmin
+  admin
+  user
+}
+
+enum LeaveStatus {
+  Pending
+  Approved
+  Rejected
+}
+
+enum EmployeeStatus {
+  Active
+  Inactive
+  On_Leave
+}
+
+enum DepartmentStatus {
+  active
+  inactive
+}
+
+enum DeductionStatus {
+  active
+  inactive
+}
+
+enum StatutoryDeductionType {
+  PERCENTAGE
+  FIXED_AMOUNT
+  TIERED
+}
+
+enum OtherDeductionType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+enum AssetStatus {
+  in_use
+  in_storage
+}
+
+enum paymentRecordStatus {
+  pending
+  cleared
+}
+
+enum StoreItemsType {
+  product
+  service
+}
+
+enum ItemsType {
+  goods
+  service
+}
+
+enum BillStatus {
+  draft
+  unpaid
+  partial
+  paid
+}
+
+enum vendorStatus {
+  Active
+  Inactive
+}
+
+enum ExpenseStatus {
+  draft
+  approved
+  rejected
+}
+
+enum PaymentMethod {
+  Cash
+  Card
+  Bank_Transfer
+  Mobile_Money
+  Check
+  Debit_Card
+  Credit_Card
+  ACH
+  Wire_Transfer
+}
+
+enum ReceiptStatus {
+  Completed
+  Void
+}
+
+enum InvoiceStatus {
+  Overdue
+  Paid
+  Draft
+  Sent
+  Partial
+}
+
+enum InvoiceActivityType {
+  Created
+  Sent
+  Viewed
+  PaymentReceived
+  Overdue
+  Cancelled
+  Updated
+}
+
+enum BankAccountStatus {
+  active
+  inactive
+  closed
+}
+
+enum BankReconciliationStatus {
+  DRAFT
+  COMPLETED
+}
+
+enum AccountTransactionType {
+  BANK
+  INVOICE_POSTING
+  PAYMENT_RECEIVED_POSTING
+  RECEIPT_POSTING
+  OPENING_BALANCE
+  MANUAL_ENTRY
+  JOURNAL_ENTRY
+  EXPENSE_POSTING
+  BILL_POSTING
+  PAYMENT_MADE_POSTING
+}
+
+enum TransactionPostingStatus {
+  Pending
+  Processing
+  Success
+  Failed
+}
+
+enum JournalPostingStatus {
+  Pending
+  Processing
+  Success
+  Failed
+}
+
+enum OpeningBalanceStatus {
+  Draft
+  Finalized
+}
+
+enum JournalStatus {
+  Draft
+  Active
+}
+
+enum PayrollStatus {
+  Draft
+  Pending
+  Approved
+  Rejected
+}

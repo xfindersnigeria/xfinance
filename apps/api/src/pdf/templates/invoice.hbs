@@ -1,0 +1,95 @@
+<div class="invoice-container">
+  <div class="header">
+    <div class="logo-section">
+      {{#if entity.logo.base64}}
+        <img src="{{entity.logo.base64}}" alt="Company Logo" class="company-logo" />
+      {{/if}}
+      <div class="company-details">
+        <h2>{{entity.name}}</h2>
+        <p>{{entity.address}}</p>
+        <p>{{entity.city}}</p>
+        <p>{{entity.country}}</p>
+        <p>{{entity.email}}</p>
+        <p>{{entity.phone}}</p>
+      </div>
+    </div>
+    <div class="invoice-info">
+      <h1>INVOICE</h1>
+      <p><strong>Invoice Number:</strong> {{invoice.invoiceNumber}}</p>
+      <p><strong>Due Date:</strong> {{formatDate invoice.dueDate}}</p>
+      <p><strong>Issue Date:</strong> {{formatDate invoice.invoiceDate}}</p>
+      <p><strong>PO Number:</strong> {{invoice.poNumber}}</p>
+    </div>
+  </div>
+
+  <hr />
+
+  <div class="bill-section">
+    <div class="bill-to">
+      <strong>Bill To:</strong>
+      <p>{{customer.name}}</p>
+      <p>{{customer.address}}</p>
+      <p>{{customer.city}}</p>
+      <p>{{customer.country}}</p>
+      <p>{{customer.email}}</p>
+      <p>{{customer.phoneNumber}}</p>
+    </div>
+    <div class="payment-terms">
+      <strong>Payment Terms:</strong>
+      <p>{{invoice.paymentTerms}}</p>
+      <p>Tax ID: {{customer.taxId}}</p>
+    </div>
+  </div>
+
+  <table class="items-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Name</th>
+        <th>Qty</th>
+        <th>Rate</th>
+        <th>Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each invoice.invoiceItem}}
+        <tr>
+          <td>{{@index}}</td>
+          <td>{{item.name}}</td>
+          <td>{{quantity}}</td>
+          <td>₦{{rate}}</td>
+          <td>₦{{total}}</td>
+        </tr>
+      {{/each}}
+    </tbody>
+  </table>
+
+  <div class="summary-section">
+    <div class="totals">
+      <p>Subtotal: ₦{{invoice.subtotal}}</p>
+      <p>Tax ({{invoice.taxPercent}}%): ₦{{invoice.tax}}</p>
+      <p><strong>Total:</strong> ₦{{invoice.total}}</p>
+      <p class="balance-due">Balance Due ₦{{invoice.total}}</p>
+    </div>
+  </div>
+
+  <div class="notes-bank-section">
+    <div class="notes">
+      <strong>Notes:</strong>
+      <p>{{invoice.notes}}</p>
+    </div>
+    <div class="bank-details">
+      <strong>Bank Details:</strong>
+      <p>Bank Name: {{bankAccount.bankName}}</p>
+      <p>Account Name: {{bankAccount.accountName}}</p>
+      <p>Account Number: {{bankAccount.accountNumber}}</p>
+      <p>Routing Number: {{bankAccount.routingNumber}}</p>
+      <p>SWIFT Code: {{bankAccount.swiftCode}}</p>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p>Thank you for your business! For questions about this invoice, please contact {{entity.email}}</p>
+    <p>{{entity.name}} • {{entity.address}}, {{entity.city}}</p>
+  </div>
+</div>

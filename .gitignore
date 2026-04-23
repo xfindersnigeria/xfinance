@@ -1,0 +1,28 @@
+# ── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ── IDE ──────────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ── Accidental root-level artifacts ──────────────────────────────────────────
+node_modules/
+*.log
+*.pem
+
+# ── Deploy env files (filled in per-deployment, never committed) ─────────────
+deploy/saas/.env
+deploy/saas/.env.local
+deploy/standalone/.env
+deploy/standalone/.env.local
+
+
+
+note.txt

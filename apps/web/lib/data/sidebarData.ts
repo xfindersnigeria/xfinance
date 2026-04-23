@@ -1,0 +1,208 @@
+import {
+  LayoutDashboard,
+  Building,
+  CreditCard,
+  BarChart3,
+  BookCheck,
+  FileText,
+  Users,
+  UserCog,
+  ShoppingCart,
+  Briefcase,
+  Package,
+  Store,
+  Landmark,
+  Settings,
+  FilePieChart,
+  Home,
+  Zap,
+  BookCopy,
+  AreaChart,
+  BookUser,
+} from "lucide-react";
+import { PERMISSIONS } from "../utils/permissions";
+
+export const superAdminMenu = [
+  {
+    title: "Dashboard",
+    icon: LayoutDashboard,
+    url: "/dashboard",
+    isActive: true,
+  },
+  {
+    title: "Companies",
+    icon: Building,
+    url: "/companies",
+    isActive: true,
+  },
+  {
+    title: "Subscription",
+    icon: CreditCard,
+    url: "/subscription",
+    isActive: true,
+  },
+];
+
+export const adminMenu = [
+  {
+    title: "Overview",
+    icon: BarChart3,
+    url: "/dashboard",
+    isActive: true,
+  },
+  {
+    title: "Consolidation",
+    icon: BookCheck,
+    url: "/consolidation",
+    isActive: true,
+  },
+  {
+    title: "Group Reports",
+    icon: FileText,
+    url: "/group-reports",
+    isActive: true,
+  },
+  {
+    title: "Budgeting & Forecasts",
+    icon: FilePieChart,
+    url: "/budgeting",
+    isActive: true,
+  },
+  {
+    title: "Master Chart of Accounts",
+    icon: BookUser,
+    url: "/master-chart-of-accounts",
+    isActive: true,
+  },
+  {
+    title: "Admin",
+    icon: UserCog,
+    url: "/admin",
+    isActive: true,
+  },
+];
+
+export const userMenu = [
+  {
+    title: "Dashboard",
+    icon: Home,
+    url: "/dashboard",
+    requiredPermission: PERMISSIONS.DASHBOARD_VIEW,
+    isActive: true,
+  },
+  {
+    title: "Sales",
+    icon: ShoppingCart,
+    url: "/sales",
+    requiredPermissions: [
+      PERMISSIONS.SALES_CUSTOMERS_VIEW,
+      PERMISSIONS.SALES_INVOICES_VIEW,
+      PERMISSIONS.SALES_PAYMENT_RECEIVED_VIEW,
+      PERMISSIONS.SALES_CREDIT_NOTES_VIEW,
+    ],
+    isActive: true,
+  },
+  {
+    title: "Purchases",
+    icon: Briefcase,
+    url: "/purchases",
+    requiredPermissions: [
+      PERMISSIONS.PURCHASES_VENDORS_VIEW,
+      PERMISSIONS.PURCHASES_BILLS_VIEW,
+      PERMISSIONS.PURCHASES_PAYMENT_MADE_VIEW,
+      PERMISSIONS.PURCHASES_EXPENSES_VIEW,
+      PERMISSIONS.PURCHASES_DEBIT_NOTES_VIEW,
+    ],
+    isActive: true,
+  },
+  {
+    title: "Products",
+    icon: Package,
+    url: "/products",
+    requiredPermissions: [
+      PERMISSIONS.PRODUCTS_ITEMS_VIEW,
+      PERMISSIONS.PRODUCTS_COLLECTIONS_VIEW,
+      PERMISSIONS.PRODUCTS_INVENTORY_VIEW,
+      PERMISSIONS.PRODUCTS_ORDERS_VIEW,
+    ],
+    isActive: true,
+  },
+  // {
+  //   title: "Quick Sale",
+  //   icon: Zap,
+  //   url: "/quick-sale",
+  //   requiredPermission: PERMISSIONS.QUICK_SALE_VIEW,
+  //   isActive: false,
+  // },
+  // {
+  //   title: "Online Store",
+  //   icon: Store,
+  //   url: "/online-store",
+  //   requiredPermission: PERMISSIONS.ONLINE_STORE_MANAGEMENT_VIEW,
+  //   isActive: false,
+  // },
+  {
+    title: "Assets",
+    icon: Building,
+    url: "/assets",
+    requiredPermission: PERMISSIONS.ASSETS_VIEW,
+    isActive: true,
+  },
+  {
+    title: "Accounts",
+    icon: BookCopy,
+    url: "/accounts",
+    requiredPermissions: [
+      PERMISSIONS.ACCOUNTS_CHART_OF_ACCOUNTS_VIEW,
+      PERMISSIONS.ACCOUNTS_OPENING_BALANCE_VIEW,
+      PERMISSIONS.ACCOUNTS_MANUAL_JOURNAL_VIEW,
+      PERMISSIONS.ACCOUNTS_CURRENCY_ADJUSTMENT_VIEW,
+      PERMISSIONS.ACCOUNTS_BUDGET_VIEW,
+    ],
+    isActive: true,
+  },
+  {
+    title: "Banking",
+    icon: Landmark,
+    url: "/banking",
+    requiredPermission: PERMISSIONS.BANKING_VIEW,
+    isActive: true,
+  },
+  {
+    title: "HR & Payroll",
+    icon: Users,
+    url: "/hr",
+    requiredPermissions: [
+      PERMISSIONS.HR_PAYROLL_VIEW,
+      PERMISSIONS.HR_EMPLOYEES_VIEW,
+      PERMISSIONS.HR_ATTENDANCE_VIEW,
+      PERMISSIONS.HR_MANAGE_LEAVE_VIEW,
+    ],
+    isActive: true,
+  },
+
+  {
+    title: "Reports",
+    icon: AreaChart,
+    url: "/reports",
+    requiredPermission: PERMISSIONS.REPORTS_VIEW,
+    isActive: true,
+  },
+  {
+    title: "Settings",
+    icon: Settings,
+    url: "/settings",
+    requiredPermissions: [
+      PERMISSIONS.SETTINGS_ORGANIZATION_VIEW,
+      PERMISSIONS.SETTINGS_USERS_AND_ROLES_VIEW,
+      PERMISSIONS.SETTINGS_SETUP_AND_CONFIGURATION_VIEW,
+      PERMISSIONS.SETTINGS_SALES_SETTINGS_VIEW,
+      PERMISSIONS.SETTINGS_PURCHASE_SETTINGS_VIEW,
+      PERMISSIONS.SETTINGS_PRODUCT_VIEW,
+      PERMISSIONS.SETTINGS_TAX_VIEW,
+      PERMISSIONS.SETTINGS_GENERAL_SETTINGS_VIEW,
+      PERMISSIONS.SETTINGS_EMAIL_SETTINGS_VIEW,
+    ],
+    isActive: true,
+  },
+];
