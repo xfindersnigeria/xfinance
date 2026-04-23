@@ -36,24 +36,24 @@ jobs:
           context: ./apps/api
           push: true
           tags: |
-            ghcr.io/netojaycee/xfinance-api:${{ github.sha }}
-            ghcr.io/netojaycee/xfinance-api:latest
+            ghcr.io/xfindersnigeria/xfinance-api:${{ github.sha }}
+            ghcr.io/xfindersnigeria/xfinance-api:latest
 
       - name: Push :stable tag (manual trigger only)
         if: github.event_name == 'workflow_dispatch' && inputs.push_stable == true
         run: |
-          docker pull ghcr.io/netojaycee/xfinance-api:${{ github.sha }}
-          docker tag ghcr.io/netojaycee/xfinance-api:${{ github.sha }} \
-            ghcr.io/netojaycee/xfinance-api:stable
-          docker push ghcr.io/netojaycee/xfinance-api:stable
+          docker pull ghcr.io/xfindersnigeria/xfinance-api:${{ github.sha }}
+          docker tag ghcr.io/xfindersnigeria/xfinance-api:${{ github.sha }} \
+            ghcr.io/xfindersnigeria/xfinance-api:stable
+          docker push ghcr.io/xfindersnigeria/xfinance-api:stable
 
       - name: Push specific client tag (manual trigger only)
         if: github.event_name == 'workflow_dispatch' && inputs.client_tag != ''
         run: |
-          docker pull ghcr.io/netojaycee/xfinance-api:${{ github.sha }}
-          docker tag ghcr.io/netojaycee/xfinance-api:${{ github.sha }} \
-            ghcr.io/netojaycee/xfinance-api:${{ inputs.client_tag }}
-          docker push ghcr.io/netojaycee/xfinance-api:${{ inputs.client_tag }}
+          docker pull ghcr.io/xfindersnigeria/xfinance-api:${{ github.sha }}
+          docker tag ghcr.io/xfindersnigeria/xfinance-api:${{ github.sha }} \
+            ghcr.io/xfindersnigeria/xfinance-api:${{ inputs.client_tag }}
+          docker push ghcr.io/xfindersnigeria/xfinance-api:${{ inputs.client_tag }}
 
   build-web:
     runs-on: ubuntu-latest
@@ -76,8 +76,8 @@ jobs:
           context: ./apps/web
           push: true
           tags: |
-            ghcr.io/netojaycee/xfinance-web:${{ github.sha }}
-            ghcr.io/netojaycee/xfinance-web:latest
+            ghcr.io/xfindersnigeria/xfinance-web:${{ github.sha }}
+            ghcr.io/xfindersnigeria/xfinance-web:latest
           build-args: |
             ENABLE_REWRITE=false
             API_URL=http://localhost:3000
@@ -85,18 +85,18 @@ jobs:
       - name: Push :stable tag (manual trigger only)
         if: github.event_name == 'workflow_dispatch' && inputs.push_stable == true
         run: |
-          docker pull ghcr.io/netojaycee/xfinance-web:${{ github.sha }}
-          docker tag ghcr.io/netojaycee/xfinance-web:${{ github.sha }} \
-            ghcr.io/netojaycee/xfinance-web:stable
-          docker push ghcr.io/netojaycee/xfinance-web:stable
+          docker pull ghcr.io/xfindersnigeria/xfinance-web:${{ github.sha }}
+          docker tag ghcr.io/xfindersnigeria/xfinance-web:${{ github.sha }} \
+            ghcr.io/xfindersnigeria/xfinance-web:stable
+          docker push ghcr.io/xfindersnigeria/xfinance-web:stable
 
       - name: Push specific client tag (manual trigger only)
         if: github.event_name == 'workflow_dispatch' && inputs.client_tag != ''
         run: |
-          docker pull ghcr.io/netojaycee/xfinance-web:${{ github.sha }}
-          docker tag ghcr.io/netojaycee/xfinance-web:${{ github.sha }} \
-            ghcr.io/netojaycee/xfinance-web:${{ inputs.client_tag }}
-          docker push ghcr.io/netojaycee/xfinance-web:${{ inputs.client_tag }}
+          docker pull ghcr.io/xfindersnigeria/xfinance-web:${{ github.sha }}
+          docker tag ghcr.io/xfindersnigeria/xfinance-web:${{ github.sha }} \
+            ghcr.io/xfindersnigeria/xfinance-web:${{ inputs.client_tag }}
+          docker push ghcr.io/xfindersnigeria/xfinance-web:${{ inputs.client_tag }}
 
   deploy-saas:
     runs-on: ubuntu-latest
@@ -111,7 +111,7 @@ jobs:
           key: ${{ secrets.SAAS_SERVER_SSH_KEY }}
           script: |
             echo ${{ secrets.GHCR_TOKEN }} | \
-              docker login ghcr.io -u netojaycee --password-stdin
+              docker login ghcr.io -u xfindersnigeria --password-stdin
             cd /app/xfinance
             docker compose -f deploy/saas/docker-compose.yml pull
             docker compose -f deploy/saas/docker-compose.yml up -d
