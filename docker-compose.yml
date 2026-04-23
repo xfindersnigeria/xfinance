@@ -3,6 +3,7 @@ services:
     build: ./apps/api
     ports:
       - "3000:3000"
+      - "5555:5555"
     env_file: ./apps/api/.env
     depends_on:
       postgres:

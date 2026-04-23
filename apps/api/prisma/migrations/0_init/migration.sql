@@ -80,6 +80,9 @@ CREATE TYPE "InvoiceActivityType" AS ENUM ('Created', 'Sent', 'Viewed', 'Payment
 CREATE TYPE "BankAccountStatus" AS ENUM ('active', 'inactive', 'closed');
 
 -- CreateEnum
+CREATE TYPE "BankReconciliationStatus" AS ENUM ('DRAFT', 'COMPLETED');
+
+-- CreateEnum
 CREATE TYPE "AccountTransactionType" AS ENUM ('BANK', 'INVOICE_POSTING', 'PAYMENT_RECEIVED_POSTING', 'RECEIPT_POSTING', 'OPENING_BALANCE', 'MANUAL_ENTRY', 'JOURNAL_ENTRY', 'EXPENSE_POSTING', 'BILL_POSTING', 'PAYMENT_MADE_POSTING');
 
 -- CreateEnum
@@ -93,6 +96,9 @@ CREATE TYPE "OpeningBalanceStatus" AS ENUM ('Draft', 'Finalized');
 
 -- CreateEnum
 CREATE TYPE "JournalStatus" AS ENUM ('Draft', 'Active');
+
+-- CreateEnum
+CREATE TYPE "PayrollStatus" AS ENUM ('Draft', 'Pending', 'Approved', 'Rejected');
 
 -- CreateTable
 CREATE TABLE "Group" (
@@ -120,6 +126,21 @@ CREATE TABLE "Group" (
 );
 
 -- CreateTable
+CREATE TABLE "GroupCustomization" (
+    "id" TEXT NOT NULL,
+    "groupId" TEXT NOT NULL,
+    "primaryColor" TEXT,
+    "logoPublicId" TEXT,
+    "logoUrl" TEXT,
+    "loginBgPublicId" TEXT,
+    "loginBgUrl" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "GroupCustomization_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "Entity" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -140,7 +161,7 @@ CREATE TABLE "Entity" (
     "yearEnd" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "disabledModuleIds" TEXT[],
+    "disabledModuleIds" TEXT[] DEFAULT ARRAY[]::TEXT[],
 
     CONSTRAINT "Entity_pkey" PRIMARY KEY ("id")
 );
@@ -166,7 +187,7 @@ CREATE TABLE "User" (
     "groupId" TEXT,
     "entityId" TEXT,
     "roleId" TEXT,
-    "adminEntities" TEXT[],
+    "adminEntities" TEXT[] DEFAULT ARRAY[]::TEXT[],
 
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
 );
@@ -323,6 +344,8 @@ CREATE TABLE "PaymentReceived" (
     "postingStatus" "JournalPostingStatus" NOT NULL DEFAULT 'Pending',
     "journalReference" TEXT,
     "postedAt" TIMESTAMP(3),
+    "projectId" TEXT,
+    "milestoneId" TEXT,
     "entityId" TEXT NOT NULL,
     "groupId" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -349,7 +372,7 @@ CREATE TABLE "Expenses" (
     "postedAt" TIMESTAMP(3),
     "errorMessage" TEXT,
     "errorCode" TEXT,
-    "tags" TEXT[],
+    "tags" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "attachment" JSONB,
     "projectId" TEXT,
     "milestoneId" TEXT,
@@ -816,6 +839,8 @@ CREATE TABLE "StatutoryDeduction" (
     "name" TEXT NOT NULL,
     "type" "StatutoryDeductionType" NOT NULL,
     "rate" DOUBLE PRECISION,
+    "fixedAmount" DOUBLE PRECISION,
+    "minAmount" DOUBLE PRECISION,
     "description" TEXT,
     "accountId" TEXT,
     "status" "DeductionStatus" NOT NULL DEFAULT 'active',
@@ -825,6 +850,17 @@ CREATE TABLE "StatutoryDeduction" (
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "StatutoryDeduction_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "TaxTier" (
+    "id" TEXT NOT NULL,
+    "statutoryDeductionId" TEXT NOT NULL,
+    "from" DOUBLE PRECISION NOT NULL,
+    "to" DOUBLE PRECISION,
+    "rate" DOUBLE PRECISION NOT NULL,
+
+    CONSTRAINT "TaxTier_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -841,6 +877,49 @@ CREATE TABLE "OtherDeduction" (
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "OtherDeduction_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "PayrollBatch" (
+    "id" TEXT NOT NULL,
+    "batchName" TEXT NOT NULL,
+    "period" TEXT NOT NULL,
+    "paymentDate" TIMESTAMP(3) NOT NULL,
+    "paymentMethod" TEXT NOT NULL,
+    "status" "PayrollStatus" NOT NULL DEFAULT 'Draft',
+    "totalAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "totalEmployees" INTEGER NOT NULL DEFAULT 0,
+    "notes" TEXT,
+    "entityId" TEXT NOT NULL,
+    "groupId" TEXT NOT NULL,
+    "createdById" TEXT,
+    "approvedById" TEXT,
+    "approvedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "PayrollBatch_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "PayrollRecord" (
+    "id" TEXT NOT NULL,
+    "batchId" TEXT NOT NULL,
+    "employeeId" TEXT NOT NULL,
+    "basicSalary" DOUBLE PRECISION NOT NULL,
+    "allowances" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "bonus" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "overtime" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "statutoryDed" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "otherDed" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "grossPay" DOUBLE PRECISION NOT NULL,
+    "netPay" DOUBLE PRECISION NOT NULL,
+    "entityId" TEXT NOT NULL,
+    "groupId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "PayrollRecord_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -873,6 +952,7 @@ CREATE TABLE "AttendanceLog" (
     "date" TIMESTAMP(3) NOT NULL,
     "entityId" TEXT NOT NULL,
     "groupId" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'Draft',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -1206,10 +1286,60 @@ CREATE TABLE "AccountTransaction" (
     "relatedEntityId" TEXT,
     "relatedEntityType" TEXT,
     "metadata" JSONB,
+    "clearedInReconciliationId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "AccountTransaction_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "BankReconciliation" (
+    "id" TEXT NOT NULL,
+    "bankAccountId" TEXT NOT NULL,
+    "entityId" TEXT NOT NULL,
+    "groupId" TEXT NOT NULL,
+    "statementEndDate" TIMESTAMP(3) NOT NULL,
+    "statementEndingBalance" DOUBLE PRECISION NOT NULL,
+    "status" "BankReconciliationStatus" NOT NULL DEFAULT 'DRAFT',
+    "notes" TEXT,
+    "createdBy" TEXT NOT NULL,
+    "completedBy" TEXT,
+    "completedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "BankReconciliation_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "BankStatementTransaction" (
+    "id" TEXT NOT NULL,
+    "reconciliationId" TEXT NOT NULL,
+    "entityId" TEXT NOT NULL,
+    "groupId" TEXT NOT NULL,
+    "date" TIMESTAMP(3) NOT NULL,
+    "description" TEXT NOT NULL,
+    "reference" TEXT,
+    "amount" DOUBLE PRECISION NOT NULL,
+    "category" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "BankStatementTransaction_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "BankReconciliationMatch" (
+    "id" TEXT NOT NULL,
+    "reconciliationId" TEXT NOT NULL,
+    "statementTransactionId" TEXT NOT NULL,
+    "bookTransactionId" TEXT NOT NULL,
+    "entityId" TEXT NOT NULL,
+    "groupId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "BankReconciliationMatch_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -1248,6 +1378,9 @@ CREATE UNIQUE INDEX "Group_name_key" ON "Group"("name");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Group_subdomain_key" ON "Group"("subdomain");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "GroupCustomization_groupId_key" ON "GroupCustomization"("groupId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Entity_name_key" ON "Entity"("name");
@@ -1538,10 +1671,34 @@ CREATE INDEX "StatutoryDeduction_groupId_idx" ON "StatutoryDeduction"("groupId")
 CREATE INDEX "StatutoryDeduction_entityId_idx" ON "StatutoryDeduction"("entityId");
 
 -- CreateIndex
+CREATE INDEX "TaxTier_statutoryDeductionId_idx" ON "TaxTier"("statutoryDeductionId");
+
+-- CreateIndex
 CREATE INDEX "OtherDeduction_groupId_idx" ON "OtherDeduction"("groupId");
 
 -- CreateIndex
 CREATE INDEX "OtherDeduction_entityId_idx" ON "OtherDeduction"("entityId");
+
+-- CreateIndex
+CREATE INDEX "PayrollBatch_entityId_idx" ON "PayrollBatch"("entityId");
+
+-- CreateIndex
+CREATE INDEX "PayrollBatch_groupId_idx" ON "PayrollBatch"("groupId");
+
+-- CreateIndex
+CREATE INDEX "PayrollBatch_status_idx" ON "PayrollBatch"("status");
+
+-- CreateIndex
+CREATE INDEX "PayrollRecord_batchId_idx" ON "PayrollRecord"("batchId");
+
+-- CreateIndex
+CREATE INDEX "PayrollRecord_employeeId_idx" ON "PayrollRecord"("employeeId");
+
+-- CreateIndex
+CREATE INDEX "PayrollRecord_entityId_idx" ON "PayrollRecord"("entityId");
+
+-- CreateIndex
+CREATE INDEX "PayrollRecord_groupId_idx" ON "PayrollRecord"("groupId");
 
 -- CreateIndex
 CREATE INDEX "Settings_entityId_idx" ON "Settings"("entityId");
@@ -1679,6 +1836,45 @@ CREATE INDEX "AccountTransaction_relatedEntityId_relatedEntityType_idx" ON "Acco
 CREATE INDEX "AccountTransaction_groupId_idx" ON "AccountTransaction"("groupId");
 
 -- CreateIndex
+CREATE INDEX "AccountTransaction_clearedInReconciliationId_idx" ON "AccountTransaction"("clearedInReconciliationId");
+
+-- CreateIndex
+CREATE INDEX "BankReconciliation_entityId_idx" ON "BankReconciliation"("entityId");
+
+-- CreateIndex
+CREATE INDEX "BankReconciliation_bankAccountId_idx" ON "BankReconciliation"("bankAccountId");
+
+-- CreateIndex
+CREATE INDEX "BankReconciliation_groupId_idx" ON "BankReconciliation"("groupId");
+
+-- CreateIndex
+CREATE INDEX "BankReconciliation_status_idx" ON "BankReconciliation"("status");
+
+-- CreateIndex
+CREATE INDEX "BankStatementTransaction_reconciliationId_idx" ON "BankStatementTransaction"("reconciliationId");
+
+-- CreateIndex
+CREATE INDEX "BankStatementTransaction_entityId_idx" ON "BankStatementTransaction"("entityId");
+
+-- CreateIndex
+CREATE INDEX "BankStatementTransaction_groupId_idx" ON "BankStatementTransaction"("groupId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "BankReconciliationMatch_statementTransactionId_key" ON "BankReconciliationMatch"("statementTransactionId");
+
+-- CreateIndex
+CREATE INDEX "BankReconciliationMatch_reconciliationId_idx" ON "BankReconciliationMatch"("reconciliationId");
+
+-- CreateIndex
+CREATE INDEX "BankReconciliationMatch_bookTransactionId_idx" ON "BankReconciliationMatch"("bookTransactionId");
+
+-- CreateIndex
+CREATE INDEX "BankReconciliationMatch_entityId_idx" ON "BankReconciliationMatch"("entityId");
+
+-- CreateIndex
+CREATE INDEX "BankReconciliationMatch_groupId_idx" ON "BankReconciliationMatch"("groupId");
+
+-- CreateIndex
 CREATE INDEX "OpeningBalance_entityId_date_idx" ON "OpeningBalance"("entityId", "date");
 
 -- CreateIndex
@@ -1695,6 +1891,9 @@ CREATE INDEX "OpeningBalanceItem_accountId_idx" ON "OpeningBalanceItem"("account
 
 -- CreateIndex
 CREATE UNIQUE INDEX "OpeningBalanceItem_openingBalanceId_accountId_key" ON "OpeningBalanceItem"("openingBalanceId", "accountId");
+
+-- AddForeignKey
+ALTER TABLE "GroupCustomization" ADD CONSTRAINT "GroupCustomization_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "Group"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Entity" ADD CONSTRAINT "Entity_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "Group"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -1749,6 +1948,12 @@ ALTER TABLE "PaymentMade" ADD CONSTRAINT "PaymentMade_accountId_fkey" FOREIGN KE
 
 -- AddForeignKey
 ALTER TABLE "vendor" ADD CONSTRAINT "vendor_entityId_fkey" FOREIGN KEY ("entityId") REFERENCES "Entity"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PaymentReceived" ADD CONSTRAINT "PaymentReceived_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PaymentReceived" ADD CONSTRAINT "PaymentReceived_milestoneId_fkey" FOREIGN KEY ("milestoneId") REFERENCES "Milestone"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "PaymentReceived" ADD CONSTRAINT "PaymentReceived_entityId_fkey" FOREIGN KEY ("entityId") REFERENCES "Entity"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -1919,7 +2124,28 @@ ALTER TABLE "StatutoryDeduction" ADD CONSTRAINT "StatutoryDeduction_accountId_fk
 ALTER TABLE "StatutoryDeduction" ADD CONSTRAINT "StatutoryDeduction_entityId_fkey" FOREIGN KEY ("entityId") REFERENCES "Entity"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "TaxTier" ADD CONSTRAINT "TaxTier_statutoryDeductionId_fkey" FOREIGN KEY ("statutoryDeductionId") REFERENCES "StatutoryDeduction"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "OtherDeduction" ADD CONSTRAINT "OtherDeduction_entityId_fkey" FOREIGN KEY ("entityId") REFERENCES "Entity"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PayrollBatch" ADD CONSTRAINT "PayrollBatch_entityId_fkey" FOREIGN KEY ("entityId") REFERENCES "Entity"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PayrollBatch" ADD CONSTRAINT "PayrollBatch_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PayrollBatch" ADD CONSTRAINT "PayrollBatch_approvedById_fkey" FOREIGN KEY ("approvedById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PayrollRecord" ADD CONSTRAINT "PayrollRecord_batchId_fkey" FOREIGN KEY ("batchId") REFERENCES "PayrollBatch"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PayrollRecord" ADD CONSTRAINT "PayrollRecord_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PayrollRecord" ADD CONSTRAINT "PayrollRecord_entityId_fkey" FOREIGN KEY ("entityId") REFERENCES "Entity"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Settings" ADD CONSTRAINT "Settings_entityId_fkey" FOREIGN KEY ("entityId") REFERENCES "Entity"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -2046,6 +2272,18 @@ ALTER TABLE "AccountTransaction" ADD CONSTRAINT "AccountTransaction_accountId_fk
 
 -- AddForeignKey
 ALTER TABLE "AccountTransaction" ADD CONSTRAINT "AccountTransaction_entityId_fkey" FOREIGN KEY ("entityId") REFERENCES "Entity"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "BankReconciliation" ADD CONSTRAINT "BankReconciliation_bankAccountId_fkey" FOREIGN KEY ("bankAccountId") REFERENCES "BankAccount"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "BankStatementTransaction" ADD CONSTRAINT "BankStatementTransaction_reconciliationId_fkey" FOREIGN KEY ("reconciliationId") REFERENCES "BankReconciliation"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "BankReconciliationMatch" ADD CONSTRAINT "BankReconciliationMatch_reconciliationId_fkey" FOREIGN KEY ("reconciliationId") REFERENCES "BankReconciliation"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "BankReconciliationMatch" ADD CONSTRAINT "BankReconciliationMatch_statementTransactionId_fkey" FOREIGN KEY ("statementTransactionId") REFERENCES "BankStatementTransaction"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "OpeningBalance" ADD CONSTRAINT "OpeningBalance_entityId_fkey" FOREIGN KEY ("entityId") REFERENCES "Entity"("id") ON DELETE CASCADE ON UPDATE CASCADE;

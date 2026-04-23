@@ -23,7 +23,8 @@
     "seed:superadmin": "ts-node seeders/seed-admin.ts",
     "seed:account-types": "ts-node seeders/seed-account-types.ts",
     "seed:admin-role": "ts-node seeders/seed-admin-role-template.ts",
-    "setup:standalone": "ts-node -r tsconfig-paths/register scripts/standalone-setup.ts"
+    "setup:standalone": "ts-node -r tsconfig-paths/register scripts/standalone-setup.ts",
+    "seed:subscription": "ts-node seeders/seed-subscription-tiers.ts"
   },
   "dependencies": {
     "@nestjs-modules/ioredis": "^2.0.2",

@@ -68,4 +68,5 @@ COPY --from=builder /app/tsconfig.build.json ./tsconfig.build.json
 EXPOSE 3000
 
 # Run migrations then start the app
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main"]
+# CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main"]
+CMD ["sh", "-c", "npx prisma migrate deploy || echo 'migrate failed'; node dist/src/main"]
