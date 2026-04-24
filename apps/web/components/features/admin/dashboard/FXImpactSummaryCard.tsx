@@ -8,15 +8,18 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Globe } from "lucide-react";
-
-const fxData = [
-  { currency: "NGN Base", exposure: "₦12.5M", icon: "🏦" },
-  { currency: "GBP Exposure", exposure: "-₦85K", icon: "🇬🇧", isNegative: true },
-  { currency: "EUR Exposure", exposure: "-₦65K", icon: "🇪🇺", isNegative: true },
-  { currency: "SGD Exposure", exposure: "-₦33K", icon: "🇸🇬", isNegative: true },
-];
+import { useGroupCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 export default function FXImpactSummaryCard() {
+  const sym = useGroupCurrencySymbol();
+
+  const fxData = [
+    { currency: "NGN Base", exposure: `${sym}12.5M`, icon: "🏦" },
+    { currency: "GBP Exposure", exposure: `-${sym}85K`, icon: "🇬🇧", isNegative: true },
+    { currency: "EUR Exposure", exposure: `-${sym}65K`, icon: "🇪🇺", isNegative: true },
+    { currency: "SGD Exposure", exposure: `-${sym}33K`, icon: "🇸🇬", isNegative: true },
+  ];
+
   return (
     <Card>
       <CardHeader>

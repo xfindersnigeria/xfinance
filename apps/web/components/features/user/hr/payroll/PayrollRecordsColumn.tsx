@@ -9,6 +9,7 @@ import { MODULES } from "@/lib/types/enums";
 import { useModal } from "@/components/providers/ModalProvider";
 import { MODAL } from "@/lib/data/modal-data";
 import { usePayrollRecord, useDownloadPayslip } from "@/lib/api/hooks/useHR";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 import { Loader2, Download } from "lucide-react";
 
 function PayslipModal({ row }: { row: any }) {
@@ -18,7 +19,8 @@ function PayslipModal({ row }: { row: any }) {
   const record = (recordData as any)?.data;
   const downloadPdf = useDownloadPayslip();
 
-  const fmt = (n?: number) => n !== undefined ? `₦${n.toLocaleString()}` : "—";
+  const sym = useEntityCurrencySymbol();
+  const fmt = (n?: number) => n !== undefined ? `${sym}${n.toLocaleString()}` : "—";
 
   return (
     <>
@@ -145,7 +147,8 @@ function PayslipModal({ row }: { row: any }) {
   );
 }
 
-export const payrollRecordsColumns: Column<any>[] = [
+export function createPayrollRecordsColumns(sym: string): Column<any>[] {
+  return [
   {
     key: "employee",
     title: "Employee",
@@ -173,7 +176,7 @@ export const payrollRecordsColumns: Column<any>[] = [
     className: "text-xs",
     render: (value) =>
       typeof value === "number" ? (
-        <span className="text-green-600 font-medium">₦{value.toLocaleString()}</span>
+        <span className="text-green-600 font-medium">{sym}{value.toLocaleString()}</span>
       ) : <span className="text-gray-400">—</span>,
   },
   {
@@ -182,7 +185,7 @@ export const payrollRecordsColumns: Column<any>[] = [
     className: "text-xs",
     render: (value) =>
       typeof value === "number" && value > 0 ? (
-        <span className="text-green-600 font-medium">+₦{value.toLocaleString()}</span>
+        <span className="text-green-600 font-medium">+{sym}{value.toLocaleString()}</span>
       ) : <span className="text-gray-400">—</span>,
   },
   {
@@ -192,10 +195,10 @@ export const payrollRecordsColumns: Column<any>[] = [
     render: (value, row) => (
       <div>
         <span className="text-red-600 font-medium">
-          -₦{((row.statutoryDed ?? 0) + (row.otherDed ?? 0)).toLocaleString()}
+          -{sym}{((row.statutoryDed ?? 0) + (row.otherDed ?? 0)).toLocaleString()}
         </span>
         <div className="text-xs text-gray-400">
-          Stat: ₦{(row.statutoryDed ?? 0).toLocaleString()} | Other: ₦{(row.otherDed ?? 0).toLocaleString()}
+          Stat: {sym}{(row.statutoryDed ?? 0).toLocaleString()} | Other: {sym}{(row.otherDed ?? 0).toLocaleString()}
         </div>
       </div>
     ),
@@ -206,7 +209,7 @@ export const payrollRecordsColumns: Column<any>[] = [
     className: "text-xs",
     render: (value) =>
       typeof value === "number" ? (
-        <span className="text-primary font-bold">₦{value.toLocaleString()}</span>
+        <span className="text-primary font-bold">{sym}{value.toLocaleString()}</span>
       ) : <span className="text-gray-400">—</span>,
   },
   {
@@ -227,4 +230,5 @@ export const payrollRecordsColumns: Column<any>[] = [
     render: (_, row) => <PayslipModal row={row} />,
     searchable: false,
   },
-];
+  ];
+}

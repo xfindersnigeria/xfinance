@@ -57,8 +57,8 @@ const groupSchema = z.object({
   phone: z.string().min(1, "Phone number is required"),
   website: z.string().url("Invalid URL").optional().or(z.literal("")),
   // Subscription Settings
-  subscriptionPlan: z.string().optional(),
-  billingCycle: z.string().optional(),
+  // subscriptionPlan: z.string().optional(),
+  // billingCycle: z.string().optional(),
 });
 
 interface GroupFormProps {
@@ -95,8 +95,8 @@ export function GroupForm({
       email: group?.email || "",
       phone: group?.phone || "",
       website: group?.website && group.website !== null ? group.website : "",
-      subscriptionPlan: group?.subscriptionPlan || "",
-      billingCycle: group?.billingCycle || "",
+      // subscriptionPlan: group?.subscriptionPlan || "",
+      // billingCycle: group?.billingCycle || "",
     },
   });
 
@@ -116,8 +116,8 @@ export function GroupForm({
         email: group?.email || "",
         phone: group?.phone || "",
         website: group?.website || "",
-        subscriptionPlan: group?.subscriptionPlan || "",
-        billingCycle: group?.billingCycle || "",
+        // subscriptionPlan: group?.subscriptionPlan || "",
+        // billingCycle: group?.billingCycle || "",
       });
       // Set preview from existing logo
       if (group?.logo?.secureUrl) {
@@ -446,7 +446,7 @@ export function GroupForm({
           </div>
 
           {/* Subscription Settings */}
-          <div className="bg-orange-50 p-4 rounded-xl">
+          {/* <div className="bg-orange-50 p-4 rounded-xl">
             <h6 className="font-medium text-sm mb-4">Subscription Settings</h6>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -509,7 +509,7 @@ export function GroupForm({
                 />
               </div>
             </div>
-          </div>
+          </div> */}
 
           {/* Actions */}
           <div className="flex justify-end gap-2 border-t pt-6">

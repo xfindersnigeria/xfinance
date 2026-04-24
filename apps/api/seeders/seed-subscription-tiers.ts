@@ -170,6 +170,7 @@ async function main() {
           'entitySettings',
           // All group admin modules (17)
           'groupDashboard',
+          'groupCustomization',
           'groupReports',
           'intercompany',
           'budgetOverview',

@@ -15,7 +15,7 @@ export const invoiceSchema = z.object({
   invoiceDate: z.date(),
   dueDate: z.date(),
   paymentTerms: z.string().min(1, "Required"),
-  currency: z.string().min(1, "Required"),
+  currency: z.string().optional(),
   lineItems: z.array(lineItemSchema).min(1, "At least one item"),
   notes: z.string().optional(),
 });

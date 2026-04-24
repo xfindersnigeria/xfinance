@@ -28,6 +28,7 @@ const statusColors: Record<string, string> = {
 
 export const getSalesReceiptColumns = (
   onAction: (action: string, row: any) => void,
+  sym: string = "₦",
 ): Column<any>[] => [
   { key: "id", title: "Receipt No.", className: "text-xs" },
   { key: "customerName", title: "Customer", className: "text-xs" },
@@ -51,7 +52,7 @@ export const getSalesReceiptColumns = (
     className: "text-xs",
     render: (value) => (
       <span className="text-xs">
-        ₦
+        {sym}
         {(value / 1000).toLocaleString(undefined, { maximumFractionDigits: 2 })}
         k
       </span>

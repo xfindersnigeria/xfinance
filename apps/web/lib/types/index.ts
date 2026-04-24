@@ -67,17 +67,18 @@ export type Entity = {
   groupId: string;
   address?: string | null;
   city?: string | null;
+  companyName?: string | null;
   country?: string | null;
   currency?: string | null;
   email?: string | null;
   legalName?: string | null;
+  logo?: { publicId: string; secureUrl: string } | null;
   phoneNumber?: string | null;
   postalCode?: string | null;
   state?: string | null;
   taxId?: string | null;
   website?: string | null;
   yearEnd?: string | null;
-  // Add related types for customer, invoice, users, receipt, vendor, expenses as needed
 };
 
 // Menu item structure from whoami response

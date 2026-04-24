@@ -3,6 +3,7 @@
 import React from 'react';
 import { TrendingUp, Target, AlertCircle, Percent } from 'lucide-react';
 import { Card } from '@/components/ui/card';
+import { useGroupCurrencySymbol, fmtAmountCompact } from '@/lib/api/hooks/useCurrencyFormat';
 
 interface StatCardProps {
   title: string;
@@ -30,25 +31,27 @@ function StatCard({ title, value, subtitle, icon, className = '' }: StatCardProp
 }
 
 export function BudgetStatsCards() {
+  const sym = useGroupCurrencySymbol();
+
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
       <StatCard
         title="Group Budget FY2025"
-        value="₦11.4M"
+        value={fmtAmountCompact(11400000, sym)}
         subtitle="Annual allocation"
         icon={<Target className="h-5 w-5 text-primary" />}
         className="border-indigo-200 bg-indigo-50"
       />
       <StatCard
         title="YTD Actual"
-        value="₦11.22M"
+        value={fmtAmountCompact(11220000, sym)}
         subtitle="Year-to-date spending"
         icon={<TrendingUp className="h-5 w-5 text-green-600" />}
         className="border-green-200 bg-green-50"
       />
       <StatCard
         title="Variance"
-        value="₦180K"
+        value={fmtAmountCompact(180000, sym)}
         subtitle="Positive variance"
         icon={<AlertCircle className="h-5 w-5 text-orange-600" />}
         className="border-orange-200 bg-orange-50"

@@ -12,6 +12,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useProjectOverview } from "@/lib/api/hooks/useProjects";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 interface ProjectOverviewProps {
   projectId: string;
@@ -24,6 +25,7 @@ function formatYAxis(value: number): string {
 }
 
 export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
+  const sym = useEntityCurrencySymbol();
   const { data, isLoading } = useProjectOverview(projectId);
 
   const burnData: any[] = (data as any)?.burnRate ?? [];
@@ -65,7 +67,7 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
                 width={55}
               />
               <Tooltip
-                formatter={(value: number) => `₦${value.toLocaleString()}`}
+                formatter={(value: number) => `${sym}${value.toLocaleString()}`}
                 contentStyle={{
                   borderRadius: "8px",
                   border: "1px solid var(--border)",

@@ -10,21 +10,23 @@ import { MODULES } from "@/lib/types/enums";
 import { useModal } from "@/components/providers/ModalProvider";
 import { MODAL } from "@/lib/data/modal-data";
 import { ProjectStats } from "./utils/types";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 interface ProjectsHeaderProps {
   data?: ProjectStats;
   loading?: boolean;
 }
 
-function fmtMoney(value: number): string {
-  if (value >= 1_000_000_000) return `₦${(value / 1_000_000_000).toFixed(1).replace(/\.0$/, "")}B`;
-  if (value >= 1_000_000) return `₦${(value / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
-  if (value >= 1_000) return `₦${(value / 1_000).toFixed(0)}K`;
-  return `₦${value}`;
-}
-
 export default function ProjectsHeader({ data, loading }: ProjectsHeaderProps) {
   const { isOpen, openModal, closeModal } = useModal();
+  const sym = useEntityCurrencySymbol();
+
+  function fmtMoney(value: number): string {
+    if (value >= 1_000_000_000) return `${sym}${(value / 1_000_000_000).toFixed(1).replace(/\.0$/, "")}B`;
+    if (value >= 1_000_000) return `${sym}${(value / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+    if (value >= 1_000) return `${sym}${(value / 1_000).toFixed(0)}K`;
+    return `${sym}${value}`;
+  }
 
   const totalProjects = data?.totalProjects ?? 0;
   const activeProjects = data?.activeProjects ?? 0;

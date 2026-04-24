@@ -20,7 +20,8 @@ type VendorColumn = {
   render: (value: unknown, row?: VendorRow) => React.ReactNode;
 };
 
-export const vendorColumns: VendorColumn[] = [
+export function createVendorColumns(sym: string): VendorColumn[] {
+  return [
   {
     key: "name",
     title: "Vendor",
@@ -66,7 +67,7 @@ export const vendorColumns: VendorColumn[] = [
     className: "text-xs",
     render: (value: unknown) => (
       <span className="text-xs">
-        ₦
+        {sym}
         {typeof value === "number"
           ? value.toLocaleString()
           : String(value ?? 0)}
@@ -83,4 +84,5 @@ export const vendorColumns: VendorColumn[] = [
       </Badge>
     ),
   },
-];
+  ];
+}

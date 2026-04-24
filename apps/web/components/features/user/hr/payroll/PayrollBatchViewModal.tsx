@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Loader2, FileText, FileSpreadsheet, Info } from "lucide-react";
 import { usePayrollBatch, useDownloadBatchPdf, useExportBatchCsv } from "@/lib/api/hooks/useHR";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 interface Props { batchId: string }
 
@@ -14,10 +15,11 @@ const statusClass: Record<string, string> = {
   Rejected: "bg-red-100 text-red-600",
 };
 
-const fmt  = (n: number) => `₦${(n ?? 0).toLocaleString()}`;
-const date = (d: any)    => d ? new Date(d).toLocaleDateString("en-NG") : "—";
+const date = (d: any) => d ? new Date(d).toLocaleDateString("en-NG") : "—";
 
 export default function PayrollBatchViewModal({ batchId }: Props) {
+  const sym = useEntityCurrencySymbol();
+  const fmt = (n: number) => `${sym}${(n ?? 0).toLocaleString()}`;
   const { data, isLoading } = usePayrollBatch(batchId);
   const downloadPdf = useDownloadBatchPdf();
   const exportCsv   = useExportBatchCsv();

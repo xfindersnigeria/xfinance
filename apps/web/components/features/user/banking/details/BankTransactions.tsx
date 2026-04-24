@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { ArrowDownRight, ArrowUpRight, CreditCard } from "lucide-react";
 import { useDebounce } from "use-debounce";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 interface BankTransactionsProps {
   transactions: any[];
@@ -17,6 +18,7 @@ export default function BankTransactions({
   transactions,
   isLoading,
 }: BankTransactionsProps) {
+  const sym = useEntityCurrencySymbol();
   const [searchTerm, setSearchTerm] = React.useState("");
   const [debouncedSearchTerm] = useDebounce(searchTerm, 300);
   // Filter pending transactions
@@ -101,7 +103,7 @@ export default function BankTransactions({
               isDeposit ? "text-green-700" : "text-red-700"
             }`}
           >
-            {isDeposit ? "+" : "-"}₦
+            {isDeposit ? "+" : "-"}{sym}
             {amount.toLocaleString(undefined, {
               minimumFractionDigits: 2,
             })}
@@ -114,7 +116,7 @@ export default function BankTransactions({
       title: "Balance",
       render: (value: unknown) => (
         <span className="text-xs font-semibold text-gray-900">
-          ₦
+          {sym}
           {(value as number).toLocaleString(undefined, {
             minimumFractionDigits: 2,
           })}

@@ -2,11 +2,13 @@
 import { useState, useCallback } from "react";
 import PaymentReceivedHeader from "./PaymenrReceivedHeader";
 import { CustomTable } from "@/components/local/custom/custom-table";
-import { PaymentReceivedColumns } from "./PaymentReceivedColumns";
+import { createPaymentReceivedColumns } from "./PaymentReceivedColumns";
 import { usePaymentsReceived } from "@/lib/api/hooks/useSales";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 import { useDebounce } from "use-debounce";
 
 export default function PaymentReceived() {
+  const sym = useEntityCurrencySymbol();
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -31,7 +33,7 @@ export default function PaymentReceived() {
       <CustomTable
         searchPlaceholder="Search by reference, invoice, customer, method..."
         tableTitle="Payment Received"
-        columns={PaymentReceivedColumns}
+        columns={createPaymentReceivedColumns(sym)}
         data={payments}
         pageSize={rowsPerPage}
         onSearchChange={setSearchTerm}

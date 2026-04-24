@@ -344,6 +344,115 @@ export const useDeleteProductBrand = () => {
   });
 };
 
+// ── Group Currencies ──────────────────────────────────────────
+
+export const useCurrencies = (activeOnly = false) =>
+  useQuery({
+    queryKey: ['currencies', activeOnly],
+    queryFn: () => settingsService.getCurrencies(activeOnly),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: true,
+  });
+
+export const useCreateCurrency = () => {
+  const queryClient = useQueryClient();
+  const { closeModal } = useModal();
+  return useMutation({
+    mutationFn: settingsService.createCurrency,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['currencies'] });
+      toast.success('Currency added successfully');
+      closeModal(MODAL.CURRENCY_CREATE);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to add currency');
+    },
+  });
+};
+
+export const useUpdateCurrency = () => {
+  const queryClient = useQueryClient();
+  const { closeModal } = useModal();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: settingsService.UpdateCurrencyPayload }) =>
+      settingsService.updateCurrency(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['currencies'] });
+      toast.success('Currency updated successfully');
+      closeModal(MODAL.CURRENCY_EDIT);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to update currency');
+    },
+  });
+};
+
+export const useToggleCurrency = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      settingsService.toggleCurrency(id, isActive),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['currencies'] });
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to update currency status');
+    },
+  });
+};
+
+export const useSetPrimaryCurrency = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => settingsService.setPrimaryCurrency(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['currencies'] });
+      toast.success('Primary currency updated');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to set primary currency');
+    },
+  });
+};
+
+export const useDeleteCurrency = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: settingsService.deleteCurrency,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['currencies'] });
+      toast.success('Currency removed successfully');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to remove currency');
+    },
+  });
+};
+
+// ── Entity Config ─────────────────────────────────────────────
+
+export const useEntityConfig = () =>
+  useQuery({
+    queryKey: ['entity-config'],
+    queryFn: settingsService.getEntityConfig,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: true,
+  });
+
+export const useUpdateEntityConfig = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: settingsService.updateEntityConfig,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['entity-config'] });
+      toast.success('Configuration saved successfully');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to save configuration');
+    },
+  });
+};
+
 // ── Module Toggle ─────────────────────────────────────────────
 
 export const useToggleEntityModule = () => {

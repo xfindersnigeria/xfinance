@@ -5,13 +5,13 @@ import { Column } from "@/components/local/custom/custom-table";
 import { Project } from "./utils/types";
 import ProjectsActions from "./ProjectsActions";
 
-function fmtMoney(value: number): string {
+function fmtMoney(value: number, sym: string): string {
   if (value >= 1_000_000_000)
-    return `₦${(value / 1_000_000_000).toFixed(1).replace(/\.0$/, "")}B`;
+    return `${sym}${(value / 1_000_000_000).toFixed(1).replace(/\.0$/, "")}B`;
   if (value >= 1_000_000)
-    return `₦${(value / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
-  if (value >= 1_000) return `₦${(value / 1_000).toFixed(0)}K`;
-  return `₦${value}`;
+    return `${sym}${(value / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  if (value >= 1_000) return `${sym}${(value / 1_000).toFixed(0)}K`;
+  return `${sym}${value}`;
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -21,7 +21,8 @@ const STATUS_STYLES: Record<string, string> = {
   On_Hold: "bg-yellow-100 text-yellow-700",
 };
 
-export const projectsColumns: Column<Project>[] = [
+export function createProjectsColumns(sym: string): Column<Project>[] {
+  return [
   {
     key: "name",
     title: "Project",
@@ -74,7 +75,7 @@ export const projectsColumns: Column<Project>[] = [
     className: "text-xs",
     render: (value) =>
       typeof value === "number" ? (
-        <span className="text-gray-700">{fmtMoney(value)}</span>
+        <span className="text-gray-700">{fmtMoney(value, sym)}</span>
       ) : (
         <span className="text-gray-400">—</span>
       ),
@@ -86,7 +87,7 @@ export const projectsColumns: Column<Project>[] = [
     render: (value, row) => {
       // console.log("Rendering actualRevenue with value:", row); // Debug log
       return typeof value === "number" ? (
-        <span className="text-green-600 font-medium">{fmtMoney(value)}</span>
+        <span className="text-green-600 font-medium">{fmtMoney(value, sym)}</span>
       ) : (
         <span className="text-gray-400">—</span>
       );
@@ -98,7 +99,7 @@ export const projectsColumns: Column<Project>[] = [
     className: "text-xs",
     render: (value) =>
       typeof value === "number" ? (
-        <span className="text-gray-700">{fmtMoney(value)}</span>
+        <span className="text-gray-700">{fmtMoney(value, sym)}</span>
       ) : (
         <span className="text-gray-400">—</span>
       ),
@@ -110,4 +111,5 @@ export const projectsColumns: Column<Project>[] = [
     render: (_, row) => <ProjectsActions row={row} />,
     searchable: false,
   },
-];
+  ];
+}

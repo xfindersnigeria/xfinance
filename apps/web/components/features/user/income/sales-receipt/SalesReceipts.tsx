@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { useReceipts } from "@/lib/api/hooks/useSales";
 import { useDebounce } from "use-debounce";
 import { getSalesReceiptColumns } from "./SalesReceiptColumns";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 import SalesReceiptHeader from "./SalesReceiptHeader";
 import { CustomModal } from "@/components/local/custom/modal";
 import { useModal } from "@/components/providers/ModalProvider";
@@ -13,6 +14,7 @@ import SalesReceiptDetails from "./details/SalesReceiptDetails";
 import SalesReceiptsForm from "./SalesReceiptsForm";
 
 export default function SalesReceipts() {
+  const sym = useEntityCurrencySymbol();
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -37,7 +39,7 @@ export default function SalesReceipts() {
     openModal(action); // actions use keys from MODAL
   };
 
-  const columns = useMemo(() => getSalesReceiptColumns(handleAction), []);
+  const columns = useMemo(() => getSalesReceiptColumns(handleAction, sym), [sym]);
 
   // console.log("Fetched receipts:", data); // Debug log to check fetched data
   return (

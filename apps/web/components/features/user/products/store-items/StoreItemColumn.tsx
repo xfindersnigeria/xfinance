@@ -5,7 +5,8 @@ import { Column } from "@/components/local/custom/custom-table";
 import StoreItemActions from "./StoreItemActions";
 
 // Table columns for items
-export const storeItemColumns: Column<any>[] = [
+export function createStoreItemColumns(sym: string): Column<any>[] {
+  return [
   {
     key: "name",
     title: "Item",
@@ -45,7 +46,7 @@ export const storeItemColumns: Column<any>[] = [
     className: "text-xs",
     render: (value) => (
       <span className="text-gray-700">
-        {value ? `₦${value.toLocaleString()}` : "-"}
+        {value ? `${sym}${value.toLocaleString()}` : "-"}
       </span>
     ),
   },
@@ -82,4 +83,5 @@ export const storeItemColumns: Column<any>[] = [
     render: (_, row) => <StoreItemActions row={row} />, // parent should provide onEdit/onDelete
     searchable: false,
   },
-];
+  ];
+}

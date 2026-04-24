@@ -1,4 +1,7 @@
+"use client";
+
 import { AlertCircle, CheckCircle2 } from "lucide-react";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 interface ReconciliationStatusBannerProps {
   difference: number;
@@ -7,13 +10,14 @@ interface ReconciliationStatusBannerProps {
 export default function ReconciliationStatusBanner({
   difference,
 }: ReconciliationStatusBannerProps) {
+  const sym = useEntityCurrencySymbol();
   const isReconciled = difference === 0;
   const absFormatted =
     Math.abs(difference) >= 1_000_000
-      ? `₦${(Math.abs(difference) / 1_000_000).toFixed(1)}M`
+      ? `${sym}${(Math.abs(difference) / 1_000_000).toFixed(1)}M`
       : Math.abs(difference) >= 1_000
-      ? `₦${(Math.abs(difference) / 1_000).toFixed(1)}k`
-      : `₦${Math.abs(difference).toLocaleString()}`;
+      ? `${sym}${(Math.abs(difference) / 1_000).toFixed(1)}k`
+      : `${sym}${Math.abs(difference).toLocaleString()}`;
 
   if (isReconciled) {
     return (

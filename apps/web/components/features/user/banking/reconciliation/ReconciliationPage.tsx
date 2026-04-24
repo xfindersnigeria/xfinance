@@ -22,6 +22,7 @@ import {
   useCompleteReconciliation,
 } from "@/lib/api/hooks/useBanking";
 import { useBankAccount } from "@/lib/api/hooks/useBanking";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 interface ReconciliationPageProps {
   bankAccountId: string;
@@ -29,6 +30,7 @@ interface ReconciliationPageProps {
 
 export default function ReconciliationPage({ bankAccountId }: ReconciliationPageProps) {
   const router = useRouter();
+  const sym = useEntityCurrencySymbol();
   const { data: bankAccount } = useBankAccount(bankAccountId);
   const { data: activeData, isLoading } = useActiveReconciliation(bankAccountId);
   const saveDraft = useSaveReconciliationDraft(bankAccountId);
@@ -126,7 +128,7 @@ export default function ReconciliationPage({ bankAccountId }: ReconciliationPage
     }
     if (Math.abs(summary.difference) > 0.01) {
       toast.error("Cannot complete reconciliation", {
-        description: `There is still a difference of ₦${Math.abs(summary.difference).toLocaleString()} to resolve.`,
+        description: `There is still a difference of ${sym}${Math.abs(summary.difference).toLocaleString()} to resolve.`,
       });
       return;
     }

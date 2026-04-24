@@ -61,6 +61,8 @@ import { PayrollModule } from './hr-payroll/payroll/payroll.module';
 import { ProductCategoryModule } from './settings/product/category/category.module';
 import { ProductUnitModule } from './settings/product/unit/unit.module';
 import { ProductBrandModule } from './settings/product/brand/brand.module';
+import { CurrencyModule } from './settings/currency/currency.module';
+import { ConfigModule } from './settings/config/config.module';
 
 @Module({
   imports: [
@@ -119,6 +121,8 @@ import { ProductBrandModule } from './settings/product/brand/brand.module';
     ProductCategoryModule,
     ProductUnitModule,
     ProductBrandModule,
+    CurrencyModule,
+    ConfigModule,
     CustomizationModule,
   ],
   controllers: [AppController],

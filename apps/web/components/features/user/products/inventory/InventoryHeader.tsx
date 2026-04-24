@@ -4,13 +4,7 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import InventoryStatCardSmall from "./InventoryStatCardSmall";
 import { Download, Info, Package, TrendingDown, TrendingUp } from "lucide-react";
-
-function formatCurrency(n?: number): string {
-  if (n === undefined || n === null) return "—";
-  if (n >= 1_000_000) return `₦${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `₦${(n / 1_000).toFixed(1)}K`;
-  return `₦${n.toLocaleString()}`;
-}
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 export default function InventoryHeader({
   data,
@@ -26,6 +20,15 @@ export default function InventoryHeader({
   };
   loading: boolean;
 }) {
+  const sym = useEntityCurrencySymbol();
+
+  function formatCurrency(n?: number): string {
+    if (n === undefined || n === null) return "—";
+    if (n >= 1_000_000) return `${sym}${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000) return `${sym}${(n / 1_000).toFixed(1)}K`;
+    return `${sym}${n.toLocaleString()}`;
+  }
+
   return (
     <div className="mb-6">
       <div className="flex items-start justify-between">

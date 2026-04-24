@@ -6,7 +6,7 @@ export { default as ItemsActions } from "./ItemsActions";
 export { default as ItemsStatCardSmall } from "./ItemsStatCardSmall";
 
 // Types and utilities
-export { itemsColumns } from "./ItemsColumn";
+export { createItemsColumns } from "./ItemsColumn";
 export type { Item, ItemsResponse } from "./utils/types";
 export { itemCategories, itemTypes, mockItemsData } from "./utils/data";
 export { itemFormSchema, type ItemFormInputs } from "./utils/schema";

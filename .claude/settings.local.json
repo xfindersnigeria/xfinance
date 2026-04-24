@@ -15,7 +15,14 @@
       "Bash(cat apps/api/src/hr-payroll/attendance/dto/attendance.dto.ts)",
       "Bash(sed -n '227,290p' apps/web/lib/api/hooks/useProducts.ts)",
       "Bash(sed -n '128,180p' apps/web/lib/api/services/productsService.ts)",
-      "Bash(node extract_colors.js)"
+      "Bash(node extract_colors.js)",
+      "Bash(grep -n \"currency\\\\|₦\\\\|\\\\\\\\\\\\$\\\\|symbol\\\\|Intl\\\\|NGN\\\\|USD\" \"/c/Users/Edeh JayCee/Desktop/projects/xfinance/xfinance/apps/web/components/features/user/income/invoices/InvoiceForm.tsx\")",
+      "Bash(grep -n \"₦\\\\|\\\\\\\\\\\\$\\\\|NGN\\\\|USD\\\\|Intl\\\\|currency\" \"/c/Users/Edeh JayCee/Desktop/projects/xfinance/xfinance/apps/web/components/features/user/purchases/bills/BillsForm.tsx\")",
+      "Bash(grep -n \"₦\\\\|\\\\\\\\\\\\$\\\\|NGN\\\\|USD\\\\|Intl\\\\|currency\" \"/c/Users/Edeh JayCee/Desktop/projects/xfinance/xfinance/apps/web/components/features/user/purchases/expenses/ExpensesForm.tsx\")",
+      "Bash(grep -rn \"₦\\\\|\\\\\\\\\\\\$[0-9]\\\\|NGN\\\\|USD\\\\|Intl\\\\.NumberFormat\\\\|currency\" \"/c/Users/Edeh JayCee/Desktop/projects/xfinance/xfinance/apps/web/components/features/admin/dashboard/\")",
+      "Bash(grep -v \"node_modules\\\\|//.*/₦\\\\|FXImpact\\\\|BudgetingForecast\\\\|Customization\\\\|currencies.ts\")",
+      "Bash(grep *)",
+      "Bash(dir \"C:/Users/Edeh JayCee/Desktop/projects/xfinance/xfinance/apps/api/prisma/migrations\")"
     ]
   }
 }

@@ -36,6 +36,8 @@ import {
 } from "@/lib/api/hooks/usePurchases";
 import { useAccounts } from "@/lib/api/hooks/useAccounts";
 import { useProjects } from "@/lib/api/hooks/useProjects";
+import { useEntityConfig } from "@/lib/api/hooks/useSettings";
+import { getCurrencyByCode } from "@/lib/utils/currencies";
 import { toast } from "sonner";
 
 const lineItemSchema = z.object({
@@ -102,6 +104,10 @@ export default function BillsForm({
   const createBill = useCreateBill();
   const updateBill = useUpdateBill();
   const { data: vendorsData, isLoading: vendorsLoading } = useVendors();
+  const { data: configRes } = useEntityConfig();
+  const entityBaseCurrency: string = (configRes as any)?.data?.baseCurrency ?? "";
+  const currencySymbol = getCurrencyByCode(entityBaseCurrency)?.symbol ?? entityBaseCurrency ?? "—";
+
   const { data: accountsData, isLoading: accountsLoading } = useAccounts({
     type: "Expenses",
   });
@@ -674,7 +680,7 @@ export default function BillsForm({
               <div className="flex justify-between">
                 <span>Subtotal</span>
                 <span>
-                  ₦
+                  {currencySymbol}
                   {subtotal.toLocaleString(undefined, {
                     minimumFractionDigits: 2,
                   })}
@@ -716,7 +722,7 @@ export default function BillsForm({
                   />
                   <span className="text-xs">%</span>
                   <span className="ml-2">
-                    ₦
+                    {currencySymbol}
                     {taxAmount.toLocaleString(undefined, {
                       minimumFractionDigits: 2,
                     })}
@@ -726,7 +732,7 @@ export default function BillsForm({
               <div className="flex justify-between font-bold text-base mt-2">
                 <span>Total</span>
                 <span className="text-blue-700 text-xl">
-                  ₦
+                  {currencySymbol}
                   {total.toLocaleString(undefined, {
                     minimumFractionDigits: 2,
                   })}

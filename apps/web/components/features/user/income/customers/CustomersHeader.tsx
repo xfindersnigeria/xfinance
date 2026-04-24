@@ -9,9 +9,11 @@ import CustomerForm from "./CustomerForm";
 import { MODULES } from "@/lib/types/enums";
 import { useModal } from '@/components/providers/ModalProvider';
 import { MODAL } from '@/lib/data/modal-data';
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 export default function CustomersHeader({ data, loading }: { data: any, loading: boolean }) {
   const { isOpen, openModal, closeModal } = useModal();
+  const sym = useEntityCurrencySymbol();
   return (
     <div className="mb-6">
       <div className="flex items-start justify-between">
@@ -47,13 +49,13 @@ export default function CustomersHeader({ data, loading }: { data: any, loading:
         />
         <CustomerStatCardSmall
           title="Outstanding Receivables"
-          value={<span className="text-3xl">₦{data?.outstandingReceivables?.toLocaleString() || 0}</span>}
+          value={<span className="text-3xl">{sym}{data?.outstandingReceivables?.toLocaleString() || 0}</span>}
           subtitle="Total receivables"
           loading={loading}
         />
         <CustomerStatCardSmall
           title="Avg. Balance"
-          value={<span className="text-3xl">₦{data?.averageBalance?.toLocaleString() || 0}</span>}
+          value={<span className="text-3xl">{sym}{data?.averageBalance?.toLocaleString() || 0}</span>}
           subtitle="Average per customer"
           loading={loading}
         />

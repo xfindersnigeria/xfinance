@@ -33,6 +33,7 @@ import {
 } from "@/lib/api/hooks/types/assetsTypes";
 import { useEmployees } from "@/lib/api/hooks/useHR";
 import { useDepartments } from "@/lib/api/hooks/useSettings";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 type assetsFormData = z.infer<typeof assetsSchema>;
 
@@ -57,6 +58,7 @@ export default function AssetsForm({
 }: assetsFormProps) {
   const createAsset = useCreateAsset();
   const updateAsset = useUpdateAsset();
+  const sym = useEntityCurrencySymbol();
 
   // Fetch all employees for assignment
   const { data: employeesData, isLoading: employeesLoading } = useEmployees({
@@ -466,7 +468,7 @@ export default function AssetsForm({
                           type="number"
                           step="0.01"
                           className="pl-8 rounded-2xl"
-                          placeholder="₦ 0.00"
+                          placeholder={`${sym} 0.00`}
                           {...field}
                         />
                       </div>
@@ -503,7 +505,7 @@ export default function AssetsForm({
                           type="number"
                           step="0.01"
                           className="pl-8 rounded-2xl"
-                          placeholder="₦ 0.00"
+                          placeholder={`${sym} 0.00`}
                           {...field}
                         />
                       </div>
@@ -678,7 +680,7 @@ export default function AssetsForm({
                             type="number"
                             step="0.01"
                             className="pl-8 rounded-2xl"
-                            placeholder="₦ 0.00"
+                            placeholder={`${sym} 0.00`}
                             {...field}
                           />
                         </div>

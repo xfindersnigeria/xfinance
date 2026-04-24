@@ -1,8 +1,10 @@
+"use client";
 import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Printer, Send, Ban } from "lucide-react";
 import { format } from "date-fns";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 interface SalesReceiptDetailsProps {
     receipt: any;
@@ -10,7 +12,9 @@ interface SalesReceiptDetailsProps {
 }
 
 export default function SalesReceiptDetails({ receipt, onClose }: SalesReceiptDetailsProps) {
+    const sym = useEntityCurrencySymbol();
     if (!receipt) return null;
+
     console.log(receipt, "Sales Receipt Details Data"); // Debug log to check receipt data
 
     const getItems = () => {
@@ -81,11 +85,11 @@ export default function SalesReceiptDetails({ receipt, onClose }: SalesReceiptDe
                                         {item.item?.sku && <span className="text-gray-500 text-xs ml-2">({item.item.sku})</span>}
                                     </p>
                                     <p className="text-gray-500 text-sm">
-                                        {item.quantity} x {item.rate != null ? `₦${Number(item.rate).toLocaleString()}` : ""}
+                                        {item.quantity} x {item.rate != null ? `${sym}${Number(item.rate).toLocaleString()}` : ""}
                                     </p>
                                 </div>
                                 <p className="font-medium">
-                                    ₦{((item.quantity || 0) * (item.rate || 0)).toLocaleString()}
+                                    {sym}{((item.quantity || 0) * (item.rate || 0)).toLocaleString()}
                                 </p>
                             </div>
                         ))
@@ -99,17 +103,17 @@ export default function SalesReceiptDetails({ receipt, onClose }: SalesReceiptDe
             <div className="bg-white rounded-xl p-4 space-y-3 border border-gray-200">
                 <div className="flex justify-between items-center">
                     <span className="text-gray-600">Subtotal</span>
-                    <span className="font-medium">₦{(receipt.subtotal || 0).toLocaleString()}</span>
+                    <span className="font-medium">{sym}{(receipt.subtotal || 0).toLocaleString()}</span>
                 </div>
                 {receipt.tax > 0 && (
                     <div className="flex justify-between items-center">
                         <span className="text-gray-600">Tax</span>
-                        <span className="font-medium">₦{(receipt.tax || 0).toLocaleString()}</span>
+                        <span className="font-medium">{sym}{(receipt.tax || 0).toLocaleString()}</span>
                     </div>
                 )}
                 <div className="border-t pt-3 flex justify-between items-center">
                     <span className="text-lg font-medium">Total Amount</span>
-                    <span className="text-2xl font-bold text-green-700">₦{(receipt.total || 0).toLocaleString()}</span>
+                    <span className="text-2xl font-bold text-green-700">{sym}{(receipt.total || 0).toLocaleString()}</span>
                 </div>
             </div>
 

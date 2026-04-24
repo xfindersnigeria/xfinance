@@ -31,6 +31,7 @@ import {
   useUpdateStoreItem,
 } from "@/lib/api/hooks/useProducts";
 import { StoreItemTypeEnum } from "@/lib/api/hooks/types/productsTypes";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 const defaultProduct = {
   name: "",
@@ -65,6 +66,7 @@ export default function StoreItemProductForm({
 }) {
   const createItem = useCreateStoreItem();
   const updateItem = useUpdateStoreItem();
+  const sym = useEntityCurrencySymbol();
   const loading = createItem.isPending || updateItem.isPending;
 
   const form = useForm({
@@ -232,7 +234,7 @@ export default function StoreItemProductForm({
                 <FormItem>
                   <FormLabel>Selling Price *</FormLabel>
                   <FormControl>
-                    <Input type="number" placeholder="₦0.00" {...field} />
+                    <Input type="number" placeholder={`${sym}0.00`} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -245,7 +247,7 @@ export default function StoreItemProductForm({
                 <FormItem>
                   <FormLabel>Cost Price</FormLabel>
                   <FormControl>
-                    <Input type="number" placeholder="₦0.00" {...field} />
+                    <Input type="number" placeholder={`${sym}0.00`} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

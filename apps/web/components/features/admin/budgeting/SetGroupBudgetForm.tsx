@@ -39,6 +39,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { useAccounts } from '@/lib/api/hooks/useAccounts';
 import { useCreateBudget } from '@/lib/api/hooks/useAccounts';
+import { useGroupCurrencySymbol } from '@/lib/api/hooks/useCurrencyFormat';
 import { BudgetPeriodTypeEnum } from '@/lib/api/hooks/types/accountsTypes';
 import type { Account } from '@/lib/api/hooks/types/accountsTypes';
 
@@ -84,6 +85,7 @@ type FormValues = z.infer<typeof schema>;
 export function SetGroupBudgetForm() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const sym = useGroupCurrencySymbol();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { data: accountsResponse, isLoading: accountsLoading } = useAccounts({ limit: 200 });
@@ -130,7 +132,7 @@ export function SetGroupBudgetForm() {
   };
 
   // Last period placeholder — replaced with real data once GET budgets API exists
-  const getLastPeriod = (_accountId: string) => '₦275,000,000';
+  const getLastPeriod = (_accountId: string) => `${sym}275,000,000`;
 
   const onSubmit = async (values: FormValues) => {
     try {
@@ -309,7 +311,7 @@ export function SetGroupBudgetForm() {
 
             {/* Column headers */}
             <div className="grid grid-cols-[2fr_1fr_1fr_1fr_auto] gap-3 px-5 py-2 bg-gray-50 border-b border-gray-100">
-              {['Account', 'Type', 'Budget Amount (₦)', 'Last Period', ''].map((h) => (
+              {['Account', 'Type', `Budget Amount (${sym})`, 'Last Period', ''].map((h) => (
                 <span key={h} className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                   {h}
                 </span>
@@ -371,7 +373,7 @@ export function SetGroupBudgetForm() {
                         <FormItem className="mb-0">
                           <FormControl>
                             <div className="relative">
-                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">₦</span>
+                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">{sym}</span>
                               <Input
                                 type="number"
                                 min={0}
@@ -418,7 +420,7 @@ export function SetGroupBudgetForm() {
                 <div>
                   <p className="text-xs text-gray-500">Total Consolidated Budget</p>
                   <p className="text-lg font-bold text-gray-900">
-                    ₦{totalBudget.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    {sym}{totalBudget.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </p>
                 </div>
               </div>

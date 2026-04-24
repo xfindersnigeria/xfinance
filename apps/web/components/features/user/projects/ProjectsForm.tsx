@@ -33,6 +33,7 @@ import {
   useUpdateProject,
 } from "@/lib/api/hooks/useProjects";
 import { start } from "repl";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 interface ProjectsFormProps {
   project?: Partial<ProjectFormInputs> & { id?: string };
@@ -49,6 +50,7 @@ export default function ProjectsForm({
   isEditMode = false,
 }: ProjectsFormProps) {
   const { closeModal } = useModal();
+  const sym = useEntityCurrencySymbol();
   const { data: customersData } = useCustomers({ limit: 1000 });
   const customers = (customersData as any)?.customers || [];
   const createProject = useCreateProject();
@@ -325,7 +327,7 @@ export default function ProjectsForm({
                 name="budgetedRevenue"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Budgeted Revenue (₦)</FormLabel>
+                    <FormLabel>{`Budgeted Revenue (${sym})`}</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
@@ -347,7 +349,7 @@ export default function ProjectsForm({
                 name="budgetedCost"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Budgeted Cost (₦)</FormLabel>
+                    <FormLabel>{`Budgeted Cost (${sym})`}</FormLabel>
                     <FormControl>
                       <Input
                         type="number"

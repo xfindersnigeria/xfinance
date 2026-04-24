@@ -10,27 +10,29 @@ import { useModal } from "@/components/providers/ModalProvider";
 import { MODAL } from "@/lib/data/modal-data";
 import { MODULES } from "@/lib/types/enums";
 import { useProjectTeam } from "@/lib/api/hooks/useProjects";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 interface ProjectTeamProps {
   projectId: string;
   projectName: string;
 }
 
-function fmtRate(value: number): string {
-  if (value >= 1_000_000) return `₦${(value / 1_000_000).toFixed(1).replace(/\.0$/, "")}M/mo`;
-  if (value >= 1_000) return `₦${(value / 1_000).toFixed(0)}K/mo`;
-  return `₦${value}/mo`;
-}
-
-function fmtCost(value: number): string {
-  if (value >= 1_000_000) return `₦${(value / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
-  if (value >= 1_000) return `₦${(value / 1_000).toFixed(0)}K`;
-  return `₦${value}`;
-}
-
 export default function ProjectTeam({ projectId, projectName }: ProjectTeamProps) {
+  const sym = useEntityCurrencySymbol();
   const { isOpen, openModal, closeModal } = useModal();
   const { data, isLoading } = useProjectTeam(projectId);
+
+  function fmtRate(value: number): string {
+    if (value >= 1_000_000) return `${sym}${(value / 1_000_000).toFixed(1).replace(/\.0$/, "")}M/mo`;
+    if (value >= 1_000) return `${sym}${(value / 1_000).toFixed(0)}K/mo`;
+    return `${sym}${value}/mo`;
+  }
+
+  function fmtCost(value: number): string {
+    if (value >= 1_000_000) return `${sym}${(value / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+    if (value >= 1_000) return `${sym}${(value / 1_000).toFixed(0)}K`;
+    return `${sym}${value}`;
+  }
 
   const members: any[] = (data as any)?.data ?? [];
   const totalLaborCost: number = (data as any)?.totalLaborCost ?? 0;

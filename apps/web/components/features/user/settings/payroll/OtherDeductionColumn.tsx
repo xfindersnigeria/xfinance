@@ -17,12 +17,13 @@ const typeLabels: Record<string, string> = {
   FIXED_AMOUNT: "Fixed Amount",
 };
 
-function formatRate(type: string, rate: number): string {
-  if (type === "FIXED_AMOUNT") return `₦${rate.toLocaleString()}`;
+function formatRate(type: string, rate: number, sym: string): string {
+  if (type === "FIXED_AMOUNT") return `${sym}${rate.toLocaleString()}`;
   return `${rate}%`;
 }
 
-export const otherDeductionColumns: Column<OtherDeduction>[] = [
+export function createOtherDeductionColumns(sym: string): Column<OtherDeduction>[] {
+  return [
   {
     key: "name",
     title: "Name",
@@ -44,7 +45,7 @@ export const otherDeductionColumns: Column<OtherDeduction>[] = [
     title: "Rate/Amount",
     className: "text-xs",
     render: (value, row) => (
-      <span className="text-gray-700">{formatRate(row.type, value)}</span>
+      <span className="text-gray-700">{formatRate(row.type, value, sym)}</span>
     ),
   },
   {
@@ -77,4 +78,5 @@ export const otherDeductionColumns: Column<OtherDeduction>[] = [
     render: (_, row) => <OtherDeductionActions row={row} />,
     searchable: false,
   },
-];
+  ];
+}

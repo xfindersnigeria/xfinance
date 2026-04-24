@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Plus, Trash2, Calendar, Loader2 } from "lucide-react";
 import { useSetOpeningBalances } from "@/lib/api/hooks/useAccounts";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 import { Account } from "@/lib/api/hooks/types/accountsTypes";
 
 // Zod schema for Opening Balance Line
@@ -70,6 +71,7 @@ export default function OpeningBalanceForm({
   openingDate: initialOpeningDate,
   onSuccess,
 }: OpeningBalanceFormProps) {
+  const sym = useEntityCurrencySymbol();
   const setOpeningBalances = useSetOpeningBalances();
 
   const form = useForm<OpeningBalanceFormData>({
@@ -446,13 +448,13 @@ export default function OpeningBalanceForm({
             <div className="flex justify-between items-center">
               <span className="text-gray-700">Total Debits</span>
               <span className="font-medium text-gray-900">
-                ₦{totalDebits.toFixed(2)}
+                {sym}{totalDebits.toFixed(2)}
               </span>
             </div>
             <div className="flex justify-between items-center border-t border-gray-200 pt-3">
               <span className="text-gray-700">Total Credits</span>
               <span className="font-medium text-gray-900">
-                ₦{totalCredits.toFixed(2)}
+                {sym}{totalCredits.toFixed(2)}
               </span>
             </div>
             <div className="flex justify-between items-center border-t border-gray-200 pt-3">
@@ -462,7 +464,7 @@ export default function OpeningBalanceForm({
                   isBalanced ? "text-green-600" : "text-orange-600"
                 }`}
               >
-                ₦{difference.toFixed(2)}
+                {sym}{difference.toFixed(2)}
               </span>
             </div>
             {!isBalanced && (

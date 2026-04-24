@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { useCreateStoreSupplyRestock } from "@/lib/api/hooks/useAssets";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 interface RestockFormProps {
   row: { id: string; name: string; sku?: string; quantity: number; minQuantity: number; unitPrice: number };
@@ -18,6 +19,7 @@ export default function RestockForm({ row, onCancel }: RestockFormProps) {
   const [notes, setNotes] = useState("");
 
   const createRestock = useCreateStoreSupplyRestock();
+  const sym = useEntityCurrencySymbol();
   const newStock = row.quantity + quantityToRestock;
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -64,7 +66,7 @@ export default function RestockForm({ row, onCancel }: RestockFormProps) {
           />
         </div>
         <div>
-          <label className="text-sm font-medium text-gray-700 block mb-1">Unit Price (₦)</label>
+          <label className="text-sm font-medium text-gray-700 block mb-1">{`Unit Price (${sym})`}</label>
           <Input
             type="number"
             min={0}

@@ -9,7 +9,8 @@ import ItemsActions from "./ItemsActions";
  * Table columns configuration for Items
  * Defines columns for displaying item data in CustomTable component
  */
-export const itemsColumns: Column<Item>[] = [
+export function createItemsColumns(sym: string): Column<Item>[] {
+  return [
   {
     key: "code",
     title: "Item Code",
@@ -59,7 +60,7 @@ export const itemsColumns: Column<Item>[] = [
     className: "text-xs",
     render: (value) => (
       <span className="text-gray-900 font-medium">
-        {value ? `₦${value.toLocaleString()}` : "-"}
+        {value ? `${sym}${value.toLocaleString()}` : "-"}
       </span>
     ),
   },
@@ -83,4 +84,5 @@ export const itemsColumns: Column<Item>[] = [
     render: (_, row) => <ItemsActions row={row} />,
     searchable: false,
   },
-];
+  ];
+}

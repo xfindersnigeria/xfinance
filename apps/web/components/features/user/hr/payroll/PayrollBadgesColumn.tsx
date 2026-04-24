@@ -3,7 +3,8 @@ import { Badge } from "@/components/ui/badge";
 import { Column } from "@/components/local/custom/custom-table";
 import PayrollActions from "./PayrollActions";
 
-export const payrollBadgesColumns: Column<any>[] = [
+export function createPayrollBadgesColumns(sym: string): Column<any>[] {
+  return [
   {
     key: "batchName",
     title: "Batch Name",
@@ -45,7 +46,7 @@ export const payrollBadgesColumns: Column<any>[] = [
     className: "text-xs",
     render: (value) => (
       <span className="text-blue-700 font-medium">
-        ₦{typeof value === "number" ? value.toLocaleString() : "0"}
+        {sym}{typeof value === "number" ? value.toLocaleString() : "0"}
       </span>
     ),
   },
@@ -83,4 +84,5 @@ export const payrollBadgesColumns: Column<any>[] = [
     render: (_, row) => <PayrollActions row={row} />,
     searchable: false,
   },
-];
+  ];
+}

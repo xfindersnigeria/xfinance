@@ -10,6 +10,7 @@ import { MODULES } from "@/lib/types/enums";
 import { useModal } from "@/components/providers/ModalProvider";
 import { MODAL } from "@/lib/data/modal-data";
 import { ItemsResponse } from "./utils/types";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 interface ItemsHeaderProps {
   data?: ItemsResponse;
@@ -23,6 +24,7 @@ interface ItemsHeaderProps {
  */
 export default function ItemsHeader({ data, loading }: ItemsHeaderProps) {
   const { isOpen, openModal, closeModal } = useModal();
+  const sym = useEntityCurrencySymbol();
 
   const totalCount = data?.totalItems || 0;
   const totalServices = data?.serviceItems || 0;
@@ -72,7 +74,7 @@ export default function ItemsHeader({ data, loading }: ItemsHeaderProps) {
         />
         <ItemsStatCardSmall
           title="Avg Price"
-          value={<span className="text-2xl font-bold text-primary">₦{avgPrice.toLocaleString()}</span>}
+          value={<span className="text-2xl font-bold text-primary">{sym}{avgPrice.toLocaleString()}</span>}
           subtitle="Average per item"
         />
       </div>

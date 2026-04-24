@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { customerSchema } from "./utils/schema";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 import {
   countryOptions,
   customerTypeOptions,
@@ -45,6 +46,7 @@ export default function CustomerForm({
 }: CustomerFormProps) {
   const createCustomer = useCreateCustomer();
   const updateCustomer = useUpdateCustomer();
+  const sym = useEntityCurrencySymbol();
 
 
   const form = useForm<CustomerFormData>({
@@ -320,7 +322,7 @@ export default function CustomerForm({
                 name="creditLimit"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Credit Limit (₦)</FormLabel>
+                    <FormLabel>{`Credit Limit (${sym})`}</FormLabel>
                     <FormControl>
                       <Input
                         type="number"

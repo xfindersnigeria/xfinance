@@ -14,6 +14,7 @@ import {
   useCreateStoreSupplyIssueBulk,
   useStoreSupplies,
 } from "@/lib/api/hooks/useAssets";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 import { useDebounce } from "use-debounce";
 import { MODAL } from "@/lib/data/modal-data";
 import { Button } from "@/components/ui/button";
@@ -95,92 +96,94 @@ function IssueCell({ row }: { row: any }) {
   );
 }
 
-const columns = [
-  {
-    key: "name",
-    title: "Item Name",
-    render: (value: any, row: any) => (
-      <div>
-        <div className="font-medium text-gray-900">{row.name}</div>
-        <div className="text-xs text-gray-500">{row.sku}</div>
-      </div>
-    ),
-  },
-  {
-    key: "category",
-    title: "Category",
-  },
-  {
-    key: "unitPrice",
-    title: "Unit Price",
-    render: (value: any) => `₦${value.toLocaleString()}`,
-  },
-  {
-    key: "quantity",
-    title: "Qty on Hand",
-    render: (value: any) => <span className="font-bold">{value}</span>,
-  },
-  {
-    key: "minQuantity",
-    title: "Min. Qty",
-  },
-  {
-    key: "totalValue",
-    title: "Total Value",
-    render: (value: any, row: any) => {
-      return new Intl.NumberFormat("en-NG", {
-        style: "currency",
-        currency: "NGN",
-      }).format(row.unitPrice * row.quantity);
-    },
-  },
-  {
-    key: "status",
-    title: "Status",
-    render: (value: any) => {
-      if (value === "in stock")
-        return (
-          <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full font-medium text-xs">
-            In Stock
-          </span>
-        );
-      if (value === "low stock")
-        return (
-          <span className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full font-medium text-xs">
-            Low Stock
-          </span>
-        );
-      if (value === "out of stock")
-        return (
-          <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full font-medium text-xs">
-            Out of Stock
-          </span>
-        );
-      return value;
-    },
-  },
-  {
-    key: "restock",
-    title: "Restock",
-    render: (_: any, row: any) => <RestockCell row={row} />,
-    searchable: false,
-  },
-  {
-    key: "issue",
-    title: "Issue",
-    render: (_: any, row: any) => <IssueCell row={row} />,
-    searchable: false,
-  },
-  {
-    key: "actions",
-    title: "",
-    render: (_: any, row: any) => <StoreInventoryActions row={row} />,
-    searchable: false,
-  },
-];
 export default function StoreInventoryTable() {
   const { openModal, isOpen, closeModal } = useModal();
+  const sym = useEntityCurrencySymbol();
   const [searchTerm, setSearchTerm] = React.useState("");
+
+  const columns = [
+    {
+      key: "name",
+      title: "Item Name",
+      render: (value: any, row: any) => (
+        <div>
+          <div className="font-medium text-gray-900">{row.name}</div>
+          <div className="text-xs text-gray-500">{row.sku}</div>
+        </div>
+      ),
+    },
+    {
+      key: "category",
+      title: "Category",
+    },
+    {
+      key: "unitPrice",
+      title: "Unit Price",
+      render: (value: any) => `${sym}${value.toLocaleString()}`,
+    },
+    {
+      key: "quantity",
+      title: "Qty on Hand",
+      render: (value: any) => <span className="font-bold">{value}</span>,
+    },
+    {
+      key: "minQuantity",
+      title: "Min. Qty",
+    },
+    {
+      key: "totalValue",
+      title: "Total Value",
+      render: (value: any, row: any) => {
+        return new Intl.NumberFormat("en-NG", {
+          style: "currency",
+          currency: "NGN",
+        }).format(row.unitPrice * row.quantity);
+      },
+    },
+    {
+      key: "status",
+      title: "Status",
+      render: (value: any) => {
+        if (value === "in stock")
+          return (
+            <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full font-medium text-xs">
+              In Stock
+            </span>
+          );
+        if (value === "low stock")
+          return (
+            <span className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full font-medium text-xs">
+              Low Stock
+            </span>
+          );
+        if (value === "out of stock")
+          return (
+            <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full font-medium text-xs">
+              Out of Stock
+            </span>
+          );
+        return value;
+      },
+    },
+    {
+      key: "restock",
+      title: "Restock",
+      render: (_: any, row: any) => <RestockCell row={row} />,
+      searchable: false,
+    },
+    {
+      key: "issue",
+      title: "Issue",
+      render: (_: any, row: any) => <IssueCell row={row} />,
+      searchable: false,
+    },
+    {
+      key: "actions",
+      title: "",
+      render: (_: any, row: any) => <StoreInventoryActions row={row} />,
+      searchable: false,
+    },
+  ];
   const [debouncedSearchTerm] = useDebounce(searchTerm, 300);
   const [selected, setSelected] = useState<any[]>([]);
   const [modalOpen, setModalOpen] = useState(false);

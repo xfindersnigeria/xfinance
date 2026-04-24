@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CustomTable, type Column } from "@/components/local/custom/custom-table";
+import { useGroupCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 interface EliminationEntry {
   account: string;
@@ -11,37 +12,6 @@ interface EliminationEntry {
   debit: string;
   credit: string;
 }
-
-const mockData: EliminationEntry[] = [
-  {
-    account: "Intercompany Sales",
-    description: "Eliminate intercompany revenue",
-    entity: "All",
-    debit: "-",
-    credit: "₦547,000",
-  },
-  {
-    account: "Intercompany Purchases",
-    description: "Eliminate intercompany COGS",
-    entity: "All",
-    debit: "₦547,000",
-    credit: "-",
-  },
-  {
-    account: "Intercompany Payables",
-    description: "Eliminate intercompany payables",
-    entity: "All",
-    debit: "₦330,000",
-    credit: "-",
-  },
-  {
-    account: "Intercompany Receivables",
-    description: "Eliminate intercompany receivables",
-    entity: "All",
-    debit: "-",
-    credit: "₦330,000",
-  },
-];
 
 const columns: Column<EliminationEntry>[] = [
   { key: "account", title: "Account", className: "text-sm font-medium" },
@@ -62,9 +32,42 @@ const columns: Column<EliminationEntry>[] = [
 ];
 
 export default function ConsolidationEliminationEntries() {
-  const totalDebits = "₦877,000";
-  const totalCredits = "₦877,000";
-  const balance = "₦0";
+  const sym = useGroupCurrencySymbol();
+
+  const mockData: EliminationEntry[] = [
+    {
+      account: "Intercompany Sales",
+      description: "Eliminate intercompany revenue",
+      entity: "All",
+      debit: "-",
+      credit: `${sym}547,000`,
+    },
+    {
+      account: "Intercompany Purchases",
+      description: "Eliminate intercompany COGS",
+      entity: "All",
+      debit: `${sym}547,000`,
+      credit: "-",
+    },
+    {
+      account: "Intercompany Payables",
+      description: "Eliminate intercompany payables",
+      entity: "All",
+      debit: `${sym}330,000`,
+      credit: "-",
+    },
+    {
+      account: "Intercompany Receivables",
+      description: "Eliminate intercompany receivables",
+      entity: "All",
+      debit: "-",
+      credit: `${sym}330,000`,
+    },
+  ];
+
+  const totalDebits = `${sym}877,000`;
+  const totalCredits = `${sym}877,000`;
+  const balance = `${sym}0`;
 
   return (
     <Card>

@@ -25,6 +25,7 @@ import { User, Briefcase, DollarSign } from "lucide-react";
 import { useAddProjectTeamMember, useUpdateProjectTeamMember } from "@/lib/api/hooks/useProjects";
 import { useModal } from "@/components/providers/ModalProvider";
 import { MODAL } from "@/lib/data/modal-data";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 const ROLE_OPTIONS = [
   "Project Manager",
@@ -67,6 +68,7 @@ export default function ProjectTeamMemberForm({
   const addMember = useAddProjectTeamMember();
   const updateMember = useUpdateProjectTeamMember();
   const { closeModal } = useModal();
+  const sym = useEntityCurrencySymbol();
 
   const isPending = addMember.isPending || updateMember.isPending;
 
@@ -174,7 +176,7 @@ export default function ProjectTeamMemberForm({
                 name="monthlyRate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Monthly Rate (₦) *</FormLabel>
+                    <FormLabel>{`Monthly Rate (${sym}) *`}</FormLabel>
                     <FormControl>
                       <Input
                         type="number"

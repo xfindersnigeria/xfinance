@@ -12,6 +12,7 @@ import { MODULES } from "@/lib/types/enums";
 import { PaymentReceivedStats } from "./utils/types";
 import { useModal } from '@/components/providers/ModalProvider';
 import { MODAL } from '@/lib/data/modal-data';
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 interface PaymentReceivedHeaderProps {
   stats?: PaymentReceivedStats;
@@ -22,6 +23,7 @@ export default function PaymentReceivedHeader({
   loading = false,
 }: PaymentReceivedHeaderProps) {
   const { isOpen, openModal, closeModal } = useModal();
+  const sym = useEntityCurrencySymbol();
   return (
     <div className="mb-6">
       <div className="flex items-start justify-between">
@@ -57,7 +59,7 @@ export default function PaymentReceivedHeader({
               title="Total Paid"
               value={
                 <span className="text-xl">
-                  ₦{(stats?.totalAmount || 0).toLocaleString()}
+                  {sym}{(stats?.totalAmount || 0).toLocaleString()}
                 </span>
               }
               subtitle={`${stats?.totalRecords || 0} payment${stats?.totalRecords !== 1 ? "s" : ""}`}
@@ -67,7 +69,7 @@ export default function PaymentReceivedHeader({
               title="This Month Paid"
               value={
                 <span className="text-xl">
-                  ₦{(stats?.currentMonthPaidTotal || 0).toLocaleString()}
+                  {sym}{(stats?.currentMonthPaidTotal || 0).toLocaleString()}
                 </span>
               }
               subtitle="Payments received this month"

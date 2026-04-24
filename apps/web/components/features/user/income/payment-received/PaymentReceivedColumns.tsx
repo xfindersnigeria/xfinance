@@ -17,7 +17,8 @@ const paymentMethodColors: Record<string, string> = {
   Check: "bg-gray-50 text-gray-700",
 };
 
-export const PaymentReceivedColumns: Column<PaymentReceived>[] = [
+export function createPaymentReceivedColumns(sym: string): Column<PaymentReceived>[] {
+  return [
   {
     key: "reference",
     title: "Reference",
@@ -68,7 +69,7 @@ export const PaymentReceivedColumns: Column<PaymentReceived>[] = [
     className: "text-xs font-semibold",
     render: (value) => (
       <span className="text-xs font-semibold">
-        ₦{(value).toLocaleString("en-US", { maximumFractionDigits: 2 })}
+        {sym}{(value).toLocaleString("en-US", { maximumFractionDigits: 2 })}
       </span>
     ),
   },
@@ -89,4 +90,5 @@ export const PaymentReceivedColumns: Column<PaymentReceived>[] = [
     render: (_, row) => <PaymentReceivedActions row={row} />,
     searchable: false,
   },
-];
+  ];
+}

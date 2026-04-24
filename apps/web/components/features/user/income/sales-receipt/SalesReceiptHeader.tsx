@@ -20,6 +20,7 @@ import { MODULES } from "@/lib/types/enums";
 import { ReceiptStats } from "./utils/types";
 import { useModal } from '@/components/providers/ModalProvider';
 import { MODAL } from '@/lib/data/modal-data';
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 export default function SalesReceiptHeader({
   stats,
@@ -29,6 +30,7 @@ export default function SalesReceiptHeader({
   loading: boolean;
 }) {
   const { isOpen, openModal, closeModal } = useModal();
+  const sym = useEntityCurrencySymbol();
   return (
     <div className="mb-6">
       <div className="flex items-start justify-between">
@@ -52,7 +54,7 @@ export default function SalesReceiptHeader({
       <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <SalesReceiptStatCardSmall
           title="Total Sales"
-          value={<span className="text-2xl">₦{(stats?.totalSales || 0).toLocaleString()}</span>}
+          value={<span className="text-2xl">{sym}{(stats?.totalSales || 0).toLocaleString()}</span>}
           icon={
             <DollarSign className="h-6 w-6 text-emerald-600 bg-emerald-100 rounded-xl p-1" />
           }
@@ -60,7 +62,7 @@ export default function SalesReceiptHeader({
         />
         <SalesReceiptStatCardSmall
           title="Today's Sales"
-          value={<span className="text-2xl">₦{(stats?.todaysSales || 0).toLocaleString()}</span>}
+          value={<span className="text-2xl">{sym}{(stats?.todaysSales || 0).toLocaleString()}</span>}
           icon={
             <Calendar className="h-6 w-6 text-primary bg-indigo-100 rounded-xl p-1" />
           }
@@ -76,7 +78,7 @@ export default function SalesReceiptHeader({
         />
         <SalesReceiptStatCardSmall
           title="Avg Receipt Value"
-          value={<span className="text-2xl">₦{(stats?.averageReceiptValue || 0).toLocaleString()}</span>}
+          value={<span className="text-2xl">{sym}{(stats?.averageReceiptValue || 0).toLocaleString()}</span>}
           icon={
             <Edit3 className="h-6 w-6 text-amber-500 bg-amber-100 rounded-xl p-1" />
           }

@@ -31,6 +31,7 @@ import {
 import { useAccounts } from "@/lib/api/hooks/useAccounts";
 import { ItemSelector } from "../invoices/ItemSelector";
 import { paymentMethodOptions } from "../payment-received/PaymentReceivedForm";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 export const receiptSchema = z.object({
   customerId: z.string().min(1, "Customer is required"),
@@ -70,6 +71,7 @@ export default function SalesReceiptsForm({
   receipt,
   isEditMode = false,
 }: SalesReceiptsFormProps) {
+  const sym = useEntityCurrencySymbol();
   const { data, isLoading: customersLoading } = useCustomers();
   const itemsQuery = useItems();
   const items = itemsQuery.data?.items || [];
@@ -446,7 +448,7 @@ export default function SalesReceiptsForm({
                           onChange={(e) =>
                             field.onChange(Number(e.target.value))
                           }
-                          prefix="₦"
+                          prefix={sym}
                           disabled={true}
                         />
                       )}
@@ -460,7 +462,7 @@ export default function SalesReceiptsForm({
               <div className="flex justify-between items-center">
                 <p className="text-base font-normal">Total:</p>
                 <span className="font-semibold">
-                  ₦
+                  {sym}
                   {total.toLocaleString(undefined, {
                     minimumFractionDigits: 2,
                   })}

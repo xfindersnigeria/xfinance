@@ -3,7 +3,8 @@ import React from "react";
 import { CustomTable } from "@/components/local/custom/custom-table";
 import { usePayrollBatches } from "@/lib/api/hooks/useHR";
 import PayrollBadgesHeader from "./PayrollBadgesHeader";
-import { payrollBadgesColumns } from "./PayrollBadgesColumn";
+import { createPayrollBadgesColumns } from "./PayrollBadgesColumn";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 import { useDebounce } from "use-debounce";
 
 const STATUS_FILTERS = [
@@ -14,6 +15,7 @@ const STATUS_FILTERS = [
 ];
 
 export default function PayrollBadges() {
+  const sym = useEntityCurrencySymbol();
   const [searchTerm, setSearchTerm] = React.useState("");
   const [debouncedSearch] = useDebounce(searchTerm, 300);
   const [page, setPage] = React.useState(1);
@@ -54,7 +56,7 @@ export default function PayrollBadges() {
       <CustomTable
         searchPlaceholder="Search batches..."
         tableTitle="Payroll Batches"
-        columns={payrollBadgesColumns}
+        columns={createPayrollBadgesColumns(sym)}
         data={batches}
         pageSize={pageSize}
         loading={isLoading}

@@ -31,6 +31,7 @@ import {
 import { useAccounts } from "@/lib/api/hooks/useAccounts";
 import { useProjects } from "@/lib/api/hooks/useProjects";
 import { paymentReceivedSchema, PaymentReceivedFormData } from "./utils/schema";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 export const paymentMethodOptions = [
   { label: "Bank Transfer", value: "Bank_Transfer" },
@@ -52,6 +53,7 @@ export default function PaymentReceivedForm({
   invoiceId,
 }: PaymentReceivedFormProps) {
   const [submitting, setSubmitting] = useState(false);
+  const sym = useEntityCurrencySymbol();
 
   const { data: invoicesData, isLoading: invoicesLoading } = useInvoices({
     status: "Sent",
@@ -159,7 +161,7 @@ export default function PaymentReceivedForm({
                               value={inv.id}
                               disabled={!!(invoiceId && invoiceId !== inv.id)}
                             >
-                              {inv.invoiceNumber} - {inv?.customer?.name} (₦
+                              {inv.invoiceNumber} - {inv?.customer?.name} ({sym}
                               {inv.total.toLocaleString()})
                             </SelectItem>
                           ))
@@ -222,12 +224,12 @@ export default function PaymentReceivedForm({
                           step="0.01"
                           value={field.value}
                           onChange={(e) => field.onChange(Number(e.target.value))}
-                          placeholder="₦ 0.00"
+                          placeholder={`${sym} 0.00`}
                         />
                       </FormControl>
                       {outstanding !== null && (
                         <p className="text-xs text-muted-foreground">
-                          Outstanding: ₦{outstanding.toLocaleString()}
+                          Outstanding: {sym}{outstanding.toLocaleString()}
                         </p>
                       )}
                       <FormMessage />
@@ -404,7 +406,7 @@ export default function PaymentReceivedForm({
             <div className="mt-3 flex items-center justify-between bg-white rounded-lg px-3 py-2 border text-base">
               <span>Payment Amount:</span>
               <span className="font-bold">
-                ₦
+                {sym}
                 {paymentAmount.toLocaleString(undefined, {
                   minimumFractionDigits: 2,
                 })}

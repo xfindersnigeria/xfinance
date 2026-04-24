@@ -39,6 +39,8 @@ import { useModal } from "@/components/providers/ModalProvider";
 import { MODAL } from "@/lib/data/modal-data";
 import { useAccounts } from "@/lib/api/hooks/useAccounts";
 import { useProjects } from "@/lib/api/hooks/useProjects";
+import { useEntityConfig } from "@/lib/api/hooks/useSettings";
+import { getCurrencyByCode } from "@/lib/utils/currencies";
 import { paymentMethodOptions } from "../../income/payment-received/PaymentReceivedForm";
 
 const expenseSchema = z.object({
@@ -99,6 +101,10 @@ export default function ExpensesForm({
   const createExpense = useCreateExpense();
   const updateExpense = useUpdateExpense();
   const { data: vendorsData, isLoading: vendorsLoading } = useVendors();
+
+  const { data: configRes } = useEntityConfig();
+  const entityBaseCurrency: string = (configRes as any)?.data?.baseCurrency ?? "";
+  const currencySymbol = getCurrencyByCode(entityBaseCurrency)?.symbol ?? entityBaseCurrency ?? "—";
 
   const { data: accountsData, isLoading: accountsLoading } = useAccounts({
     type: "Expenses",
@@ -485,7 +491,7 @@ export default function ExpensesForm({
             <div className="mt-2 text-right font-bold text-lg text-blue-700">
               Total Amount{" "}
               <span className="text-2xl">
-                ${total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                {currencySymbol}{total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </span>
             </div>
           </div>

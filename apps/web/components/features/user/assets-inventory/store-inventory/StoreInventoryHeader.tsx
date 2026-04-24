@@ -10,9 +10,11 @@ import { CustomModal } from "@/components/local/custom/modal";
 import { MODULES } from "@/lib/types/enums";
 import StoreInventoryStatCardSmall from "./StoreInventoryStatCardSmall";
 import { useStoreSupplyStats } from "@/lib/api/hooks/useAssets";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 export default function StoreInventoryHeader() {
   const { isOpen, openModal, closeModal } = useModal();
+  const sym = useEntityCurrencySymbol();
 
   const { data, isLoading: statsLoading } = useStoreSupplyStats();
   // console.log(stats, "Fetched store supply stats:"); // Debug log to check fetched data
@@ -77,7 +79,7 @@ export default function StoreInventoryHeader() {
         <StoreInventoryStatCardSmall
           title="Total Supplies"
           value={<span className="text-3xl">{stats.total}</span>}
-          subtitle={`₦${stats.totalValue.toLocaleString()} value`}
+          subtitle={`${sym}${stats.totalValue.toLocaleString()} value`}
         />
         <StoreInventoryStatCardSmall
           title="In Stock"

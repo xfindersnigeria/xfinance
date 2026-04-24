@@ -10,12 +10,7 @@ import ItemForm from "./StoreItemForm";
 import { StoreItemsResponse } from "@/lib/api/hooks/types/productsTypes";
 import { useModal } from "@/components/providers/ModalProvider";
 import { MODAL } from "@/lib/data/modal-data";
-
-function formatValue(n: number): string {
-  if (n >= 1_000_000) return `₦${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `₦${(n / 1_000).toFixed(1)}K`;
-  return `₦${n.toLocaleString()}`;
-}
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 export default function StoreItemHeader({
   data,
@@ -25,7 +20,14 @@ export default function StoreItemHeader({
   loading: boolean;
 }) {
   const { isOpen, openModal, closeModal } = useModal();
+  const sym = useEntityCurrencySymbol();
   const totalCount = data?.total ?? 0;
+
+  function formatValue(n: number): string {
+    if (n >= 1_000_000) return `${sym}${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000) return `${sym}${(n / 1_000).toFixed(1)}K`;
+    return `${sym}${n.toLocaleString()}`;
+  }
   const totalInStock = data?.totalInStock ?? 0;
   const totalOutOfStock = data?.totalOutOfStock ?? 0;
   const totalValue = data?.totalValue ?? 0;

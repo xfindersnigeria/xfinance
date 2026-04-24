@@ -5,46 +5,42 @@ import React from "react";
 import StatCard from "@/components/features/user/dashboard/StatCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GroupKPIs } from "@/lib/api/services/analyticsService";
+import { useGroupCurrencySymbol, fmtAmountCompact } from "@/lib/api/hooks/useCurrencyFormat";
 
 interface AdminStatsGridProps {
   data?: GroupKPIs;
   loading?: boolean;
 }
 
-function formatCurrency(value: number): string {
-  const abs = Math.abs(value);
-  if (abs >= 1_000_000) return `₦${(value / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `₦${(value / 1_000).toFixed(1)}K`;
-  return `₦${value.toLocaleString()}`;
-}
-
 export default function AdminStatsGrid({ data, loading }: AdminStatsGridProps) {
+  const sym = useGroupCurrencySymbol();
+
   const stats = [
     {
       title: "Consolidated Revenue",
       icon: <Banknote className="h-5 w-5" />,
-      value: data ? formatCurrency(data.consolidatedRevenue.mtd) : "₦0",
+      value: data ? fmtAmountCompact(data.consolidatedRevenue.mtd, sym) : `${sym}0`,
       percentage: Math.abs(Number((data?.consolidatedRevenue.changePercent ?? 0).toFixed(2))),
       isPositive: (data?.consolidatedRevenue.changePercent ?? 0) >= 0,
     },
     {
       title: "Net Profit (MTD)",
       icon: <TrendingUp className="h-5 w-5" />,
-      value: data ? formatCurrency(data.netProfit.mtd) : "₦0",
+      value: data ? fmtAmountCompact(data.netProfit.mtd, sym) : `${sym}0`,
       percentage: Math.abs(Number((data?.netProfit.changePercent ?? 0).toFixed(2))),
       isPositive: (data?.netProfit.changePercent ?? 0) >= 0,
     },
     {
       title: "Total Bank Balance",
       icon: <Landmark className="h-5 w-5" />,
-      value: data ? formatCurrency(data.bankBalance.total) : "₦0",
+      value: data ? fmtAmountCompact(data.bankBalance.total, sym) : `${sym}0`,
       percentage: Math.abs(Number((data?.bankBalance.changePercent ?? 0).toFixed(2))),
       isPositive: (data?.bankBalance.changePercent ?? 0) >= 0,
     },
     {
       title: "Total Liabilities",
       icon: <TrendingDown className="h-5 w-5" />,
-      value: data ? formatCurrency(data.liabilities.total) : "₦0",
+      value: data ? fmtAmountCompact(data.liabilities.total, sym) : `${sym}0`,
       percentage: Math.abs(Number((data?.liabilities.changePercent ?? 0).toFixed(2))),
       isPositive: (data?.liabilities.changePercent ?? 0) <= 0,
     },

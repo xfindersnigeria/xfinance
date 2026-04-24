@@ -722,6 +722,8 @@ import { invoiceSchema } from "./utils/schema";
 import { ItemSelector } from "./ItemSelector";
 import type { StoreItemsResponse } from "@/lib/api/hooks/types/productsTypes";
 import { useProjects } from "@/lib/api/hooks/useProjects";
+import { useCurrencies, useEntityConfig } from "@/lib/api/hooks/useSettings";
+import { getCurrencyByCode } from "@/lib/utils/currencies";
 
 type InvoiceFormData = z.infer<typeof invoiceSchema>;
 
@@ -764,6 +766,13 @@ export default function InvoiceForm({
   const createInvoice = useCreateInvoice();
   const updateInvoice = useUpdateInvoice();
 
+  const { data: configRes } = useEntityConfig();
+  const entityBaseCurrency: string = (configRes as any)?.data?.baseCurrency ?? "";
+  const multiCurrency: boolean = (configRes as any)?.data?.multiCurrency ?? false;
+
+  const { data: currencyRes } = useCurrencies(true);
+  const activeCurrencies: any[] = (currencyRes as any)?.data ?? [];
+
   const customers = data?.customers || [];
   const items = itemsQuery.data?.items || [];
   const itemsLoading = itemsQuery.isLoading;
@@ -777,7 +786,7 @@ export default function InvoiceForm({
         : new Date(),
       dueDate: invoice?.dueDate ? new Date(invoice.dueDate) : new Date(),
       paymentTerms: invoice?.paymentTerms || "",
-      currency: invoice?.currency || "USD",
+      currency: invoice?.currency || entityBaseCurrency || "",
       lineItems: invoice?.lineItems || [],
       notes: invoice?.notes || "",
       projectId: invoice?.projectId || "",
@@ -811,7 +820,7 @@ export default function InvoiceForm({
           : new Date(),
         dueDate: invoice?.dueDate ? new Date(invoice.dueDate) : new Date(),
         paymentTerms: invoice?.paymentTerms || "",
-        currency: invoice?.currency || "USD",
+        currency: invoice?.currency || entityBaseCurrency || "",
         lineItems: [],
         notes: invoice?.notes || "",
         projectId: invoice?.projectId || "",
@@ -1016,31 +1025,32 @@ export default function InvoiceForm({
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="currency"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Currency</FormLabel>
-                    <FormControl>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select currency" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="USD">USD ($)</SelectItem>
-                          <SelectItem value="NGN">NGN (₦)</SelectItem>
-                          <SelectItem value="GBP">GBP (£)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {multiCurrency && (
+                <FormField
+                  control={form.control}
+                  name="currency"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Currency</FormLabel>
+                      <FormControl>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select currency" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {activeCurrencies.map((c: any) => (
+                              <SelectItem key={c.code} value={c.code}>
+                                {c.symbol} {c.code} — {c.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
 
               <FormField
                 control={form.control}
@@ -1212,42 +1222,27 @@ export default function InvoiceForm({
                 );
               })}
             </div>
-            <div className="mt-2 flex flex-col gap-1 text-sm bg-white rounded-xl p-3">
-              <div className="flex justify-between items-center">
-                <p className="text-base font-normal">Subtotal:</p>
-                <span className="font-semibold">
-                  {form.watch("currency") === "NGN"
-                    ? "₦"
-                    : form.watch("currency") === "GBP"
-                      ? "£"
-                      : "$"}
-                  {subtotal.toLocaleString()}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <p className="text-base font-normal">Tax (10%):</p>
-                <span className="font-semibold">
-                  {form.watch("currency") === "NGN"
-                    ? "₦"
-                    : form.watch("currency") === "GBP"
-                      ? "£"
-                      : "$"}
-                  {tax.toLocaleString()}
-                </span>
-              </div>
-              <hr />
-              <div className="flex justify-between items-center">
-                <p className="text-base font-normal">Total:</p>
-                <span className="text-xl text-primary font-semibold">
-                  {form.watch("currency") === "NGN"
-                    ? "₦"
-                    : form.watch("currency") === "GBP"
-                      ? "£"
-                      : "$"}
-                  {total.toLocaleString()}
-                </span>
-              </div>
-            </div>
+            {(() => {
+              const activeCurrency = form.watch("currency") || entityBaseCurrency;
+              const sym = getCurrencyByCode(activeCurrency)?.symbol ?? activeCurrency ?? "";
+              return (
+                <div className="mt-2 flex flex-col gap-1 text-sm bg-white rounded-xl p-3">
+                  <div className="flex justify-between items-center">
+                    <p className="text-base font-normal">Subtotal:</p>
+                    <span className="font-semibold">{sym}{subtotal.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <p className="text-base font-normal">Tax (10%):</p>
+                    <span className="font-semibold">{sym}{tax.toLocaleString()}</span>
+                  </div>
+                  <hr />
+                  <div className="flex justify-between items-center">
+                    <p className="text-base font-normal">Total:</p>
+                    <span className="text-xl text-primary font-semibold">{sym}{total.toLocaleString()}</span>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* --- Additional Information --- */}

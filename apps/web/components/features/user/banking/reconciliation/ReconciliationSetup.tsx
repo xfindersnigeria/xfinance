@@ -3,6 +3,7 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ReconciliationSetupValues } from "./types";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 interface ReconciliationSetupProps {
   values: ReconciliationSetupValues;
@@ -15,6 +16,8 @@ export default function ReconciliationSetup({
   onChange,
   accountName,
 }: ReconciliationSetupProps) {
+  const sym = useEntityCurrencySymbol();
+
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -38,7 +41,7 @@ export default function ReconciliationSetup({
           </Label>
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-medium">
-              ₦
+              {sym}
             </span>
             <Input
               type="number"

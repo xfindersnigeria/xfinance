@@ -1,9 +1,6 @@
 "use client";
-import { Mail, Phone, MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Column } from "@/components/local/custom/custom-table";
-import { getInitials } from "@/lib/utils";
-import CustomersActions from "./AssetsActions";
 import AssetsActions from "./AssetsActions";
 
 export const assetsData = [
@@ -53,86 +50,76 @@ export const assetsData = [
   },
 ];
 
-export const assetsColumns: Column<any>[] = [
-  {
-    key: "name",
-    title: "Asset",
-    className: "text-xs",
-    render: (value, row) => (
-      <div>
-        <div className="font-normal text-gray-900 line-clamp-1">{row.name}</div>
-        <div className="text-xs text-gray-400 line-clamp-1">
-          {row.serialNumber}
+export function createAssetsColumns(sym: string): Column<any>[] {
+  return [
+    {
+      key: "name",
+      title: "Asset",
+      className: "text-xs",
+      render: (value, row) => (
+        <div>
+          <div className="font-normal text-gray-900 line-clamp-1">{row.name}</div>
+          <div className="text-xs text-gray-400 line-clamp-1">
+            {row.serialNumber}
+          </div>
         </div>
-      </div>
-    ),
-  },
-  // {
-  //   key: "category",
-  //   title: "Category",
-  //   className: "text-xs",
-  //   render: (value) => <span className="text-gray-700">{value}</span>,
-  // },
-  {
-    key: "purchaseDate",
-    title: "Purchase Date",
-    className: "text-xs",
-    render: (value) =>
-      value
-        ? new Date(value).toLocaleDateString("en-US", {
-            year: "numeric",
-            month: "short",
-            day: "2-digit",
-          })
-        : "",
-  },
-  // {
-  //   key: "location",
-  //   title: "Location",
-  //   className: "text-xs",
-  //   render: (value) => <span className="text-gray-700">{value}</span>,
-  // },
-  {
-    key: "purchaseCost",
-    title: "Purchase Cost",
-    className: "text-xs",
-    render: (value) => (
-      <span className="text-gray-700">₦{value.toLocaleString()}</span>
-    ),
-  },
-  {
-    key: "currentValue",
-    title: "Current Value",
-    className: "text-xs",
-    render: (value) => (
-      <span className="text-gray-700">₦{value.toLocaleString()}</span>
-    ),
-  },
-  {
-    key: "status",
-    title: "Status",
-    className: "text-xs",
-    render: (value) => {
-      if (value === "in_use")
-        return (
-          <Badge className="bg-green-100 text-green-700 px-3 py-1 rounded-full font-medium">
-            In Use
-          </Badge>
-        );
-      if (value === "in_storage")
-        return (
-          <Badge className="bg-red-100 text-red-700 px-3 py-1 rounded-full font-medium">
-            In Storage
-          </Badge>
-        );
-      return null;
+      ),
     },
-  },
-  {
-    key: "actions",
-    title: "Actions",
-    className: "w-16 text-xs",
-    render: (_, row) => <AssetsActions row={row} />, // parent should provide onDelete
-    searchable: false,
-  },
-];
+    {
+      key: "purchaseDate",
+      title: "Purchase Date",
+      className: "text-xs",
+      render: (value) =>
+        value
+          ? new Date(value).toLocaleDateString("en-US", {
+              year: "numeric",
+              month: "short",
+              day: "2-digit",
+            })
+          : "",
+    },
+    {
+      key: "purchaseCost",
+      title: "Purchase Cost",
+      className: "text-xs",
+      render: (value) => (
+        <span className="text-gray-700">{sym}{value.toLocaleString()}</span>
+      ),
+    },
+    {
+      key: "currentValue",
+      title: "Current Value",
+      className: "text-xs",
+      render: (value) => (
+        <span className="text-gray-700">{sym}{value.toLocaleString()}</span>
+      ),
+    },
+    {
+      key: "status",
+      title: "Status",
+      className: "text-xs",
+      render: (value) => {
+        if (value === "in_use")
+          return (
+            <Badge className="bg-green-100 text-green-700 px-3 py-1 rounded-full font-medium">
+              In Use
+            </Badge>
+          );
+        if (value === "in_storage")
+          return (
+            <Badge className="bg-red-100 text-red-700 px-3 py-1 rounded-full font-medium">
+              In Storage
+            </Badge>
+          );
+        return null;
+      },
+    },
+    {
+      key: "actions",
+      title: "Actions",
+      className: "w-16 text-xs",
+      render: (_, row) => <AssetsActions row={row} />,
+      searchable: false,
+    },
+  ];
+}

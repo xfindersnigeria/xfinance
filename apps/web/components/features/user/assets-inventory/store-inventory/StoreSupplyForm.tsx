@@ -25,6 +25,7 @@ import {
   useCreateStoreSupply,
   useUpdateStoreSupply,
 } from "@/lib/api/hooks/useAssets";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 import { Loader2 } from "lucide-react";
 // import { toast } from "sonner";
 
@@ -70,6 +71,7 @@ export default function StoreSupplyForm({
 
   const createMutation = useCreateStoreSupply();
   const updateMutation = useUpdateStoreSupply();
+  const sym = useEntityCurrencySymbol();
 
   useEffect(() => {
     if (isEditMode && supply) {
@@ -198,7 +200,7 @@ export default function StoreSupplyForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>
-                    Unit Price (₦) <span className="text-red-500">*</span>
+                    {`Unit Price (${sym})`} <span className="text-red-500">*</span>
                   </FormLabel>
                   <FormControl>
                     <Input
@@ -267,9 +269,9 @@ export default function StoreSupplyForm({
               )}
             />
             <div>
-              <FormLabel>Total Value (₦)</FormLabel>
+              <FormLabel>{`Total Value (${sym})`}</FormLabel>
               <Input
-                value={`₦${(form.watch("unitPrice") || 0) * (form.watch("quantity") || 0)}`}
+                value={`${sym}${(form.watch("unitPrice") || 0) * (form.watch("quantity") || 0)}`}
                 disabled
                 className="bg-gray-100"
               />

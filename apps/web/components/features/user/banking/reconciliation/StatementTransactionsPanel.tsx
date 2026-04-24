@@ -11,6 +11,7 @@ import ImportStatementModal from "./ImportStatementModal";
 import { createId } from "@paralleldrive/cuid2";
 import { useImportStatement } from "@/lib/api/hooks/useBanking";
 import { toast } from "sonner";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 interface StatementTransactionsPanelProps {
   bankAccountId: string;
@@ -18,12 +19,12 @@ interface StatementTransactionsPanelProps {
   onChange: (transactions: StatementTransaction[]) => void;
 }
 
-function formatAmount(amount: number) {
+function formatAmount(amount: number, sym: string) {
   const abs = Math.abs(amount);
   const prefix = amount >= 0 ? "+" : "-";
-  if (abs >= 1_000_000) return `${prefix}₦${(abs / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `${prefix}₦${(abs / 1_000).toFixed(0)}k`;
-  return `${prefix}₦${abs.toLocaleString()}`;
+  if (abs >= 1_000_000) return `${prefix}${sym}${(abs / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `${prefix}${sym}${(abs / 1_000).toFixed(0)}k`;
+  return `${prefix}${sym}${abs.toLocaleString()}`;
 }
 
 export default function StatementTransactionsPanel({
@@ -31,6 +32,7 @@ export default function StatementTransactionsPanel({
   transactions,
   onChange,
 }: StatementTransactionsPanelProps) {
+  const sym = useEntityCurrencySymbol();
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const importMutation = useImportStatement(bankAccountId);
@@ -139,7 +141,7 @@ export default function StatementTransactionsPanel({
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <span className={`text-sm font-semibold ${tx.amount >= 0 ? "text-green-700" : "text-red-700"}`}>
-                  {formatAmount(tx.amount)}
+                  {formatAmount(tx.amount, sym)}
                 </span>
                 {tx.matched ? (
                   <CheckCircle2 className="w-4 h-4 text-green-500" />
@@ -161,7 +163,7 @@ export default function StatementTransactionsPanel({
         <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50">
           <span className="text-xs font-semibold text-gray-600">Total</span>
           <span className="text-sm font-bold text-gray-900">
-            {formatAmount(transactions.reduce((sum, t) => sum + t.amount, 0))}
+            {formatAmount(transactions.reduce((sum, t) => sum + t.amount, 0), sym)}
           </span>
         </div>
       </div>

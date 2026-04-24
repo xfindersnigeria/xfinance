@@ -2,7 +2,8 @@
 
 import React, { useMemo, useState } from "react";
 import { CustomTable } from "@/components/local/custom/custom-table";
-import { columns } from "./AccountsDetailsColumn";
+import { createAccountsDetailsColumns } from "./AccountsDetailsColumn";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 import { useDebounce } from "use-debounce";
 
 interface AccountTransactionsProps {
@@ -14,6 +15,7 @@ export default function AccountTransactions({
   transactions,
   isLoading,
 }: AccountTransactionsProps) {
+  const sym = useEntityCurrencySymbol();
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm] = useDebounce(searchTerm, 300);
 
@@ -30,7 +32,7 @@ export default function AccountTransactions({
     <div className="space-y-4">
       <CustomTable
         data={filteredTransactions}
-        columns={columns as any}
+        columns={createAccountsDetailsColumns(sym) as any}
         tableTitle="Account Transactions"
         searchPlaceholder="Search transactions..."
         onSearchChange={setSearchTerm}

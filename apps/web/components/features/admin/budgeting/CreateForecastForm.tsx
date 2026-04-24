@@ -39,6 +39,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { useAccounts } from '@/lib/api/hooks/useAccounts';
 import type { Account } from '@/lib/api/hooks/types/accountsTypes';
+import { useGroupCurrencySymbol } from '@/lib/api/hooks/useCurrencyFormat';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -126,6 +127,7 @@ function MethodCard({ icon, title, description, value, selected, onSelect }: Met
 export function CreateForecastForm() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const sym = useGroupCurrencySymbol();
   const [method, setMethod] = useState<ForecastMethod>('manual');
 
   const { data: accountsResponse, isLoading: accountsLoading } = useAccounts({ limit: 200 });
@@ -165,7 +167,7 @@ export function CreateForecastForm() {
   };
 
   // Placeholder — replaced with real last-period actuals once API is available
-  const getLastPeriodActual = (_accountId: string) => '₦285,000,000';
+  const getLastPeriodActual = (_accountId: string) => `${sym}285,000,000`;
 
   const onSubmit = async (_values: FormValues) => {
     try {
@@ -367,7 +369,7 @@ export function CreateForecastForm() {
 
             {/* Column headers */}
             <div className="grid grid-cols-[2fr_1fr_1fr_1fr_auto] gap-3 px-5 py-2 bg-gray-50 border-b border-gray-100">
-              {['Account', 'Type', 'Forecast Amount (₦)', 'Last Period Actual', ''].map((h) => (
+              {['Account', 'Type', `Forecast Amount (${sym})`, 'Last Period Actual', ''].map((h) => (
                 <span key={h} className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                   {h}
                 </span>
@@ -425,7 +427,7 @@ export function CreateForecastForm() {
                         <FormItem className="mb-0">
                           <FormControl>
                             <div className="relative">
-                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">₦</span>
+                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">{sym}</span>
                               <Input
                                 type="number"
                                 min={0}
@@ -470,7 +472,7 @@ export function CreateForecastForm() {
                 <div>
                   <p className="text-xs text-gray-500">Total Forecast Value</p>
                   <p className="text-lg font-bold text-gray-900">
-                    ₦{totalForecast.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    {sym}{totalForecast.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </p>
                 </div>
               </div>

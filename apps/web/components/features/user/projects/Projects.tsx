@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import { useDebounce } from "use-debounce";
 import { CustomTable } from "@/components/local/custom/custom-table";
 import ProjectsHeader from "./ProjectsHeader";
-import { projectsColumns } from "./ProjectsColumn";
+import { createProjectsColumns } from "./ProjectsColumn";
 import { useProjects } from "@/lib/api/hooks/useProjects";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 export default function Projects() {
+  const sym = useEntityCurrencySymbol();
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm] = useDebounce(searchTerm, 300);
@@ -37,7 +39,7 @@ export default function Projects() {
       <CustomTable
         searchPlaceholder="Search projects..."
         tableTitle="All Projects"
-        columns={projectsColumns}
+        columns={createProjectsColumns(sym)}
         data={(projectsData as any)?.data || []}
         pageSize={pageSize}
         loading={isPending}

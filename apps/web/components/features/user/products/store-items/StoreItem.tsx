@@ -3,10 +3,12 @@ import { useState } from "react";
 import { useDebounce } from "use-debounce";
 import { useStoreItems } from "@/lib/api/hooks/useProducts";
 import { CustomTable } from "@/components/local/custom/custom-table";
-import { storeItemColumns } from "./StoreItemColumn";
+import { createStoreItemColumns } from "./StoreItemColumn";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 import StoreItemHeader from "./StoreItemHeader";
 
 export default function StoreItem() {
+  const sym = useEntityCurrencySymbol();
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -43,7 +45,7 @@ export default function StoreItem() {
         onStatusChange={setCategoryFilter}
         searchPlaceholder="Search store items..."
         tableTitle="Store Items"
-        columns={storeItemColumns}
+        columns={createStoreItemColumns(sym)}
         data={items}
         pageSize={rowsPerPage}
         loading={isLoading}

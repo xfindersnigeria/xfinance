@@ -8,6 +8,7 @@ import { MODULES } from "@/lib/types/enums";
 import AssetsStatCardSmall from "./AssetsStatCardSmall";
 import AssetAttentionAlert from "./AssetAttentionAlert";
 import AssetsForm from "./AssetsForm";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 export default function AssetsHeader({
   summary,
@@ -22,6 +23,7 @@ export default function AssetsHeader({
   loading: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
+  const sym = useEntityCurrencySymbol();
   return (
     <div className="mb-6">
       <div className="flex items-start justify-between">
@@ -53,7 +55,7 @@ export default function AssetsHeader({
           }
           subtitle={
             <span>
-              Worth ₦
+              Worth {sym}
               {((summary?.depricableValue || 0)).toLocaleString(undefined, {
                 maximumFractionDigits: 0,
               })}
@@ -85,7 +87,7 @@ export default function AssetsHeader({
           title="Total Value"
           value={
             <span className="text-3xl font-bold text-blue-800">
-              ₦
+              {sym}
               {((summary?.depricableValue || 0)).toLocaleString(undefined, {
                 maximumFractionDigits: 0,
               })}

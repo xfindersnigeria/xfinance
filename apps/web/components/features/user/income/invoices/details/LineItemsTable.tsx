@@ -1,5 +1,7 @@
 "use client";
 
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+
 interface LineItem {
   id: string;
   description: string;
@@ -18,18 +20,7 @@ export default function LineItemsTable({
   items,
   currency,
 }: LineItemsTableProps) {
-  const getCurrencySymbol = (curr: string) => {
-    switch (curr) {
-      case "USD":
-        return "$";
-      case "NGN":
-        return "₦";
-      case "GBP":
-        return "£";
-      default:
-        return "₦";
-    }
-  };
+  const sym = useEntityCurrencySymbol();
 
   return (
     <div className="mb-4">
@@ -66,14 +57,14 @@ export default function LineItemsTable({
                   {item.quantity}
                 </td>
                 <td className="py-2 sm:py-2 px-2 sm:px-4 text-center text-gray-900 hidden sm:table-cell">
-                  {getCurrencySymbol(currency)}
+                  {sym}
                   {item.rate.toLocaleString("en-US", {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })}
                 </td>
                 <td className="py-2 sm:py-2 px-2 sm:px-4 text-right text-gray-900 font-medium text-xs sm:text-sm">
-                  {getCurrencySymbol(currency)}
+                  {sym}
                   {item.amount.toLocaleString("en-US", {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,

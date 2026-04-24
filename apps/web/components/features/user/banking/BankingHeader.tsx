@@ -7,6 +7,7 @@ import { MODAL } from "@/lib/data/modal-data";
 import { useModal } from "@/components/providers/ModalProvider";
 import BankingStatCardSmall from "./BankingStatCardSmall";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 interface BankingStats {
   totalBankCash: number;
@@ -30,9 +31,10 @@ export default function BankingHeader({
   loading: boolean;
 }) {
   const { openModal } = useModal();
+  const sym = useEntityCurrencySymbol();
 
   const formatCurrency = (amount: number) => {
-    return `₦${(amount).toLocaleString()}`;
+    return `${sym}${(amount).toLocaleString()}`;
   };
 
   return (

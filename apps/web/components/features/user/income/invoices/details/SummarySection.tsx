@@ -1,5 +1,7 @@
 "use client";
 
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+
 interface SummarySectionProps {
   subtotal: number;
   tax: number;
@@ -15,18 +17,7 @@ export default function SummarySection({
   balanceDue,
   currency,
 }: SummarySectionProps) {
-  const getCurrencySymbol = (curr: string) => {
-    switch (curr) {
-      case "USD":
-        return "$";
-      case "NGN":
-        return "₦";
-      case "GBP":
-        return "£";
-      default:
-        return "₦";
-    }
-  };
+  const sym = useEntityCurrencySymbol();
 
   return (
     <div className="flex justify-start sm:justify-end">
@@ -34,7 +25,7 @@ export default function SummarySection({
         <div className="flex justify-between text-sm">
           <span className="text-gray-700">Subtotal</span>
           <span className="text-gray-900 font-medium">
-            {getCurrencySymbol(currency)}
+            {sym}
             {subtotal.toLocaleString("en-US", {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
@@ -44,7 +35,7 @@ export default function SummarySection({
         <div className="flex justify-between text-sm border-b border-gray-200 pb-2">
           <span className="text-gray-700">Tax (10%)</span>
           <span className="text-gray-900 font-medium">
-            {getCurrencySymbol(currency)}
+            {sym}
             {tax.toLocaleString("en-US", {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
@@ -54,7 +45,7 @@ export default function SummarySection({
         <div className="flex justify-between text-base font-semibold mb-2">
           <span className="text-gray-900">Total</span>
           <span className="text-gray-900">
-            {getCurrencySymbol(currency)}
+            {sym}
             {total.toLocaleString("en-US", {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
@@ -64,7 +55,7 @@ export default function SummarySection({
         <div className="flex justify-between text-base font-semibold bg-blue-50 px-3 py-2 rounded">
           <span className="text-blue-900">Balance Due</span>
           <span className="text-blue-900">
-            {getCurrencySymbol(currency)}
+            {sym}
             {balanceDue.toLocaleString("en-US", {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,

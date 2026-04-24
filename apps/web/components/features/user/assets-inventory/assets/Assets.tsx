@@ -2,11 +2,13 @@
 import React from "react";
 import AssetsHeader from "./AssetsHeader";
 import { CustomTable } from "@/components/local/custom/custom-table";
-import { assetsColumns } from "./AssetsColumn";
+import { createAssetsColumns } from "./AssetsColumn";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 import { useAssets } from "@/lib/api/hooks/useAssets";
 import { useDebounce } from "use-debounce";
 
 export default function Assets() {
+  const sym = useEntityCurrencySymbol();
   const [searchTerm, setSearchTerm] = React.useState("");
   const [debouncedSearchTerm] = useDebounce(searchTerm, 300);
 
@@ -29,7 +31,7 @@ export default function Assets() {
       <CustomTable
         searchPlaceholder="Search assets..."
         tableTitle="Fixed Assets"
-        columns={assetsColumns}
+        columns={createAssetsColumns(sym)}
         data={assetsData}
         pageSize={10}
         loading={loading}

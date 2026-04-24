@@ -4,9 +4,10 @@ import React, { useState } from "react";
 import { useDebounce } from "use-debounce";
 import { CustomTable } from "@/components/local/custom/custom-table";
 import ItemsHeader from "./ItemsHeader";
-import { itemsColumns } from "./ItemsColumn";
+import { createItemsColumns } from "./ItemsColumn";
 import { mockItemsData } from "./utils/data";
 import { useItems } from "@/lib/api/hooks/useSales";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 /**
  * Main Items list component
@@ -14,6 +15,7 @@ import { useItems } from "@/lib/api/hooks/useSales";
  * TODO: Replace mockItemsData with actual useItems API hook
  */
 export default function Items() {
+  const sym = useEntityCurrencySymbol();
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm] = useDebounce(searchTerm, 300);
   const [page, setPage] = useState(1);
@@ -50,7 +52,7 @@ export default function Items() {
       <CustomTable
         searchPlaceholder="Search items..."
         tableTitle="All Items"
-        columns={itemsColumns}
+        columns={createItemsColumns(sym)}
         data={itemsData?.items || []}
         pageSize={pageSize}
         loading={isPending}

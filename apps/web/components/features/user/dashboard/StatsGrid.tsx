@@ -10,6 +10,7 @@ import React from "react";
 import StatCard from "./StatCard";
 import { KPIs } from "@/lib/api/services/analyticsService";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 interface StatsGridProps {
   data?: KPIs;
@@ -17,25 +18,27 @@ interface StatsGridProps {
 }
 
 export default function StatsGrid({ data, loading }: StatsGridProps) {
+  const sym = useEntityCurrencySymbol();
+
   const stats = [
     {
       title: "Revenue (MTD)",
       icon: <Banknote className="h-5 w-5" />,
-      value: data?.revenue?.mtd ? `₦${(data.revenue.mtd).toLocaleString()}` : "₦0",
+      value: data?.revenue?.mtd ? `${sym}${(data.revenue.mtd).toLocaleString()}` : `${sym}0`,
       percentage: data?.revenue?.changePercent ?? 0,
       isPositive: (data?.revenue?.changePercent ?? 0) >= 0,
     },
     {
       title: "Bank Balance",
       icon: <Landmark className="h-5 w-5" />,
-      value: data?.bankBalance?.total ? `₦${(data.bankBalance.total).toLocaleString()}` : "₦0",
+      value: data?.bankBalance?.total ? `${sym}${(data.bankBalance.total).toLocaleString()}` : `${sym}0`,
       percentage: data?.bankBalance?.changePercent ?? 0,
       isPositive: (data?.bankBalance?.changePercent ?? 0) >= 0,
     },
     {
       title: "Current Liabilities",
       icon: <TrendingDown className="h-5 w-5" />,
-      value: data?.liabilities?.total ? `₦${(data.liabilities.total).toLocaleString()}` : "₦0",
+      value: data?.liabilities?.total ? `${sym}${(data.liabilities.total).toLocaleString()}` : `${sym}0`,
       percentage: Math.abs(Number((data?.liabilities?.changePercent ?? 0).toFixed(2))),
       isPositive: (data?.liabilities?.changePercent ?? 0) <= 0,
     },

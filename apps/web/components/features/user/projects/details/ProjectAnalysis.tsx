@@ -3,20 +3,22 @@
 import React from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { useProjectAnalysis } from "@/lib/api/hooks/useProjects";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 interface ProjectAnalysisProps {
   projectId: string;
 }
 
-function fmt(n: number): string {
-  const abs = Math.abs(n);
-  if (abs >= 1_000_000) return `₦${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
-  if (abs >= 1_000) return `₦${(n / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
-  return `₦${n}`;
-}
-
 export default function ProjectAnalysis({ projectId }: ProjectAnalysisProps) {
+  const sym = useEntityCurrencySymbol();
   const { data, isLoading } = useProjectAnalysis(projectId);
+
+  function fmt(n: number): string {
+    const abs = Math.abs(n);
+    if (abs >= 1_000_000) return `${sym}${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+    if (abs >= 1_000) return `${sym}${(n / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
+    return `${sym}${n}`;
+  }
 
   const actualRevenue: number = (data as any)?.actualRevenue ?? 0;
   const budgetedRevenue: number = (data as any)?.budgetedRevenue ?? 0;

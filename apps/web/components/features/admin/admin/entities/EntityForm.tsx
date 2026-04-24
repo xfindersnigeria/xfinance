@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { useCreateEntity, useUpdateEntity } from "@/lib/api/hooks/useEntity";
 import { EntityFormData } from "@/lib/api/services/entityService";
+import { useCurrencies } from "@/lib/api/hooks/useSettings";
 
 const entitySchema = z.object({
   logo: z
@@ -72,15 +73,6 @@ const COUNTRIES = [
   "Australia",
   "Nigeria",
 ];
-const CURRENCIES = [
-  "USD - US Dollar",
-  "GBP - British Pound",
-  "EUR - Euro",
-  "JPY - Japanese Yen",
-  "AUD - Australian Dollar",
-  "CAD - Canadian Dollar",
-  "NGN - Nigerian Naira",
-];
 const FISCAL_YEAR_ENDS = ["December 31", "March 31", "June 30", "September 30"];
 
 export function EntityForm({
@@ -89,6 +81,8 @@ export function EntityForm({
 }: EntityFormProps) {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
+  const { data: currencyRes } = useCurrencies(true);
+  const activeCurrencies: any[] = (currencyRes as any)?.data ?? [];
 
   const createEntityMutation = useCreateEntity();
   const updateEntityMutation = useUpdateEntity();
@@ -101,7 +95,7 @@ export function EntityForm({
       legalName: entity?.legalName || "",
       taxId: entity?.taxId || "",
       country: entity?.country || "United States",
-      currency: entity?.currency || "USD - US Dollar",
+      currency: entity?.currency || "",
       yearEnd: entity?.yearEnd || "December 31",
       address: entity?.address || "",
       city: entity?.city || "",
@@ -121,7 +115,7 @@ export function EntityForm({
         legalName: entity?.legalName || "",
         taxId: entity?.taxId || "",
         country: entity?.country || "United States",
-        currency: entity?.currency || "USD - US Dollar",
+        currency: entity?.currency || "",
         yearEnd: entity?.yearEnd || "December 31",
         address: entity?.address || "",
         city: entity?.city || "",
@@ -326,19 +320,24 @@ export function EntityForm({
                       <FormLabel className="text-xs">Base Currency *</FormLabel>
                       <Select
                         onValueChange={field.onChange}
-                        defaultValue={field.value}
+                        value={field.value}
                       >
                         <FormControl>
                           <SelectTrigger className="w-full">
-                            <SelectValue />
+                            <SelectValue placeholder="Select currency" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {CURRENCIES.map((currency) => (
-                            <SelectItem key={currency} value={currency}>
-                              {currency}
+                          {activeCurrencies.map((c) => (
+                            <SelectItem key={c.code} value={c.code}>
+                              {c.symbol} {c.code} — {c.name}
                             </SelectItem>
                           ))}
+                          {activeCurrencies.length === 0 && (
+                            <SelectItem value="none" disabled>
+                              No active currencies — add in group settings
+                            </SelectItem>
+                          )}
                         </SelectContent>
                       </Select>
                       <FormMessage />

@@ -10,18 +10,20 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AgingData } from "@/lib/api/services/analyticsService";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 interface AccountsReceivableAgingProps {
   data?: AgingData;
   loading?: boolean;
 }
 
-const formatCurrency = (amt: number) => `₦${(amt).toLocaleString()}`;
+const formatCurrency = (amt: number, sym: string) => `${sym}${(amt).toLocaleString()}`;
 
 export function AccountsReceivableAging({
   data,
   loading,
 }: AccountsReceivableAgingProps) {
+  const sym = useEntityCurrencySymbol();
   const rows = [
     { label: "0-30 days", key: "0-30", highlight: false },
     { label: "31-60 days", key: "31-60", highlight: false },
@@ -79,7 +81,7 @@ export function AccountsReceivableAging({
                         : "text-gray-800 font-medium"
                     }
                   >
-                    {formatCurrency(amount)}
+                    {formatCurrency(amount, sym)}
                   </span>
                 </div>
                 <div className="h-2 w-full rounded-full bg-slate-200 overflow-hidden mt-2">

@@ -8,12 +8,14 @@ import { MODULES } from "@/lib/types/enums";
 import { useModal } from "@/components/providers/ModalProvider";
 import { MODAL } from "@/lib/data/modal-data";
 import { useStatutoryDeductions, useOtherDeductions } from "@/lib/api/hooks/useSettings";
-import { statutoryDeductionColumns } from "./StatutoryDeductionColumn";
-import { otherDeductionColumns } from "./OtherDeductionColumn";
+import { createStatutoryDeductionColumns } from "./StatutoryDeductionColumn";
+import { createOtherDeductionColumns } from "./OtherDeductionColumn";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 import StatutoryDeductionForm from "./StatutoryDeductionForm";
 import OtherDeductionForm from "./OtherDeductionForm";
 
 export default function PayrollSettings() {
+  const sym = useEntityCurrencySymbol();
   const { isOpen, openModal, closeModal } = useModal();
 
   const { data: statutoryData, isLoading: statutoryLoading } = useStatutoryDeductions();
@@ -28,7 +30,7 @@ export default function PayrollSettings() {
       <CustomTable
         tableTitle="Statutory Deductions"
         tableSubtitle="Configure mandatory deductions like PAYEE, NHIS, and Pension"
-        columns={statutoryDeductionColumns}
+        columns={createStatutoryDeductionColumns(sym)}
         data={statutoryDeductions}
         pageSize={10}
         loading={statutoryLoading}
@@ -49,7 +51,7 @@ export default function PayrollSettings() {
       <CustomTable
         tableTitle="Other Deductions"
         tableSubtitle="Configure additional deductions like loans, advances, or union dues"
-        columns={otherDeductionColumns}
+        columns={createOtherDeductionColumns(sym)}
         data={otherDeductions}
         pageSize={10}
         loading={otherLoading}

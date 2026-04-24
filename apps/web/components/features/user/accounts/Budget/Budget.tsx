@@ -3,10 +3,12 @@
 import BudgetHeader from "./BudgetHeader";
 import { CustomTabs } from "@/components/local/custom/tabs";
 import { CustomTable } from "@/components/local/custom/custom-table";
-import { budgetColumns } from "./BudgetColumn";
+import { createBudgetColumns } from "./BudgetColumn";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 import SetBudgetForm from "./SetBudgetForm";
 
 export default function Budget() {
+  const sym = useEntityCurrencySymbol();
   return (
     <div className="space-y-4">
       <BudgetHeader loading={false} />
@@ -21,7 +23,7 @@ export default function Budget() {
                 <CustomTable
                   searchPlaceholder="Search budgets..."
                   tableTitle="Budget vs Actual"
-                  columns={budgetColumns}
+                  columns={createBudgetColumns(sym)}
                   data={[]}
                   pageSize={10}
                   loading={false}

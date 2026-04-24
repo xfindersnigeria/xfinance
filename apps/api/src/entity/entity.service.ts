@@ -106,6 +106,11 @@ export class EntityService {
         },
       });
 
+      // Bootstrap entity config with the currency set at creation time
+      await this.prisma.settings.create({
+        data: { entityId: entity.id, groupId: effectiveGroupId, baseCurrency: createEntityDto.currency ?? null, multiCurrency: false },
+      });
+
       // Enqueue background job to seed default accounts for the entity
       await this.bullmqService.addJob('create-entity-user', {
         entityId: entity.id,

@@ -90,8 +90,12 @@ export default function GeneralPreferenceForm({
   return (
     <div className="w-full space-y-6 bg-white p-6 rounded-lg shadow-sm">
       <div>
-        <h2 className="text-2xl font-semibold text-gray-900">General Preferences</h2>
-        <p className="text-sm text-gray-600 mt-1">Manage your account preferences and settings</p>
+        <h2 className="text-2xl font-semibold text-gray-900">
+          General Preferences
+        </h2>
+        <p className="text-sm text-gray-600 mt-1">
+          Manage your account preferences and settings
+        </p>
       </div>
 
       <Form {...form}>

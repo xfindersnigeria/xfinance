@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CustomTable, type Column } from "@/components/local/custom/custom-table";
+import { useGroupCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 interface IntercompanyTransaction {
   transactionId: string;
@@ -14,36 +15,6 @@ interface IntercompanyTransaction {
   variance: string;
   status: "Matched" | "Unmatched";
 }
-
-const mockData: IntercompanyTransaction[] = [
-  {
-    transactionId: "IC-2025-001",
-    fromEntity: "Hunslow Inc. (US)",
-    toEntity: "Hunslow UK Ltd",
-    type: "Sales",
-    amount: "₦125,000",
-    variance: "₦0",
-    status: "Matched",
-  },
-  {
-    transactionId: "IC-2025-002",
-    fromEntity: "Hunslow UK Ltd",
-    toEntity: "Hunslow GmbH (DE)",
-    type: "Service Fee",
-    amount: "₦45,000",
-    variance: "₦0",
-    status: "Matched",
-  },
-  {
-    transactionId: "IC-2025-003",
-    fromEntity: "Hunslow Inc. (US)",
-    toEntity: "Hunslow Asia Pte Ltd",
-    type: "Loan",
-    amount: "₦250,000",
-    variance: "₦0",
-    status: "Matched",
-  },
-];
 
 const columns: Column<IntercompanyTransaction>[] = [
   { key: "transactionId", title: "Transaction ID", className: "text-sm font-medium" },
@@ -75,6 +46,38 @@ const columns: Column<IntercompanyTransaction>[] = [
 ];
 
 export default function IntercompanyTransactions() {
+  const sym = useGroupCurrencySymbol();
+
+  const mockData: IntercompanyTransaction[] = [
+    {
+      transactionId: "IC-2025-001",
+      fromEntity: "Hunslow Inc. (US)",
+      toEntity: "Hunslow UK Ltd",
+      type: "Sales",
+      amount: `${sym}125,000`,
+      variance: `${sym}0`,
+      status: "Matched",
+    },
+    {
+      transactionId: "IC-2025-002",
+      fromEntity: "Hunslow UK Ltd",
+      toEntity: "Hunslow GmbH (DE)",
+      type: "Service Fee",
+      amount: `${sym}45,000`,
+      variance: `${sym}0`,
+      status: "Matched",
+    },
+    {
+      transactionId: "IC-2025-003",
+      fromEntity: "Hunslow Inc. (US)",
+      toEntity: "Hunslow Asia Pte Ltd",
+      type: "Loan",
+      amount: `${sym}250,000`,
+      variance: `${sym}0`,
+      status: "Matched",
+    },
+  ];
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-start justify-between">

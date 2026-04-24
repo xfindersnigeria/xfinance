@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { useCreateStoreItem, useUpdateStoreItem } from "@/lib/api/hooks/useProducts";
 import { StoreItemTypeEnum } from "@/lib/api/hooks/types/productsTypes";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 const defaultService = {
   name: "",
@@ -57,6 +58,7 @@ export default function StoreItemServiceForm({
   const [loading, setLoading] = useState(false);
   const createItem = useCreateStoreItem();
   const updateItem = useUpdateStoreItem();
+  const sym = useEntityCurrencySymbol();
 
   const form = useForm({
     resolver: zodResolver(serviceSchema),
@@ -213,7 +215,7 @@ export default function StoreItemServiceForm({
                   <FormControl>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg">
-                        ₦
+                        {sym}
                       </span>
                       <Input
                         type="number"

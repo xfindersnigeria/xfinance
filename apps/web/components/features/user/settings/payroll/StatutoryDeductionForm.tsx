@@ -29,6 +29,7 @@ import {
   useUpdateStatutoryDeduction,
 } from "@/lib/api/hooks/useSettings";
 import { StatutoryDeduction } from "./StatutoryDeductionColumn";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 const tierSchema = z.object({
   from: z.number().min(0, "Min 0"),
@@ -75,6 +76,7 @@ const typeOptions = [
 
 export default function StatutoryDeductionForm({ deduction, onSuccess }: Props) {
   const isEdit = !!deduction;
+  const sym = useEntityCurrencySymbol();
   const create = useCreateStatutoryDeduction();
   const update = useUpdateStatutoryDeduction();
   const { data: accountsData } = useAccounts({ type: "Liabilities" });
@@ -219,7 +221,7 @@ export default function StatutoryDeductionForm({ deduction, onSuccess }: Props) 
               name="fixedAmount"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Fixed Amount (₦)</FormLabel>
+                  <FormLabel>{`Fixed Amount (${sym})`}</FormLabel>
                   <FormControl>
                     <Input
                       type="number"
@@ -238,7 +240,7 @@ export default function StatutoryDeductionForm({ deduction, onSuccess }: Props) 
               name="minAmount"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Minimum Salary (₦)</FormLabel>
+                  <FormLabel>{`Minimum Salary (${sym})`}</FormLabel>
                   <FormControl>
                     <Input
                       type="number"
@@ -270,8 +272,8 @@ export default function StatutoryDeductionForm({ deduction, onSuccess }: Props) 
 
             {/* Header row */}
             <div className="grid grid-cols-[1fr_1fr_1fr_2.5rem] gap-2 px-1 text-xs font-medium text-muted-foreground">
-              <span>From (₦)</span>
-              <span>To (₦)</span>
+              <span>{`From (${sym})`}</span>
+              <span>{`To (${sym})`}</span>
               <span>Rate (%)</span>
               <span />
             </div>

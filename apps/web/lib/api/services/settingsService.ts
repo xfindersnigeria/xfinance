@@ -210,6 +210,85 @@ export const updateProductBrand = async (id: string, payload: UpdateProductBrand
 export const deleteProductBrand = async (id: string) =>
   apiClient(`settings/product/brands/${id}`, { method: "DELETE" });
 
+// ── Group Currencies ──────────────────────────────────────────
+
+export interface GroupCurrency {
+  id: string;
+  groupId: string;
+  code: string;
+  name: string;
+  symbol: string;
+  exchangeRate: number;
+  isPrimary: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateCurrencyPayload {
+  code: string;
+  name: string;
+  symbol: string;
+  exchangeRate?: number;
+  isPrimary?: boolean;
+}
+
+export interface UpdateCurrencyPayload {
+  name?: string;
+  symbol?: string;
+  exchangeRate?: number;
+}
+
+export const getCurrencies = async (activeOnly = false) =>
+  apiClient(`settings/currency${activeOnly ? '?active=true' : ''}`, { method: 'GET' });
+
+export const createCurrency = async (payload: CreateCurrencyPayload) =>
+  apiClient('settings/currency', { method: 'POST', body: JSON.stringify(payload) });
+
+export const updateCurrency = async (id: string, payload: UpdateCurrencyPayload) =>
+  apiClient(`settings/currency/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+
+export const toggleCurrency = async (id: string, isActive: boolean) =>
+  apiClient(`settings/currency/${id}/toggle`, { method: 'PATCH', body: JSON.stringify({ isActive }) });
+
+export const setPrimaryCurrency = async (id: string) =>
+  apiClient(`settings/currency/${id}/set-primary`, { method: 'PATCH' });
+
+export const deleteCurrency = async (id: string) =>
+  apiClient(`settings/currency/${id}`, { method: 'DELETE' });
+
+// ── Entity Config ─────────────────────────────────────────────
+
+export interface EntityConfig {
+  baseCurrency: string | null;
+  multiCurrency: boolean;
+  dateFormat: string | null;
+  numberFormat: string | null;
+  language: string;
+  timezone: string;
+  emailNotifications: boolean;
+  twoFactorAuth: boolean;
+  auditLog: boolean;
+}
+
+export interface UpdateEntityConfigPayload {
+  baseCurrency?: string;
+  multiCurrency?: boolean;
+  dateFormat?: string;
+  numberFormat?: string;
+  language?: string;
+  timezone?: string;
+  emailNotifications?: boolean;
+  twoFactorAuth?: boolean;
+  auditLog?: boolean;
+}
+
+export const getEntityConfig = async () =>
+  apiClient('settings/config', { method: 'GET' });
+
+export const updateEntityConfig = async (payload: UpdateEntityConfigPayload) =>
+  apiClient('settings/config', { method: 'PATCH', body: JSON.stringify(payload) });
+
 // ── Module Toggle ─────────────────────────────────────────────
 
 export const toggleEntityMenu = async (menuName: string, enabled: boolean) =>

@@ -27,6 +27,7 @@ import { format } from "date-fns";
 import { useCreateMilestone, useUpdateMilestone } from "@/lib/api/hooks/useProjects";
 import { useModal } from "@/components/providers/ModalProvider";
 import { MODAL } from "@/lib/data/modal-data";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 const MILESTONE_STATUSES = [
   { value: "Upcoming", label: "Upcoming" },
@@ -61,6 +62,7 @@ export default function ProjectMilestoneForm({
   const createMilestone = useCreateMilestone();
   const updateMilestone = useUpdateMilestone();
   const { closeModal } = useModal();
+  const sym = useEntityCurrencySymbol();
 
   const isPending = createMilestone.isPending || updateMilestone.isPending;
 
@@ -197,7 +199,7 @@ export default function ProjectMilestoneForm({
               name="budget"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Milestone Budget (₦) *</FormLabel>
+                  <FormLabel>{`Milestone Budget (${sym}) *`}</FormLabel>
                   <FormControl>
                     <Input
                       type="number"

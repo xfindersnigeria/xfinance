@@ -29,6 +29,7 @@ import { itemFormSchema, ItemFormInputs } from "./utils/schema";
 import { itemCategories, itemTypes } from "./utils/data";
 import { useAccounts } from "@/lib/api/hooks/useAccounts";
 import { useCreateItem, useUpdateItem } from "@/lib/api/hooks/useSales";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 import z from "zod";
 
 interface ItemsFormProps {
@@ -49,6 +50,7 @@ export default function ItemsForm({
 
   const createItem = useCreateItem();
   const updateItem = useUpdateItem();
+  const sym = useEntityCurrencySymbol();
 
   const { data: accountsData, isLoading: accountsLoading } = useAccounts({
     type: "Revenue",
@@ -252,7 +254,7 @@ export default function ItemsForm({
                 name="unitPrice"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Unit Price (₦)</FormLabel>
+                    <FormLabel>{`Unit Price (${sym})`}</FormLabel>
                     <FormControl>
                       <Input
                         type="number"

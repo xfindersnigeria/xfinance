@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { AddBookTransactionForm } from "./types";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 const schema = z.object({
   date: z.string().min(1, "Date is required"),
@@ -50,6 +51,8 @@ export default function AddBookTransactionModal({
   onAdd,
   loading,
 }: AddBookTransactionModalProps) {
+  const sym = useEntityCurrencySymbol();
+
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -152,7 +155,7 @@ export default function AddBookTransactionModal({
                   <FormLabel>Amount</FormLabel>
                   <FormControl>
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">₦</span>
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">{sym}</span>
                       <Input
                         type="number"
                         min={0}

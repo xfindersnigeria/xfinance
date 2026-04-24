@@ -5,9 +5,11 @@ import { useDebounce } from "use-debounce";
 import OpeningBalanceHeader from "./OpeningBalanceHeader";
 import OpeningBalanceForm from "./OpeningBalanceForm";
 import { CustomTable } from "@/components/local/custom/custom-table";
-import { openingBalanceColumns } from "./OpeningBalanceColumn";
+import { createOpeningBalanceColumns } from "./OpeningBalanceColumn";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 export default function OpeningBalance() {
+  const sym = useEntityCurrencySymbol();
   const [searchTerm, setSearchTerm] = React.useState("");
   const [debouncedSearchTerm] = useDebounce(searchTerm, 300);
   const [page, setPage] = React.useState(1);
@@ -43,7 +45,7 @@ export default function OpeningBalance() {
       <CustomTable
         searchPlaceholder="Search opening balances..."
         tableTitle="Opening Balances History"
-        columns={openingBalanceColumns}
+        columns={createOpeningBalanceColumns(sym)}
         data={openingBalancesData as any}
         pageSize={10}
         loading={balancesLoading}

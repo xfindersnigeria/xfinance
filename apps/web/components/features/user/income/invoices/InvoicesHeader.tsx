@@ -12,6 +12,7 @@ import { MODULES } from "@/lib/types/enums";
 import { InvoiceStats } from "./utils/types";
 import { useModal } from "@/components/providers/ModalProvider";
 import { MODAL } from "@/lib/data/modal-data";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 export default function InvoicesHeader({
   stats,
@@ -21,6 +22,7 @@ export default function InvoicesHeader({
   loading: boolean;
 }) {
   const { isOpen, openModal, closeModal } = useModal();
+  const sym = useEntityCurrencySymbol();
   const searchParams = useSearchParams();
   const router = useRouter();
   const customerId = searchParams.get("customerId");
@@ -60,7 +62,7 @@ export default function InvoicesHeader({
           value={
             <span className="text-3xl">{stats?.draft?.count} invoices</span>
           }
-          subtitle={`$${stats?.draft?.total.toLocaleString()}`}
+          subtitle={`${sym}${stats?.draft?.total.toLocaleString()}`}
           icon={<FileText className="h-5 w-5 text-muted-foreground" />}
           loading={loading}
         />
@@ -69,7 +71,7 @@ export default function InvoicesHeader({
           value={
             <span className="text-3xl">{stats?.sent?.count} invoices</span>
           }
-          subtitle={`$${stats?.sent?.total.toLocaleString()}`}
+          subtitle={`${sym}${stats?.sent?.total.toLocaleString()}`}
           icon={<Send className="h-5 w-5 text-muted-foreground" />}
           loading={loading}
         />
@@ -78,7 +80,7 @@ export default function InvoicesHeader({
           value={
             <span className="text-3xl">{stats?.overdue?.count} invoices</span>
           }
-          subtitle={`$${stats?.overdue?.total.toLocaleString()}`}
+          subtitle={`${sym}${stats?.overdue?.total.toLocaleString()}`}
           icon={<Clock className="h-5 w-5 text-red-400" />}
           loading={loading}
         />
@@ -87,7 +89,7 @@ export default function InvoicesHeader({
           value={
             <span className="text-3xl">{stats?.paid?.count} invoices</span>
           }
-          subtitle={`$${stats?.paid?.total.toLocaleString()}`}
+          subtitle={`${sym}${stats?.paid?.total.toLocaleString()}`}
           icon={<CheckCircle className="h-5 w-5 text-green-400" />}
           loading={loading}
         />

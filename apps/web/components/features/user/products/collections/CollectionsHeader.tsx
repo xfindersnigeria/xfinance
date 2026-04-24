@@ -10,6 +10,7 @@ import CollectionsStatCardSmall from "./CollectionsStatCardSmall";
 import { CollectionsResponse } from "@/lib/api/hooks/types/productsTypes";
 import { useModal } from "@/components/providers/ModalProvider";
 import { MODAL } from "@/lib/data/modal-data";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 export default function CollectionsHeader({
   data,
@@ -19,6 +20,7 @@ export default function CollectionsHeader({
   loading: boolean;
 }) {
   const { isOpen, openModal, closeModal } = useModal();
+  const sym = useEntityCurrencySymbol();
 
   return (
     <div className="mb-6">
@@ -61,11 +63,11 @@ export default function CollectionsHeader({
             <span>
               {data?.totalValue
                 ? data.totalValue >= 1000000000
-                  ? `₦${data.totalValue / 1000000000}b`
+                  ? `${sym}${data.totalValue / 1000000000}b`
                   : data.totalValue >= 1000000
-                    ? `₦${data.totalValue / 1000000}m`
-                    : `₦${data.totalValue / 1000}k`
-                : "₦0"}
+                    ? `${sym}${data.totalValue / 1000000}m`
+                    : `${sym}${data.totalValue / 1000}k`
+                : `${sym}0`}
             </span>
           }
           subtitle={<span>Collection value</span>}

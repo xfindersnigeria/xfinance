@@ -10,6 +10,7 @@ import { useModal } from "@/components/providers/ModalProvider";
 import { MODAL } from "@/lib/data/modal-data";
 import { MODULES } from "@/lib/types/enums";
 import { useProjectMilestonesTab } from "@/lib/api/hooks/useProjects";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 interface ProjectMilestonesProps {
   projectId: string;
@@ -30,19 +31,19 @@ const STATUS_LABEL: Record<string, string> = {
   On_Hold: "On Hold",
 };
 
-function fmtMoney(value: number): string {
-  const abs = Math.abs(value);
-  if (abs >= 1_000_000)
-    return `₦${(value / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
-  if (abs >= 1_000) return `₦${(value / 1_000).toFixed(0)}K`;
-  return `₦${value}`;
-}
-
 export default function ProjectMilestones({
   projectId,
   projectName,
 }: ProjectMilestonesProps) {
+  const sym = useEntityCurrencySymbol();
   const { isOpen, openModal, closeModal } = useModal();
+
+  function fmtMoney(value: number): string {
+    const abs = Math.abs(value);
+    if (abs >= 1_000_000) return `${sym}${(value / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+    if (abs >= 1_000) return `${sym}${(value / 1_000).toFixed(0)}K`;
+    return `${sym}${value}`;
+  }
   const { data, isLoading } = useProjectMilestonesTab(projectId);
   const [editingMilestone, setEditingMilestone] = useState<any>(null);
 

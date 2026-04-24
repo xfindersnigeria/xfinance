@@ -3,29 +3,14 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { CustomModal } from "@/components/local/custom/modal";
 import { MODULES } from "@/lib/types/enums";
-import {
-  fiscalCalendarData,
-  currencySettings,
-  periodCloseData,
-} from "./SettingsColumn";
+import { fiscalCalendarData, periodCloseData } from "./SettingsColumn";
+import CurrencySettings from "./currency";
 
 export default function Settings() {
   const [open, setOpen] = useState(false);
   const [modalType, setModalType] = useState<string>("");
-  const [currencyToggles, setCurrencyToggles] = useState<
-    Record<string, boolean>
-  >(
-    currencySettings.reduce(
-      (acc, cs) => {
-        acc[cs.id] = cs.enabled;
-        return acc;
-      },
-      {} as Record<string, boolean>
-    )
-  );
 
   const handleOpenModal = (type: string) => {
     setModalType(type);
@@ -35,13 +20,6 @@ export default function Settings() {
   const handleModalClose = (value: boolean) => {
     setOpen(value);
     if (!value) setModalType("");
-  };
-
-  const handleCurrencyToggle = (id: string) => {
-    setCurrencyToggles((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
   };
 
   const getStatusColor = (status: string) => {
@@ -80,33 +58,10 @@ export default function Settings() {
         ))}
       </div>
 
-      {/* Currency and FX Section */}
+      {/* Currency & FX Section */}
       <div className="border rounded-lg p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">Currency & FX Settings</h3>
-          <Button onClick={() => handleOpenModal("currency")}>
-            Add Currency
-          </Button>
-        </div>
-        <div className="space-y-3">
-          {currencySettings.map((setting) => (
-            <div
-              key={setting.id}
-              className="flex items-center justify-between p-3 border rounded-md"
-            >
-              <div>
-                <p className="text-sm font-medium">
-                  {setting.baseCurrency} → {setting.reportingCurrency}
-                </p>
-                <p className="text-xs text-gray-500">Base to Reporting Currency</p>
-              </div>
-              <Switch
-                checked={currencyToggles[setting.id] ?? setting.enabled}
-                onCheckedChange={() => handleCurrencyToggle(setting.id)}
-              />
-            </div>
-          ))}
-        </div>
+        <h3 className="text-lg font-semibold mb-4">Currency & FX Settings</h3>
+        <CurrencySettings />
       </div>
 
       {/* Period Close Section */}
@@ -146,11 +101,7 @@ export default function Settings() {
         open={open}
         onOpenChange={handleModalClose}
         title={
-          modalType === "fiscal"
-            ? "Edit Fiscal Calendar"
-            : modalType === "currency"
-            ? "Add Currency"
-            : "Close Period"
+          modalType === "fiscal" ? "Edit Fiscal Calendar" : "Close Period"
         }
         module={MODULES.SETTINGS}
       >
@@ -170,21 +121,6 @@ export default function Settings() {
               <input
                 type="date"
                 placeholder="End Date"
-                className="w-full px-3 py-2 border rounded-md text-sm"
-              />
-            </>
-          )}
-
-          {modalType === "currency" && (
-            <>
-              <input
-                type="text"
-                placeholder="Base Currency Code"
-                className="w-full px-3 py-2 border rounded-md text-sm"
-              />
-              <input
-                type="text"
-                placeholder="Reporting Currency Code"
                 className="w-full px-3 py-2 border rounded-md text-sm"
               />
             </>

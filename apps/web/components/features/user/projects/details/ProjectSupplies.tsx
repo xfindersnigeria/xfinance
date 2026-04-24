@@ -3,20 +3,22 @@
 import React from "react";
 import { CustomTable } from "@/components/local/custom/custom-table";
 import { useProjectSupplies } from "@/lib/api/hooks/useProjects";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 interface ProjectSuppliesProps {
   projectId: string;
 }
 
-function fmtMoney(value: number): string {
-  const abs = Math.abs(value);
-  if (abs >= 1_000_000) return `₦${(value / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
-  if (abs >= 1_000) return `₦${(value / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
-  return `₦${value}`;
-}
-
 export default function ProjectSupplies({ projectId }: ProjectSuppliesProps) {
+  const sym = useEntityCurrencySymbol();
   const { data, isLoading } = useProjectSupplies(projectId);
+
+  function fmtMoney(value: number): string {
+    const abs = Math.abs(value);
+    if (abs >= 1_000_000) return `${sym}${(value / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+    if (abs >= 1_000) return `${sym}${(value / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
+    return `${sym}${value}`;
+  }
 
   const issues: any[] = (data as any)?.data ?? [];
   const totalSuppliesCost: number = (data as any)?.totalSuppliesCost ?? 0;

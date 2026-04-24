@@ -124,6 +124,10 @@ export const MODAL = {
   DEPARTMENT_EDIT: "department-edit",
   DEPARTMENT_DELETE: "department-delete",
 
+  CURRENCY_CREATE: "currency-create",
+  CURRENCY_EDIT: "currency-edit",
+  CURRENCY_DELETE: "currency-delete",
+
   SUPPLY_RESTOCK: "supply-restock",
   SUPPLY_ISSUE_SINGLE: "supply-issue-single",
 

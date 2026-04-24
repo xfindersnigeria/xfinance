@@ -36,6 +36,24 @@ model Group {
   subscriptionHistory SubscriptionHistory[]
   auditLogs           AuditLog[]
   customization       GroupCustomization?
+  currencies          GroupCurrency[]
+}
+
+model GroupCurrency {
+  id           String   @id @default(cuid())
+  groupId      String
+  code         String
+  name         String
+  symbol       String
+  exchangeRate Float    @default(1)
+  isPrimary    Boolean  @default(false)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
+  group        Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, code])
+  @@index([groupId])
 }
 
 model GroupCustomization {
@@ -1052,7 +1070,7 @@ model Settings {
   baseCurrency        String?
   multiCurrency       Boolean   @default(false)
   taxCalculation      Boolean   @default(false)
-  dateFormat          DateTime?
+  dateFormat          String?
   numberFormat        String?
   invoicePrefix       String?
   paymentTerm         String?
@@ -1064,6 +1082,11 @@ model Settings {
   approvalRequired    Boolean   @default(false)
   approvedThreshold   Int?
   match               Boolean   @default(false)
+  language            String?   @default("en")
+  timezone            String?   @default("Africa/Lagos")
+  emailNotifications  Boolean   @default(true)
+  twoFactorAuth       Boolean   @default(false)
+  auditLog            Boolean   @default(true)
   entityId            String
   groupId             String   // denormalized — extraction handle
   entity              Entity    @relation(fields: [entityId], references: [id])

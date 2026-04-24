@@ -1,3 +1,4 @@
+"use client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, Table } from "lucide-react";
@@ -8,18 +9,7 @@ import { CustomModal } from "@/components/local/custom/modal";
 import { MODULES } from "@/lib/types/enums";
 import CollectionsForm from "./CollectionsForm";
 import React from "react";
-
-const formatCurrency = (value: number, currency: string = "USD"): string => {
-  const symbol = currency === "NGN" ? "₦" : "$";
-  if (value >= 1_000_000_000) {
-    return `${symbol}${value / 1_000_000_000}B`;
-  } else if (value >= 1_000_000) {
-    return `${symbol}${value / 1_000_000}M`;
-  } else if (value >= 1_000) {
-    return `${symbol}${value / 1_000}K`;
-  }
-  return `${symbol}${value}`;
-};
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 interface CollectionCardGridProps {
   collections: Collection[];
@@ -43,7 +33,15 @@ export default function CollectionCardGrid({
   searchValue,
 }: CollectionCardGridProps) {
   const totalPages = Math.ceil(totalCount / rowsPerPage);
+  const sym = useEntityCurrencySymbol();
   const { openModal, closeModal, isOpen } = useModal();
+
+  const formatCurrency = (value: number): string => {
+    if (value >= 1_000_000_000) return `${sym}${value / 1_000_000_000}B`;
+    if (value >= 1_000_000) return `${sym}${value / 1_000_000}M`;
+    if (value >= 1_000) return `${sym}${value / 1_000}K`;
+    return `${sym}${value}`;
+  };
   const [selectedCollection, setSelectedCollection] =
     React.useState<Collection | null>(null);
 
@@ -109,7 +107,7 @@ export default function CollectionCardGrid({
                   <div>
                     <div className="text-xs text-gray-400">Total Value</div>
                     <div className="text-base font-semibold text-blue-700">
-                      {formatCurrency(col.totalValue, "NGN")}
+                      {formatCurrency(col.totalValue)}
                     </div>
                   </div>
                   <Button

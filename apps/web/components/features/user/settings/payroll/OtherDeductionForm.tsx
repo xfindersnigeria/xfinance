@@ -27,6 +27,7 @@ import {
   useUpdateOtherDeduction,
 } from "@/lib/api/hooks/useSettings";
 import { OtherDeduction } from "./OtherDeductionColumn";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 const schema = z.object({
   name: z.string().min(1, "Deduction name is required"),
@@ -49,6 +50,7 @@ const typeOptions = [
 
 export default function OtherDeductionForm({ deduction, onSuccess }: Props) {
   const isEdit = !!deduction;
+  const sym = useEntityCurrencySymbol();
   const create = useCreateOtherDeduction();
   const update = useUpdateOtherDeduction();
 
@@ -121,7 +123,7 @@ export default function OtherDeductionForm({ deduction, onSuccess }: Props) {
           render={({ field }) => (
             <FormItem>
               <FormLabel>
-                {watchedType === "FIXED_AMOUNT" ? "Rate (%) or Amount (₦)" : "Rate (%)"}
+                {watchedType === "FIXED_AMOUNT" ? `Rate (%) or Amount (${sym})` : "Rate (%)"}
               </FormLabel>
               <FormControl>
                 <Input

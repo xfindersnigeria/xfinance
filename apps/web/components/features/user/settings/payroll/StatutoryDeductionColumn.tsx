@@ -23,17 +23,18 @@ const typeLabels: Record<string, string> = {
   TIERED: "Tiered",
 };
 
-function formatRate(row: StatutoryDeduction): string {
+function formatRate(row: StatutoryDeduction, sym: string): string {
   if (row.type === "TIERED") return "Variable (Tiered)";
   if (row.type === "FIXED_AMOUNT") {
     if (row.fixedAmount == null) return "—";
-    return `₦${row.fixedAmount.toLocaleString()}`;
+    return `${sym}${row.fixedAmount.toLocaleString()}`;
   }
   if (row.rate == null) return "—";
   return `${row.rate}%`;
 }
 
-export const statutoryDeductionColumns: Column<StatutoryDeduction>[] = [
+export function createStatutoryDeductionColumns(sym: string): Column<StatutoryDeduction>[] {
+  return [
   {
     key: "name",
     title: "Name",
@@ -55,7 +56,7 @@ export const statutoryDeductionColumns: Column<StatutoryDeduction>[] = [
     title: "Rate/Amount",
     className: "text-xs",
     render: (_, row) => (
-      <span className="text-gray-700">{formatRate(row)}</span>
+      <span className="text-gray-700">{formatRate(row, sym)}</span>
     ),
   },
   {
@@ -99,4 +100,5 @@ export const statutoryDeductionColumns: Column<StatutoryDeduction>[] = [
     render: (_, row) => <StatutoryDeductionActions row={row} />,
     searchable: false,
   },
-];
+  ];
+}

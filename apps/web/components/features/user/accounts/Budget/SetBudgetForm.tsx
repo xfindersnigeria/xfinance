@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar, Plus, Trash2, Copy, FileText, AlertCircle, Loader2 } from "lucide-react";
 import { useCreateBudget } from "@/lib/api/hooks/useAccounts";
 import { BudgetPeriodTypeEnum } from "@/lib/api/hooks/types/accountsTypes";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 // Zod schema for Set Budget Form
 const budgetLineSchema = z.object({
@@ -93,6 +94,7 @@ const getTypeBadgeColor = (type: string) => {
 };
 
 export default function SetBudgetForm({ onSuccess }: SetBudgetFormProps) {
+  const sym = useEntityCurrencySymbol();
   const createBudget = useCreateBudget();
 
   const form = useForm<SetBudgetFormData>({
@@ -390,7 +392,7 @@ export default function SetBudgetForm({ onSuccess }: SetBudgetFormProps) {
                         <FormLabel className="text-xs text-gray-700">Budget Amount</FormLabel>
                         <FormControl>
                           <div className="relative flex items-center">
-                            <span className="absolute left-3 text-gray-500">$</span>
+                            <span className="absolute left-3 text-gray-500">{sym}</span>
                             <Input
                               type="number"
                               placeholder="0.00"

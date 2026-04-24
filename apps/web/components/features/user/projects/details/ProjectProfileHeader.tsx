@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Edit2, Download, TrendingUp, TrendingDown, DollarSign, Calendar, Users, Clock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Project } from "../utils/types";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 interface ProjectProfileHeaderProps {
   project: Project;
@@ -17,6 +18,7 @@ interface ProjectProfileHeaderProps {
  */
 export default function ProjectProfileHeader({ project }: ProjectProfileHeaderProps) {
   const router = useRouter();
+  const sym = useEntityCurrencySymbol();
 
   const statusColors = {
     "In Progress": "bg-blue-100 text-blue-700",
@@ -102,12 +104,12 @@ export default function ProjectProfileHeader({ project }: ProjectProfileHeaderPr
             <div>
               <div className="text-xs text-gray-500">Actual</div>
               <div className="text-2xl font-bold text-green-600">
-                ₦{(actualRevenue / 1000000).toFixed(0)}M
+                {sym}{(actualRevenue / 1000000).toFixed(0)}M
               </div>
             </div>
             <div>
               <div className="text-xs text-gray-500">Budget</div>
-              <div className="text-sm text-gray-700">₦{(project.budgetedRevenue / 1000000).toFixed(0)}M</div>
+              <div className="text-sm text-gray-700">{sym}{(project.budgetedRevenue / 1000000).toFixed(0)}M</div>
             </div>
             <div className={`text-sm font-medium ${revenueVariance < 0 ? "text-red-600" : "text-green-600"}`}>
               {revenueVariance < 0 ? "-" : "+"}{Math.abs(revenueVariance).toFixed(1)}% variance
@@ -130,12 +132,12 @@ export default function ProjectProfileHeader({ project }: ProjectProfileHeaderPr
             <div>
               <div className="text-xs text-gray-500">Actual</div>
               <div className="text-2xl font-bold text-red-600">
-                ₦{(actualCost / 1000000).toFixed(0)}M
+                {sym}{(actualCost / 1000000).toFixed(0)}M
               </div>
             </div>
             <div>
               <div className="text-xs text-gray-500">Budget</div>
-              <div className="text-sm text-gray-700">₦{(project.budgetedCost / 1000000).toFixed(0)}M</div>
+              <div className="text-sm text-gray-700">{sym}{(project.budgetedCost / 1000000).toFixed(0)}M</div>
             </div>
             <div className={`text-sm font-medium ${costVariance > 0 ? "text-red-600" : "text-green-600"}`}>
               {costVariance > 0 ? "+" : ""}{costVariance.toFixed(1)}% variance
@@ -155,13 +157,13 @@ export default function ProjectProfileHeader({ project }: ProjectProfileHeaderPr
             <div>
               <div className="text-xs text-gray-500">Actual</div>
               <div className="text-2xl font-bold text-indigo-600">
-                ₦{((actualRevenue - actualCost) / 1000000).toFixed(0)}M
+                {sym}{((actualRevenue - actualCost) / 1000000).toFixed(0)}M
               </div>
             </div>
             <div>
               <div className="text-xs text-gray-500">Budget</div>
               <div className="text-sm text-gray-700">
-                ₦{((project.budgetedRevenue - project.budgetedCost) / 1000000).toFixed(0)}M
+                {sym}{((project.budgetedRevenue - project.budgetedCost) / 1000000).toFixed(0)}M
               </div>
             </div>
             <div className={`text-sm font-medium ${profitVariance < 0 ? "text-red-600" : "text-green-600"}`}>

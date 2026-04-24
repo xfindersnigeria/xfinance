@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import PayrollRecordsStatCardSmall from "./PayrollRecordsStatCardSmall";
 import { DollarSign, Users, TrendingUp, CalendarDays } from "lucide-react";
 import React from "react";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 export default function PayrollRecordsHeader({
   data,
@@ -12,6 +13,7 @@ export default function PayrollRecordsHeader({
   data?: any;
   loading: boolean;
 }) {
+  const sym = useEntityCurrencySymbol();
   return (
     <div className="mb-6">
       <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -24,7 +26,7 @@ export default function PayrollRecordsHeader({
           }
           value={
             <span className="text-3xl font-bold text-primary">
-              ₦{typeof data?.totalPayroll === "number" ? data.totalPayroll.toLocaleString() : "0"}
+              {sym}{typeof data?.totalPayroll === "number" ? data.totalPayroll.toLocaleString() : "0"}
             </span>
           }
           subtitle={
@@ -56,7 +58,7 @@ export default function PayrollRecordsHeader({
           }
           value={
             <span className="text-3xl font-bold text-primary">
-              ₦{typeof data?.avgSalary === "number" ? data.avgSalary.toLocaleString() : "0"}
+              {sym}{typeof data?.avgSalary === "number" ? data.avgSalary.toLocaleString() : "0"}
             </span>
           }
           subtitle={<span className="text-gray-400">Per employee</span>}

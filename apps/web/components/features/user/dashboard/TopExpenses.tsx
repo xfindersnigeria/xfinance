@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { TopExpense, FilterOption } from "@/lib/api/services/analyticsService";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 interface TopExpensesProps {
   data?: TopExpense[];
@@ -49,8 +50,8 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
-const formatCurrency = (amount: number) => {
-  return `₦${amount.toLocaleString()}`;
+const formatCurrency = (amount: number, sym: string) => {
+  return `${sym}${amount.toLocaleString()}`;
 };
 
 export function TopExpenses({
@@ -59,6 +60,7 @@ export function TopExpenses({
   onFilterChange,
   loading,
 }: TopExpensesProps) {
+  const sym = useEntityCurrencySymbol();
   const chartData = data?.map((item, index) => ({
     name: item.category,
     value: item.amount,
@@ -133,7 +135,7 @@ export function TopExpenses({
                 <span className="text-muted-foreground">{item.name}</span>
               </div>
               <span className="font-medium text-foreground">
-                {formatCurrency(item.value)}
+                {formatCurrency(item.value, sym)}
               </span>
             </div>
           ))}

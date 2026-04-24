@@ -10,17 +10,19 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { RecentTransaction } from "@/lib/api/services/analyticsService";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 interface RecentTransactionsProps {
   data?: RecentTransaction[];
   loading?: boolean;
 }
 
-const formatCurrency = (amount: number) => {
-  return `₦${(amount).toLocaleString()}`;
+const formatCurrency = (amount: number, sym: string) => {
+  return `${sym}${(amount).toLocaleString()}`;
 };
 
 export function RecentTransactions({ data, loading }: RecentTransactionsProps) {
+  const sym = useEntityCurrencySymbol();
   if (loading) {
     return (
       <Card>
@@ -68,7 +70,7 @@ export function RecentTransactions({ data, loading }: RecentTransactionsProps) {
                 )}
               >
                 {transaction.type === "credit" ? "+" : "-"}
-                {formatCurrency(transaction.amount)}
+                {formatCurrency(transaction.amount, sym)}
               </p>
             </div>
           </div>

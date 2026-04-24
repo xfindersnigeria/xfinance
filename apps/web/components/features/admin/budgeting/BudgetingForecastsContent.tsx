@@ -5,6 +5,7 @@ import { CustomTabs, Tab } from '@/components/local/custom/tabs';
 import { CustomTable, Column } from '@/components/local/custom/custom-table';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { useGroupCurrencySymbol, fmtAmountCompact } from '@/lib/api/hooks/useCurrencyFormat';
 
 // Budget Overview Data
 interface BudgetOverviewRow {
@@ -17,35 +18,6 @@ interface BudgetOverviewRow {
   status: string;
 }
 
-const budgetOverviewData: BudgetOverviewRow[] = [
-  {
-    id: '1',
-    entity: 'Hunslow Inc US',
-    budgeted: '₦6,200,000',
-    actual: '₦6,100,000',
-    variance: '₦100,000',
-    variancePercent: '+1.6%',
-    status: 'On Track',
-  },
-  {
-    id: '2',
-    entity: 'Hunslow Ltd UK',
-    budgeted: '₦3,800,000',
-    actual: '₦4,050,000',
-    variance: '₦-250,000',
-    variancePercent: '-6.6%',
-    status: 'Attention',
-  },
-  {
-    id: '3',
-    entity: 'Hunslow GmbH DE',
-    budgeted: '₦1,400,000',
-    actual: '₦1,070,000',
-    variance: '₦330,000',
-    variancePercent: '+23.6%',
-    status: 'On Track',
-  },
-];
 
 // Forecasts Data
 interface ForecastsRow {
@@ -58,35 +30,6 @@ interface ForecastsRow {
   confidence: string;
 }
 
-const forecastsData: ForecastsRow[] = [
-  {
-    id: '1',
-    period: 'Q4 2025',
-    revenue: '₦12.4M',
-    expenses: '₦9.2M',
-    netProfit: '₦3.2M',
-    marginPercent: '25.8%',
-    confidence: 'High',
-  },
-  {
-    id: '2',
-    period: 'Q1 2026',
-    revenue: '₦13.5M',
-    expenses: '₦10.0M',
-    netProfit: '₦3.5M',
-    marginPercent: '25.9%',
-    confidence: 'High',
-  },
-  {
-    id: '3',
-    period: 'Q2 2026',
-    revenue: '₦14.2M',
-    expenses: '₦10.5M',
-    netProfit: '₦3.7M',
-    marginPercent: '26.1%',
-    confidence: 'Medium',
-  },
-];
 
 // Department Budgets Data
 interface DepartmentBudget {
@@ -135,6 +78,38 @@ const departmentBudgetsData: DepartmentBudget[] = [
 
 // Budget Overview Table
 function BudgetOverviewTable() {
+  const sym = useGroupCurrencySymbol();
+
+  const budgetOverviewData: BudgetOverviewRow[] = [
+    {
+      id: '1',
+      entity: 'Hunslow Inc US',
+      budgeted: `${sym}6,200,000`,
+      actual: `${sym}6,100,000`,
+      variance: `${sym}100,000`,
+      variancePercent: '+1.6%',
+      status: 'On Track',
+    },
+    {
+      id: '2',
+      entity: 'Hunslow Ltd UK',
+      budgeted: `${sym}3,800,000`,
+      actual: `${sym}4,050,000`,
+      variance: `-${sym}250,000`,
+      variancePercent: '-6.6%',
+      status: 'Attention',
+    },
+    {
+      id: '3',
+      entity: 'Hunslow GmbH DE',
+      budgeted: `${sym}1,400,000`,
+      actual: `${sym}1,070,000`,
+      variance: `${sym}330,000`,
+      variancePercent: '+23.6%',
+      status: 'On Track',
+    },
+  ];
+
   const columns: Column<BudgetOverviewRow>[] = [
     {
       key: 'entity',
@@ -156,7 +131,7 @@ function BudgetOverviewTable() {
       title: 'VARIANCE',
       className: 'text-sm',
       render: (value: string) => {
-        const isNegative = value.startsWith('₦-');
+        const isNegative = value.startsWith('-');
         return (
           <span className={isNegative ? 'text-red-600 font-medium' : 'text-green-600 font-medium'}>
             {value}
@@ -199,6 +174,38 @@ function BudgetOverviewTable() {
 
 // Forecasts Table
 function ForecastsTable() {
+  const sym = useGroupCurrencySymbol();
+
+  const forecastsData: ForecastsRow[] = [
+    {
+      id: '1',
+      period: 'Q4 2025',
+      revenue: fmtAmountCompact(12400000, sym),
+      expenses: fmtAmountCompact(9200000, sym),
+      netProfit: fmtAmountCompact(3200000, sym),
+      marginPercent: '25.8%',
+      confidence: 'High',
+    },
+    {
+      id: '2',
+      period: 'Q1 2026',
+      revenue: fmtAmountCompact(13500000, sym),
+      expenses: fmtAmountCompact(10000000, sym),
+      netProfit: fmtAmountCompact(3500000, sym),
+      marginPercent: '25.9%',
+      confidence: 'High',
+    },
+    {
+      id: '3',
+      period: 'Q2 2026',
+      revenue: fmtAmountCompact(14200000, sym),
+      expenses: fmtAmountCompact(10500000, sym),
+      netProfit: fmtAmountCompact(3700000, sym),
+      marginPercent: '26.1%',
+      confidence: 'Medium',
+    },
+  ];
+
   const columns: Column<ForecastsRow>[] = [
     {
       key: 'period',
@@ -241,6 +248,8 @@ function ForecastsTable() {
 
 // Department Budgets Cards
 function DepartmentBudgetsCards() {
+  const sym = useGroupCurrencySymbol();
+
   return (
     <div className="space-y-4 bg-white p-4 rounded-lg shadow-lg">
       <h2 className="text-base font-semibold text-gray-900">Department Budget</h2>
@@ -258,13 +267,13 @@ function DepartmentBudgetsCards() {
                 <div>
                   <p className="font-semibold text-gray-900">{dept.name}</p>
                   <p className="text-sm text-gray-600">
-                    ₦{(dept.actual / 1000000).toFixed(2)}M / ₦{(dept.budgeted / 1000000).toFixed(2)}M
+                    {fmtAmountCompact(dept.actual, sym)} / {fmtAmountCompact(dept.budgeted, sym)}
                   </p>
                 </div>
                 <div className="text-right">
                   <p className="text-lg font-bold text-gray-900">{dept.percentage}%</p>
                   <p className="text-xs text-gray-500">
-                    ₦{(dept.remaining / 1000).toFixed(0)}K remaining
+                    {fmtAmountCompact(dept.remaining, sym)} remaining
                   </p>
                 </div>
               </div>

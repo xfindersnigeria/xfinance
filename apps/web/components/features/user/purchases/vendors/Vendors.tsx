@@ -2,13 +2,15 @@
 import { useState } from "react";
 import { CustomTable } from "@/components/local/custom/custom-table";
 import VendorsHeader from "./VendorsHeader";
-import { vendorColumns } from "./VendorColumns";
+import { createVendorColumns } from "./VendorColumns";
 import { useVendors } from "@/lib/api/hooks/usePurchases";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 import { useDebounce } from "use-debounce";
 import { Vendor } from "./types";
 import { useRouter } from "next/navigation";
 
 export default function Vendors() {
+  const sym = useEntityCurrencySymbol();
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -36,7 +38,7 @@ export default function Vendors() {
       <CustomTable
         searchPlaceholder="Search vendors..."
         tableTitle="All Vendors"
-        columns={vendorColumns as any}
+        columns={createVendorColumns(sym) as any}
         onRowClick={handleRowClick}
         data={vendors}
         pageSize={rowsPerPage}
