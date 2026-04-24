@@ -481,7 +481,7 @@ export default function OpeningBalanceForm({
             </Button>
             <Button
               type="submit"
-              className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+              className="bg-primary text-white rounded-lg"
               disabled={setOpeningBalances.isPending || !isBalanced}
             >
               {setOpeningBalances.isPending ? (

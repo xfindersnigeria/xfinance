@@ -209,7 +209,7 @@ export default function VendorDetails() {
           </Button>
           <Button
             size="sm"
-            className="gap-2 bg-blue-600 hover:bg-blue-700"
+            className="gap-2 bg-primary"
             onClick={handleOpenBillForm}
           >
             <Plus className="w-4 h-4" />

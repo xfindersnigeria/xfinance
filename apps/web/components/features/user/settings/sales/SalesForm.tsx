@@ -231,7 +231,7 @@ export default function SalesForm({ onSuccess }: SalesFormProps) {
           <div className="flex justify-end">
             <Button
               type="submit"
-              className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-8 py-6 font-semibold flex items-center gap-2"
+              className="bg-primary text-white rounded-lg px-8 py-6 font-semibold flex items-center gap-2"
             >
               <Save className="w-4 h-4" />
               Save Settings

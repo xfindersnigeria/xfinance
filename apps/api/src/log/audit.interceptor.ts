@@ -8,6 +8,7 @@ import { Observable } from 'rxjs';
 import { tap, catchError } from 'rxjs/operators';
 import { PrismaService } from '../prisma/prisma.service';
 import { v4 as uuidv4 } from 'uuid';
+import { getEffectiveGroupId } from '@/auth/utils/context.util';
 
 interface AuditContext {
   userId?: string;
@@ -91,7 +92,7 @@ export class AuditInterceptor implements NestInterceptor {
 
     return {
       userId: user?.id,
-      groupId: user?.groupId,
+      groupId: getEffectiveGroupId(request) as string,
       entityId: request.query?.entityId || user?.entityId,
       module: this.extractModuleFromPath(request.path),
       action: this.extractActionFromMethod(request.method, request.path),
@@ -101,29 +102,43 @@ export class AuditInterceptor implements NestInterceptor {
   }
 
   /**
-   * Extract module key from request path
-   * Example: /api/invoices -> Invoices
+   * Extract module key from request path.
+   * Uses the first meaningful path segment (skip UUIDs/cuid segments and known prefixes).
+   * Examples:
+   *   /entities/abc123  → Entities
+   *   /settings/department/abc123 → Settings_Department
+   *   /auth/login → Auth
    */
   private extractModuleFromPath(path: string): string | undefined {
-    const segments = path.split('/').filter((s) => s);
-    // Skip api version prefix
-    const apiPath = segments[segments.length - 1];
-    if (!apiPath) return undefined;
+    const cuidPattern = /^c[a-z0-9]{24,}$/i;
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const numberPattern = /^\d+$/;
 
-    // Convert kebab-case to PascalCase and add underscores
-    return apiPath
-      .split('-')
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    const segments = path.split('/').filter(
+      (s) => s && !cuidPattern.test(s) && !uuidPattern.test(s) && !numberPattern.test(s),
+    );
+
+    if (segments.length === 0) return undefined;
+
+    // Take up to 2 meaningful segments for nested routes (e.g. settings/department)
+    const relevant = segments.slice(0, 2);
+    return relevant
+      .map((seg) =>
+        seg
+          .split('-')
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(''),
+      )
       .join('_');
   }
 
   /**
-   * Extract action from HTTP method and path
+   * Extract action from HTTP method.
    */
-  private extractActionFromMethod(method: string, path: string): string {
+  private extractActionFromMethod(method: string, _path: string): string {
     if (method === 'GET') return 'View';
     if (method === 'POST') return 'Create';
-    if (method === 'PUT' || method === 'PATCH') return 'Edit';
+    if (method === 'PUT' || method === 'PATCH') return 'Update';
     if (method === 'DELETE') return 'Delete';
     return 'Other';
   }
@@ -157,9 +172,8 @@ export class AuditInterceptor implements NestInterceptor {
     startTime: number,
     statusCode: number,
   ): Promise<void> {
-    // Only log if we have minimum required info (userId, groupId, module)
-    // entityId is optional for group-level operations
-    if (!context.userId || !context.groupId || !context.module) {
+    // Require at least a userId and a module — groupId may be null for superadmin operations
+    if (!context.userId || !context.module) {
       return;
     }
 
@@ -170,19 +184,22 @@ export class AuditInterceptor implements NestInterceptor {
     }
 
     try {
+      const firstSegment = request.path.split('/').filter((s: string) => s)[0] ?? 'unknown';
       await this.prisma.auditLog.create({
         data: {
           userId: context.userId,
           groupId: context.groupId || null,
-          entityId: context.entityId || null, // ← Allow null for group-level operations
+          entityId: context.entityId || null,
           module: context.module,
           action: context.action || '',
           method: request.method || '',
-          resourceType: 'resource',
+          resourceType: firstSegment,
           resourceId: this.extractResourceId(request) || '',
           changes: changes,
           ipAddress: this.getClientIp(request),
           userAgent: request.headers['user-agent'] as string,
+          impersonatedGroupId: (request.headers['x-impersonate-group'] as string) || null,
+          impersonatedEntityId: (request.headers['x-impersonate-entity'] as string) || null,
         },
       });
     } catch (error) {

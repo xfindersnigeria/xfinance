@@ -32,7 +32,7 @@ async function bootstrap() {
         const { hostname } = new URL(origin);
 
         // Allow all your tenant subdomains
-        if (hostname.endsWith('.xfinance.ng') || hostname === 'xfinance.ng') {
+        if (hostname.endsWith('.xfinance.ng') || hostname === 'xfinance.ng' || hostname === 'localhost') {
           return callback(null, true);
         }
 

@@ -252,7 +252,7 @@ export default function GeneralConfigForm({ onSuccess }: GeneralConfigFormProps)
             <Button
               type="submit"
               disabled={updateConfig.isPending}
-              className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-8 py-6 font-semibold flex items-center gap-2"
+              className="bg-primary text-white rounded-lg px-5 py-4 font-semibold flex items-center gap-2"
             >
               <Save className="w-4 h-4" />
               {updateConfig.isPending ? "Saving..." : "Save Configuration"}

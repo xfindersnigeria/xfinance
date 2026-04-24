@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { MenuService } from '../menu/menu.service';
 import { SubscriptionService } from '../subscription/subscription.service';
@@ -15,7 +15,72 @@ export class AuthService {
     private cacheService: CacheService,
   ) {}
 
-  async login(email: string, pass: string) {
+  /**
+   * Resolve the subdomain from an incoming host header.
+   * Returns null in standalone mode (no subdomain check needed).
+   * Returns 'admin' for the admin subdomain.
+   * Returns the subdomain string for group subdomains.
+   * Returns null when the host has no recognisable subdomain.
+   */
+  private parseSubdomain(host: string): string | null {
+    if (process.env.DEPLOYMENT_MODE === 'standalone') return null;
+    // Strip port if present (e.g. localhost:3000)
+    const hostname = host.split(':')[0];
+    const parts = hostname.split('.');
+    // Expect at least subdomain.domain.tld (3 parts)
+    if (parts.length < 3) return null;
+    return parts[0];
+  }
+
+  async login(email: string, pass: string, host?: string) {
+    // ── Subdomain enforcement (SaaS mode only) ──────────────────────────
+    if (process.env.DEPLOYMENT_MODE !== 'standalone' && host) {
+      const subdomain = this.parseSubdomain(host);
+      if (subdomain) {
+        if (subdomain === 'admin') {
+          // Admin subdomain: credentials are checked after we verify systemRole below.
+          // We look the user up first, then check role.
+          const candidate = await this.prisma.user.findUnique({
+            where: { email },
+            select: { systemRole: true, password: true },
+          });
+          if (!candidate || !candidate.password) {
+            throw new UnauthorizedException('Invalid credentials');
+          }
+          const match = await bcrypt.compare(pass, candidate.password);
+          if (!match) {
+            throw new UnauthorizedException('Invalid credentials');
+          }
+          if (candidate.systemRole !== 'superadmin') {
+            throw new ForbiddenException(
+              'The admin portal is restricted to super-admin accounts. Please use your organisation subdomain to log in.',
+            );
+          }
+          // Bypass the duplicate checks below for superadmin on admin subdomain
+        } else {
+          // Group subdomain: must exist in DB
+          const group = await this.prisma.group.findUnique({
+            where: { subdomain },
+            select: { id: true },
+          });
+          if (!group) {
+            throw new NotFoundException(
+              `No organisation found for subdomain "${subdomain}". Please check the URL and try again.`,
+            );
+          }
+          // User must belong to this group
+          const candidate = await this.prisma.user.findUnique({
+            where: { email },
+            select: { groupId: true },
+          });
+          if (candidate && candidate.groupId !== group.id) {
+            throw new ForbiddenException(
+              'Your account does not belong to this organisation. Please log in from your own subdomain.',
+            );
+          }
+        }
+      }
+    }
 
     const user = await this.prisma.user.findUnique({
       where: { email },
@@ -29,8 +94,6 @@ export class AuthService {
     if (!passwordMatch) {
       throw new UnauthorizedException('Invalid credentials');
     }
-
-    
 
     // Update lastLogin timestamp
     await this.prisma.user.update({

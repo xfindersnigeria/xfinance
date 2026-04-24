@@ -190,7 +190,7 @@ export default function CurrencyAdjustmentForm({
             </Button>
             <Button
               type="submit"
-              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-6 font-semibold"
+              className="flex-1 bg-primary text-white rounded-lg py-6 font-semibold"
             >
               Post Adjustment
             </Button>

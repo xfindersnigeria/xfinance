@@ -43,9 +43,11 @@ export class AuthController {
     @Req() req: Request,
     @Res() res: Response,
   ) {
+    const host = (req.headers['x-forwarded-host'] as string) || req.headers['host'] as string || '';
     const { user, tokenPayload } = await this.authService.login(
       loginDto.email,
       loginDto.password,
+      host,
     );
     // Encrypt minimal payload (userId, groupId, entityId, systemRole) to keep token size small
     const token = await encryptSession(tokenPayload);

@@ -193,7 +193,7 @@ export default function ReconciliationPage({ bankAccountId }: ReconciliationPage
             Save as Draft
           </Button>
           <Button
-            className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
+            className="bg-primary text-white gap-2"
             onClick={handleComplete}
             disabled={complete.isPending}
           >

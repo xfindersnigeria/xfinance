@@ -217,6 +217,21 @@ export class EntityService {
       data: updateEntityDto,
     });
 
+    // Keep Settings.baseCurrency in sync when currency changes on the entity
+    if (updateEntityDto.currency !== undefined) {
+      const existing = await this.prisma.settings.findFirst({ where: { entityId: id } });
+      if (existing) {
+        await this.prisma.settings.update({
+          where: { id: existing.id },
+          data: { baseCurrency: updateEntityDto.currency ?? null },
+        });
+      } else {
+        await this.prisma.settings.create({
+          data: { entityId: id, groupId: effectiveGroupId, baseCurrency: updateEntityDto.currency ?? null, multiCurrency: false },
+        });
+      }
+    }
+
     // Invalidate whoami/user context caches AND entities caches for all users in the group
     // When entity is updated, users' entity details and available entities list may have changed
     console.log(

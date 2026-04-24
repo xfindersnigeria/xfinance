@@ -207,6 +207,16 @@ Frontend components exist for these but backend endpoints may not. These were NO
 
 - [x] **Goal 15** — Per-group customization (logo, theme color, login bg): `GroupCustomization` Prisma model + migration `20260420000000_group_customization` (includes data migration inserting `groupCustomization` module into Admin menu); backend `GET/PATCH /settings/customization` (protected) + `GET /public/customization` (no auth, host-header based, SSR-safe via `X-Forwarded-Host`); customization included in `whoami` response (cached 1h); `ThemeProvider` client component injects `--primary/--primary-foreground/--ring/--sidebar-primary` CSS variables from session store on every whoami change; login page fetches customization server-side → injects inline `<style>` tag (zero flash); realtime: `customization-invalidate:{groupId}` pubsub → gateway broadcasts `customization-changed` socket event → `useRealtimeSync` updates session store → CSS vars update instantly for all logged-in group members; `fileuploadService.buildAssetPath` extended with group-level `category` support (`groups/{groupId}/{category}`); hardcoded brand-color classes (`text-[#2d3a7b]`, `bg-[#3B4FEA]`, `bg-[#5D7DD4]`, `text-indigo-700` in sidebars) replaced with `text-primary`/`bg-primary`/`bg-primary/10` etc.; Customization tab added to `@admin/admin/` route; works in both SaaS and standalone modes.
 
+- [x] **Goal 16** — Subdomain-based login restriction: login validates host subdomain; users may only authenticate on their group's subdomain; `admin` subdomain only allows systemRole=superadmin; unknown subdomain returns 404 with clear message; frontend login page surfaces subdomain errors distinctly.
+
+- [x] **Goal 17** — Image upload 413 fix: client-side file size validation on customization logo/loginBg uploads with human-readable max-size message; prevents 413 before hitting the server.
+
+- [x] **Goal 18** — Group logo → customization sync: on group create/update when a logo is uploaded, also upsert `GroupCustomization.logoUrl/logoPublicId` so both use the same Cloudinary asset — one source of truth.
+
+- [x] **Goal 19** — Entity currency → Settings.baseCurrency sync: on entity create/update when `currency` is set, upsert `Settings.baseCurrency` for that entity so entity form and config settings share one source of truth.
+
+- [x] **Goal 20** — Audit logging system: `AuditLogInterceptor` already globally registered; improved module extraction (first 1-2 meaningful path segments, skips IDs/UUIDs); now also captures `impersonatedGroupId`/`impersonatedEntityId` from request headers; `GET /audit/logs` uses auth-context groupId (not query param), includes entity name, supports page/limit; `GET /audit/modules` returns distinct module names for filter; frontend `AuditTrail` fully wired with module/entity/action/date-range filters + clear button, pagination, detail sheet on row click showing all fields including changes JSON, IP, userAgent, impersonation context; `auditService.ts` + `useAudit.ts` hooks added.
+
 ## Rules for the Agent
 - Never modify the database directly — only via Prisma migrations
 - Always ask before making breaking changes to existing API contracts

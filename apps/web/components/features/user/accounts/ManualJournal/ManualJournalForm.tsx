@@ -353,7 +353,7 @@ export default function ManualJournalForm({ accounts = [], onSuccess }: ManualJo
               type="button"
               onClick={handlePostEntry}
               disabled={!isBalanced || createJournal.isPending}
-              className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-primary text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
               title={!isBalanced ? "Journal entry must be balanced" : ""}
             >
               {createJournal.isPending ? (

@@ -1,7 +1,6 @@
 "use client";
 
-import React from "react";
-import { toast } from "sonner";
+import React, { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -23,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Save } from "lucide-react";
+import { useEntityConfig, useUpdateEntityConfig } from "@/lib/api/hooks/useSettings";
 
 // Zod schema for General Preference Form
 const generalPreferenceSchema = z.object({
@@ -66,6 +66,10 @@ const languageOptions = [
 export default function GeneralPreferenceForm({
   onSuccess,
 }: GeneralPreferenceFormProps) {
+  const { data: configRes, isLoading: configLoading } = useEntityConfig();
+  const config: any = (configRes as any)?.data ?? {};
+  const updateConfig = useUpdateEntityConfig();
+
   const form = useForm<GeneralPreferenceFormData>({
     resolver: zodResolver(generalPreferenceSchema) as any,
     defaultValues: {
@@ -77,14 +81,29 @@ export default function GeneralPreferenceForm({
     },
   });
 
-  const onSubmit = async (values: GeneralPreferenceFormData) => {
-    try {
-      console.log("General Preference submitted:", values);
-      toast.success("Preferences saved successfully");
-      if (onSuccess) onSuccess();
-    } catch (error) {
-      toast.error("Failed to save preferences");
+  useEffect(() => {
+    if (config && !configLoading) {
+      form.reset({
+        emailNotifications: config.emailNotifications ?? true,
+        twoFactorAuth: config.twoFactorAuth ?? false,
+        auditLog: config.auditLog ?? true,
+        timeZone: config.timezone ?? "UTC",
+        language: config.language ?? "en",
+      });
     }
+  }, [config, configLoading]);
+
+  const onSubmit = (values: GeneralPreferenceFormData) => {
+    updateConfig.mutate(
+      {
+        emailNotifications: values.emailNotifications,
+        twoFactorAuth: values.twoFactorAuth,
+        auditLog: values.auditLog,
+        timezone: values.timeZone,
+        language: values.language,
+      },
+      { onSuccess },
+    );
   };
 
   return (
@@ -197,7 +216,7 @@ export default function GeneralPreferenceForm({
                   <FormItem className="w-48">
                     <Select value={field.value} onValueChange={field.onChange}>
                       <FormControl>
-                        <SelectTrigger className="rounded-lg border-gray-300">
+                        <SelectTrigger className="rounded-lg border-gray-300 w-full">
                           <SelectValue placeholder="Select time zone" />
                         </SelectTrigger>
                       </FormControl>
@@ -231,7 +250,7 @@ export default function GeneralPreferenceForm({
                   <FormItem className="w-48">
                     <Select value={field.value} onValueChange={field.onChange}>
                       <FormControl>
-                        <SelectTrigger className="rounded-lg border-gray-300">
+                        <SelectTrigger className="rounded-lg border-gray-300 w-full">
                           <SelectValue placeholder="Select language" />
                         </SelectTrigger>
                       </FormControl>
@@ -253,10 +272,11 @@ export default function GeneralPreferenceForm({
           <div className="flex justify-end">
             <Button
               type="submit"
-              className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-8 py-6 font-semibold flex items-center gap-2"
+              disabled={updateConfig.isPending}
+              className="bg-primary text-white rounded-lg px-5 py-4 font-semibold flex items-center gap-2"
             >
               <Save className="w-4 h-4" />
-              Save Preferences
+              {updateConfig.isPending ? "Saving..." : "Save Preferences"}
             </Button>
           </div>
         </form>

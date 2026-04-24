@@ -45,7 +45,7 @@ import { Redis } from 'ioredis';
         const url = new URL(origin);
 
         // Allow all subdomains of xfinance.ng
-        if (url.hostname.endsWith('.xfinance.ng') || url.hostname === 'xfinance.ng') {
+        if (url.hostname.endsWith('.xfinance.ng') || url.hostname === 'xfinance.ng' || url.hostname === 'localhost') {
           return callback(null, true);
         }
 

@@ -316,7 +316,7 @@ export default function BankForm({ account, isEditMode = false }: BankFormProps)
             </Button>
             <Button
               type="submit"
-              className="bg-blue-600 text-white"
+              className="bg-primary text-white"
               disabled={isSubmitting}
             >
               {isSubmitting

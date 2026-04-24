@@ -38,8 +38,8 @@ const moduleIconMap: Record<string, LucideIcon> = {
 function ModuleIcon({ moduleKey }: { moduleKey: string }) {
   const Icon = moduleIconMap[moduleKey] ?? Package;
   return (
-    <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-indigo-50 flex-shrink-0">
-      <Icon className="w-4 h-4 text-indigo-600" />
+    <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-primary/10 flex-shrink-0">
+      <Icon className="w-4 h-4 text-primary" />
     </div>
   );
 }
@@ -189,11 +189,11 @@ export default function ModulesSettings() {
         )}
       </div>
 
-      <div className="mt-4 flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl p-4">
+      <div className="mt-4 flex items-start gap-3 bg-primary/10 border border-blue-100 rounded-xl p-4">
         <Info className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
         <div>
-          <p className="text-sm font-semibold text-blue-900">Module Settings</p>
-          <p className="text-xs text-blue-600 mt-0.5">
+          <p className="text-sm font-semibold text-primary">Module Settings</p>
+          <p className="text-xs text-primary/80 mt-0.5">
             Changes are saved automatically and take effect immediately.
             Disabling a module will hide its menu items from the sidebar.
           </p>

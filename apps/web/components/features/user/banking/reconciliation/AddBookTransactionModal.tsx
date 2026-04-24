@@ -214,7 +214,7 @@ export default function AddBookTransactionModal({
             <Button type="button" variant="outline" onClick={() => { form.reset(); onOpenChange(false); }}>
               Cancel
             </Button>
-            <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={loading}>
+            <Button type="submit" className="bg-primary text-white" disabled={loading}>
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
               Add to Books
             </Button>

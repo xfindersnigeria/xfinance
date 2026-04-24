@@ -6,6 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Loader2, Upload, Palette, X } from "lucide-react";
+import { toast } from "sonner";
+
+const LOGO_MAX_BYTES = 2 * 1024 * 1024;       // 2 MB
+const LOGIN_BG_MAX_BYTES = 5 * 1024 * 1024;   // 5 MB
 import { useCustomization, useUpdateCustomization } from "@/lib/api/hooks/useCustomization";
 import { isValidHex, DEFAULT_PRIMARY } from "@/lib/utils/colorUtils";
 import { useSessionStore } from "@/lib/store/session";
@@ -73,9 +77,16 @@ export default function Customization() {
     e: React.ChangeEvent<HTMLInputElement>,
     setter: (f: File) => void,
     previewSetter: (url: string) => void,
+    maxBytes: number,
   ) {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Reset input so the same file can be re-selected after an error
+    e.target.value = '';
+    if (file.size > maxBytes) {
+      toast.error(`File too large. Maximum allowed size is ${maxBytes / (1024 * 1024)} MB.`);
+      return;
+    }
     setter(file);
     previewSetter(URL.createObjectURL(file));
   }
@@ -184,7 +195,7 @@ export default function Customization() {
             <Upload size={18} /> Logo
           </CardTitle>
           <CardDescription>
-            Displayed in the sidebar header and login page. Recommended: 180×180px PNG/SVG.
+            Displayed in the sidebar header and login page. Recommended: 180×180px PNG/SVG. Max 2 MB.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -214,7 +225,7 @@ export default function Customization() {
             type="file"
             accept="image/*"
             className="hidden"
-            onChange={(e) => handleFileChange(e, setLogoFile, setLogoPreview)}
+            onChange={(e) => handleFileChange(e, setLogoFile, setLogoPreview, LOGO_MAX_BYTES)}
           />
         </CardContent>
       </Card>
@@ -226,7 +237,7 @@ export default function Customization() {
             <Upload size={18} /> Login Page Image
           </CardTitle>
           <CardDescription>
-            The illustration shown on the left panel of the login screen. Recommended: 1000×800px.
+            The illustration shown on the left panel of the login screen. Recommended: 1000×800px. Max 5 MB.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -256,7 +267,7 @@ export default function Customization() {
             type="file"
             accept="image/*"
             className="hidden"
-            onChange={(e) => handleFileChange(e, setLoginBgFile, setLoginBgPreview)}
+            onChange={(e) => handleFileChange(e, setLoginBgFile, setLoginBgPreview, LOGIN_BG_MAX_BYTES)}
           />
         </CardContent>
       </Card>

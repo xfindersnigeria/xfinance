@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/form";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, Eye, EyeOff, Mail, Lock, ArrowRight } from "lucide-react";
+import { Loader2, Eye, EyeOff, Mail, Lock, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { loginSchema, LoginCredentials } from "@/lib/schema";
@@ -33,21 +33,21 @@ export default function LoginForm({
   const searchParams = useSearchParams();
   const redirectUrl = searchParams.get("redirect") || "/dashboard";
 
+  const [loginError, setLoginError] = useState<string | null>(null);
+
   // Use the custom login hook
   const {
     mutate: login,
     isPending,
-    // error,
   } = useLogin({
     onSuccess: () => {
-      // On successful login, redirect the user
-      // SessionProvider will fetch whoami and store it automatically
+      setLoginError(null);
       toast.success("Login successful!");
       router.push(redirectUrl);
     },
     onError: (error) => {
-      toast.error(`Login failed: ${error.message}`);
-      console.log("Login error:", error);
+      setLoginError(error.message);
+      toast.error(error.message);
     },
   });
 
@@ -114,8 +114,14 @@ export default function LoginForm({
         <p className="text-center mb-4 text-[#4A4A4A]">
           Enter your login details below
         </p>
+        {loginError && (
+          <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-3 text-sm mb-4">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{loginError}</span>
+          </div>
+        )}
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" onChange={() => setLoginError(null)}>
             {/* Email Field */}
             <FormField
               control={form.control}

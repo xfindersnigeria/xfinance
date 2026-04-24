@@ -211,7 +211,7 @@ export default function AddTransactionModal({
             >
               Cancel
             </Button>
-            <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white">
+            <Button type="submit" className="bg-primary text-white">
               Add Transaction
             </Button>
           </div>

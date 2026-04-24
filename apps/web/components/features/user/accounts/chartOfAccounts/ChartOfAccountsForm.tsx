@@ -347,7 +347,7 @@ export default function ChartOfAccountsForm({
               </Button>
               <Button
                 type="submit"
-                className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+                className="bg-primary text-white rounded-lg"
                 disabled={createAccount.isPending || updateAccount.isPending}
               >
                 {createAccount.isPending || updateAccount.isPending ? (

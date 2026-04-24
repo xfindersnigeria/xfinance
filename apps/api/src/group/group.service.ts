@@ -50,6 +50,16 @@ export class GroupService {
         },
       });
 
+      // Sync logo to GroupCustomization so the public branding page and
+      // login page always use the same asset as the group logo.
+      if (logo?.secureUrl) {
+        await this.prisma.groupCustomization.upsert({
+          where: { groupId: group.id },
+          create: { groupId: group.id, logoUrl: logo.secureUrl, logoPublicId: logo.publicId },
+          update: { logoUrl: logo.secureUrl, logoPublicId: logo.publicId },
+        });
+      }
+
       // enqueue background job to create default role and owner user
       await this.bullmqService.addJob('create-group-user', {
         groupId: group.id,
@@ -224,7 +234,7 @@ export class GroupService {
         logo = await this.fileuploadService.uploadFile(file, folder);
       }
 
-      return this.prisma.group.update({
+      const updatedGroup = await this.prisma.group.update({
         where: { id },
         data: {
           ...updateGroupDto,
@@ -233,6 +243,19 @@ export class GroupService {
           }),
         },
       });
+
+      // Keep customization in sync with the new logo
+      if (logo?.secureUrl) {
+        await this.prisma.groupCustomization.upsert({
+          where: { groupId: id },
+          create: { groupId: id, logoUrl: logo.secureUrl, logoPublicId: logo.publicId },
+          update: { logoUrl: logo.secureUrl, logoPublicId: logo.publicId },
+        });
+        // Bust the customization cache so the updated logo is served immediately
+        await this.cacheService.delete(`customization:${id}`);
+      }
+
+      return updatedGroup;
     } catch (error) {
       throw new HttpException(
         `${error instanceof Error ? error.message : String(error)}`,
