@@ -27,10 +27,33 @@ import { Redis } from 'ioredis';
  * 4. This gateway receives event and broadcasts to connected WebSocket clients
  * 5. Frontend receives event and refetches data
  */
+// @WebSocketGateway({
+//   namespace: 'cache',
+//   cors: {
+//     origin: process.env.FRONTEND_URL || 'http://localhost:3001',
+//     credentials: true,
+//   },
+// })
 @WebSocketGateway({
   namespace: 'cache',
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3001',
+    origin: (origin, callback) => {
+      // Allow server-to-server or no-origin requests
+      if (!origin) return callback(null, true);
+
+      try {
+        const url = new URL(origin);
+
+        // Allow all subdomains of xfinance.ng
+        if (url.hostname.endsWith('.xfinance.ng') || url.hostname === 'xfinance.ng') {
+          return callback(null, true);
+        }
+
+        return callback(new Error('Not allowed by CORS'));
+      } catch (err) {
+        return callback(new Error('Invalid origin'));
+      }
+    },
     credentials: true,
   },
 })
