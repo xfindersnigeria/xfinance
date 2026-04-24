@@ -30,7 +30,7 @@ interface WebSocketConfig {
 function getWebSocketUrl(): string {
   // Server-side rendering — return placeholder
   if (typeof window === "undefined") {
-    return process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3000";
+    return process.env.NEXT_PUBLIC_WS_URL || "http://api:3000";
   }
 
   // Browser — derive from current domain dynamically
@@ -39,7 +39,7 @@ function getWebSocketUrl(): string {
 
   if (process.env.NEXT_PUBLIC_ENV === "development" || host.includes("localhost")) {
     // Local dev or Docker — API is on different port
-    return process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3000";
+    return process.env.NEXT_PUBLIC_WS_URL || "http://api:3000";
   }
 
   // Production — API is on same domain, Nginx routes /cache/ to backend
