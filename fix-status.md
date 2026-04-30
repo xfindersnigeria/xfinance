@@ -1,212 +1,180 @@
 # Fix Status
-
-## 1. Dashboard KPI — Swap Active Customers → Outstanding Receivables
-**Status: DONE**
-
-Files changed:
-- `apps/api/src/analytics/dto/analytics-response.dto.ts` — `KPIDto.activeCustomers` replaced with `outstandingReceivables: { total, change, changePercent }`
-- `apps/api/src/analytics/analytics.service.ts` — customer count queries replaced with `invoice.aggregate` on `status: ['Sent','Overdue','Partial']`; comparison uses same filter + `invoiceDate: { lte: previousMonthEnd }`
-- `apps/web/lib/api/services/analyticsService.ts` — `KPIs.activeCustomers` renamed to `outstandingReceivables`
-- `apps/web/components/features/user/dashboard/StatsGrid.tsx` — card updated: title="Outstanding Receivables", icon=ReceiptText, currency-formatted value, `isPositive` inverted (lower = better)
+_Last updated: 2026-04-30_
 
 ---
 
-## 2. Reports — Profit & Loss Backend
-**Status: DONE — TSC clean**
+## DONE ✅
 
+### 1. Dashboard KPI — Active Customers → Outstanding Receivables
+Files changed:
+- `apps/api/src/analytics/dto/analytics-response.dto.ts` — `KPIDto.activeCustomers` → `outstandingReceivables: { total, change, changePercent }`
+- `apps/api/src/analytics/analytics.service.ts` — replaced customer counts with `invoice.aggregate` on `status: ['Sent','Overdue','Partial']`; comparison = same filter + `invoiceDate: { lte: previousMonthEnd }`
+- `apps/web/lib/api/services/analyticsService.ts` — `KPIs.activeCustomers` → `outstandingReceivables`
+- `apps/web/components/features/user/dashboard/StatsGrid.tsx` — title, icon (ReceiptText), currency value, `isPositive` inverted (lower outstanding = good)
+
+### 2. Reports Backend — GET /reports/profit-and-loss
 Files created:
-- `apps/api/src/reports/dto/reports.dto.ts` — DTOs: PLAccountLineDto, PLSectionDto, PLKPIEntryDto, ProfitAndLossDto
-- `apps/api/src/reports/reports.service.ts` — queries AccountTransaction filtered to type 4000/5000, groups by category code, builds P&L sections + derived KPIs
-- `apps/api/src/reports/reports.controller.ts` — `GET /reports/profit-and-loss?startDate&endDate&compareStartDate?&compareEndDate?`
-- `apps/api/src/reports/reports.module.ts`
+- `apps/api/src/reports/dto/reports.dto.ts`
+- `apps/api/src/reports/reports.service.ts`
+- `apps/api/src/reports/reports.controller.ts`
+- `apps/api/src/reports/reports.module.ts` ← linter added AuthService, MenuService, SubscriptionService, CacheService, PubsubService, BullmqModule (already there, don't revert)
 - `apps/api/src/app.module.ts` — ReportsModule registered
 
-**Response shape:**
+TSC: clean (exit 0)
+
+**Endpoint:** `GET /reports/profit-and-loss?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&compareStartDate=?&compareEndDate=?`
+
+**Response envelope:** `{ data: ProfitAndLossDto, message, statusCode }`
+
+**ProfitAndLossDto shape:**
 ```json
-{ "data": {
-    "period": { "startDate": "...", "endDate": "..." },
-    "comparePeriod": null | { ... },
-    "revenue": { "actual": 0, "comparison": 0, "accounts": [...] },
-    "otherIncome": { ... },
-    "cogs": { ... },
-    "operatingExpenses": { ... },
-    "otherExpenses": { ... },
-    "grossProfit": { "actual": 0, "comparison": 0 },
-    "operatingProfit": { "actual": 0, "comparison": 0 },
-    "netProfit": { "actual": 0, "comparison": 0 },
-    "kpis": { "totalRevenue": {...}, "grossProfit": {...}, "operatingProfit": {...}, "netProfit": {...} }
-  }
-}
-```
-
-**Next: Frontend wiring (service + hook + component)**
-
----
-
-## 3. Reports — Profit & Loss Frontend
-**Status: PENDING**
-
----
-
-## 3. Reports System Analysis
-
-### System Understanding
-
-**Account Hierarchy (from seeder):**
-```
-AccountType (global, 5 types)
-  └─ AccountCategory (per group)
-       └─ AccountSubCategory (per group)
-            └─ Account (per entity, has balance)
-                 └─ AccountTransaction (per entity, has debitAmount / creditAmount)
-```
-
-**Type Code → P&L Mapping:**
-| Type Code | Type Name | P&L Role |
-|-----------|-----------|----------|
-| 4000 | Revenue | Income side |
-| → 4100 | Operating Revenue | Sales, Service, Rental |
-| → 4200 | Other Income | Interest, Gains, Misc |
-| 5000 | Expenses | Expense side |
-| → 5100 | Cost of Goods Sold | COGS section |
-| → 5200 | Operating Expenses | OpEx section |
-| → 5300 | Other Expenses | Below-the-line |
-| 1000/2000/3000 | Assets/Liabilities/Equity | Balance Sheet only |
-
-**How GL entries relate to P&L:**
-- Invoice created → Dr Accounts Receivable (1120) / Cr Revenue account (4100)
-- Receipt posted → Dr Cash / Cr Revenue account (4100)
-- Expense approved → Dr Expense account (5xxx) / Cr Cash or Payable
-- Bill created → Dr Expense account (5xxx) / Cr Accounts Payable (2110)
-
-So every revenue/expense flow is already in `AccountTransaction` rows with full account linkage.
-
-**P&L Aggregation Logic:**
-- Revenue accounts (type 4000): `net = SUM(creditAmount) - SUM(debitAmount)` per account
-- Expense accounts (type 5000): `net = SUM(debitAmount) - SUM(creditAmount)` per account
-- Filter by `date BETWEEN startDate AND endDate` and `entityId`
-- Group by `accountCategory.code` to get P&L sections
-
-### What P&L needs (calculated values):
-```
-Total Revenue          = sum of all 4100-category account nets
-Gross Profit           = Total Revenue - Total COGS (5100 accounts)
-Total Operating Exps   = sum of all 5200-category account nets
-Operating Profit (EBIT)= Gross Profit - Total Operating Expenses
-Other Income           = sum of 4200-category account nets
-Other Expenses         = sum of 5300-category account nets
-Net Profit             = Operating Profit + Other Income - Other Expenses
-```
-
-### What needs to be built:
-
-#### Backend — New `ReportsModule`
-Location: `apps/api/src/reports/`
-
-**Endpoint:** `GET /reports/profit-and-loss`
-Query params: `startDate`, `endDate`, `compareStartDate?`, `compareEndDate?`
-Auth: JWT + RolesGuard (same as all endpoints); entityId from `getEffectiveGroupId(req)` pattern
-
-**Service query:**
-```typescript
-// Fetch all AccountTransactions for revenue/expense accounts in period
-const transactions = await prisma.accountTransaction.findMany({
-  where: {
-    entityId,
-    date: { gte: startDate, lte: endDate },
-    account: {
-      subCategory: {
-        category: {
-          type: { code: { in: ['4000', '5000'] } }
-        }
-      }
-    }
-  },
-  include: {
-    account: {
-      select: {
-        id: true, name: true, code: true,
-        subCategory: {
-          select: {
-            name: true, code: true,
-            category: {
-              select: {
-                name: true, code: true,
-                type: { select: { name: true, code: true } }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-});
-// Then group in memory by type/category/account and compute nets
-```
-
-**Response shape** (matches the mock-data.ts `PLItem` tree):
-```typescript
 {
-  period: { startDate, endDate },
-  comparePeriod?: { startDate, endDate },
-  sections: {
-    revenue: PLSection,        // 4100 accounts
-    cogs: PLSection,           // 5100 accounts
-    grossProfit: number,
-    operatingExpenses: PLSection, // 5200 accounts
-    operatingProfit: number,
-    otherIncome: PLSection,    // 4200 accounts
-    otherExpenses: PLSection,  // 5300 accounts
-    netProfit: number,
-  },
-  kpis: { totalRevenue, grossProfit, operatingProfit, netProfit }
-  // each with { actual, comparison? }
+  "period":        { "startDate": "...", "endDate": "..." },
+  "comparePeriod": null | { "startDate": "...", "endDate": "..." },
+  "revenue":            { "actual": 0, "comparison": 0, "accounts": [{ "id","name","code","actual","comparison" }] },
+  "otherIncome":        { "actual": 0, "comparison": 0, "accounts": [...] },
+  "cogs":               { "actual": 0, "comparison": 0, "accounts": [...] },
+  "operatingExpenses":  { "actual": 0, "comparison": 0, "accounts": [...] },
+  "otherExpenses":      { "actual": 0, "comparison": 0, "accounts": [...] },
+  "grossProfit":        { "actual": 0, "comparison": 0 },
+  "operatingProfit":    { "actual": 0, "comparison": 0 },
+  "netProfit":          { "actual": 0, "comparison": 0 },
+  "kpis": {
+    "totalRevenue":    { "actual": 0, "comparison": 0 },
+    "grossProfit":     { "actual": 0, "comparison": 0 },
+    "operatingProfit": { "actual": 0, "comparison": 0 },
+    "netProfit":       { "actual": 0, "comparison": 0 }
+  }
 }
 ```
 
-Where `PLSection = { label, actual, comparison, accounts: { id, name, code, actual, comparison }[] }`
+---
 
-#### Frontend — Update ProfitAndLoss component
-- `apps/web/lib/api/services/reportService.ts` — new service with `getProfitAndLoss(params)` and types
-- `apps/web/lib/api/hooks/useReports.ts` — SWR hook wrapping the service
+## PENDING ⬜
+
+### 3. Reports Frontend — Profit & Loss wiring
+What to build:
+- `apps/web/lib/api/services/reportService.ts` — `getProfitAndLoss(params)` calling `GET /backend/reports/profit-and-loss`
+- `apps/web/lib/api/hooks/useReports.ts` — SWR hook returning `{ data, isLoading, error }`
 - `apps/web/components/features/user/reports/details/profit-and-loss/index.tsx`:
-  - Remove mock-data import
-  - Add state for `startDate/endDate` (defaulting to current quarter)
-  - Call `useProfitAndLoss({ startDate, endDate, compareStartDate, compareEndDate })`
-  - Map API response to `PLItem[]` tree (or change `buildRows` to accept the API shape directly)
-  - Replace hardcoded `₦` with `useEntityCurrencySymbol()`
-  - Period selector: change from `Q1 2025` strings to actual date-range pickers (or keep quarters but map to ISO dates on query)
+  - Remove all imports from `./mock-data`
+  - Replace hardcoded `₦` in `formatCurrency()` with `useEntityCurrencySymbol()` from `@/lib/api/hooks/useCurrencyFormat`
+  - Replace quarter string selector with actual start/end date state (map Q1-Q4 to ISO dates, or switch to a date-range picker — user to decide)
+  - On period change → call `useProfitAndLoss({ startDate, endDate, compareStartDate, compareEndDate })`
+  - Map API response → `PLItem[]` tree for `buildRows()`:
+    - `revenue.accounts` → children of a "Revenue" section item
+    - `cogs.accounts` → children of "Cost of Goods Sold" section
+    - `operatingExpenses.accounts` → children of "Operating Expenses" section
+    - `otherIncome.accounts` → children of "Other Income" section
+    - `otherExpenses.accounts` → children of "Other Expenses" section
+    - Subtotal/calculated/net rows derived from `grossProfit`, `operatingProfit`, `netProfit`
+    - KPI cards from `kpis.*`
+  - Show loading skeleton while fetching; show "no data" if all sections empty
 
-### Currency Fix (quick win — do this first)
-`ProfitAndLoss` currently hardcodes `₦` in `formatCurrency()`.
-Fix: accept `sym` as prop to `formatCurrency(value, sym)` and pass `useEntityCurrencySymbol()`.
-
----
-
-## 3. Cash Flow Statement (Analysis)
-**Status: ANALYSIS DONE — More complex, build after P&L**
-
-Cash Flow (indirect method) requires:
-1. **Operating section** — Net Profit (from P&L) + non-cash adjustments + working capital changes
-   - Non-cash: Depreciation = AccountTransactions on depreciation accounts (5260)
-   - Working capital changes = balance sheet account balance diffs between period start/end:
-     - AR change = Account balance (1120) at end - at start
-     - Inventory change = Account balance (1130) at end - at start
-     - AP change = Account balance (2110) at end - at start
-   - **Problem:** Account.balance is a current balance, not historical. We'd need to reconstruct period-start balance from running totals. Feasible by summing AccountTransactions before startDate.
-
-2. **Investing section** — Transactions on asset accounts (1200 category) via BANK type
-3. **Financing section** — Transactions on liability/equity accounts (2200, 3100) via BANK type
-
-**Bottom line for Cash Flow:** The data exists in AccountTransaction, but the indirect method requires reconstructing opening/closing balances from transaction history. This is buildable but needs the P&L endpoint working first (Operating CF depends on Net Profit). Recommend building P&L first, then Cash Flow.
+### 4. Cash Flow Statement Backend
+More complex — needs P&L frontend done first. See accounting context below for approach.
 
 ---
 
-## Build Order Recommendation
-1. ✅ Dashboard KPI fix (done)
-2. ⬜ Fix currency symbol in P&L component (5 min, no backend needed)
-3. ⬜ Backend: `ReportsModule` + `GET /reports/profit-and-loss`
-4. ⬜ Frontend: `reportService.ts` + `useReports.ts` hook
-5. ⬜ Wire ProfitAndLoss component to real data
-6. ⬜ Backend: `GET /reports/cash-flow-statement`
-7. ⬜ Wire CashFlowStatement component to real data
+## ACCOUNTING SYSTEM CONTEXT
+_Read this before touching reports code._
+
+### Chart of Accounts hierarchy
+```
+AccountType  (global — seeded once, never changes)
+  └─ AccountCategory  (per group — seeded when group created)
+       └─ AccountSubCategory  (per group)
+            └─ Account  (per entity — holds current balance as Int)
+                 └─ AccountTransaction  (per entity — debitAmount Int, creditAmount Int)
+```
+
+### The 5 AccountType codes
+| Code | Name      | Balance Sheet / P&L |
+|------|-----------|---------------------|
+| 1000 | Assets    | Balance Sheet       |
+| 2000 | Liabilities | Balance Sheet     |
+| 3000 | Equity    | Balance Sheet       |
+| 4000 | Revenue   | P&L — income side   |
+| 5000 | Expenses  | P&L — expense side  |
+
+### Category codes (seeded per group in seed-account-chart.ts)
+| Code | Name | P&L Section |
+|------|------|-------------|
+| 1100 | Current Assets | BS |
+| 1200 | Fixed Assets | BS |
+| 1300 | Intangible Assets | BS |
+| 2100 | Current Liabilities | BS |
+| 2200 | Long-term Liabilities | BS |
+| 3100 | Shareholders Equity | BS |
+| **4100** | **Operating Revenue** | **P&L Revenue** |
+| **4200** | **Other Income** | **P&L Other Income** |
+| **5100** | **Cost of Goods Sold** | **P&L COGS** |
+| **5200** | **Operating Expenses** | **P&L OpEx** |
+| **5300** | **Other Expenses** | **P&L below-the-line** |
+
+### SubCategory codes under each category (examples)
+- 4100 → 4110 Product Sales Revenue, 4120 Service Revenue, 4130 Rental Income
+- 4200 → 4210 Interest Income, 4220 Gain on Sale of Assets, 4230 Misc Income
+- 5100 → 5110 Raw Materials, 5120 Direct Labor, 5130 Manufacturing Overhead
+- 5200 → 5210 Salaries & Wages, 5220 Rent, 5230 Utilities, 5240 Office Supplies, 5250 Marketing, 5260 Depreciation, 5270 Insurance
+- 5300 → 5310 Interest Expense, 5320 Loss on Sale of Assets, 5330 Taxes & Licenses
+
+### How double-entry posting works
+Every business event creates `AccountTransaction` rows (one debit, one credit per journal line):
+
+| Event | Debit | Credit |
+|-------|-------|--------|
+| Invoice created | AR (1120) | Revenue (4110 or 4120) |
+| Customer pays invoice | Cash/Bank (1110) | AR (1120) |
+| Receipt (cash sale) | Cash/Bank (1110) | Revenue (4110 or 4120) |
+| Expense approved | Expense account (5xxx) | Cash or Payable |
+| Bill created | Expense account (5xxx) | AP (2110) |
+| Bill paid | AP (2110) | Cash/Bank (1110) |
+
+All posting is via `journal-posting.service.ts` which calls `createJournalEntry()` → writes `AccountTransaction` rows.
+
+### P&L aggregation rule
+- **Revenue** accounts (typeCode '4000'): `net = creditAmount - debitAmount` (credits increase revenue)
+- **Expense** accounts (typeCode '5000'): `net = debitAmount - creditAmount` (debits increase expense)
+- Filter: `status: { not: 'Failed' }`, date range on `AccountTransaction.date`
+- Group by `account.subCategory.category.code` → maps to the 5 P&L sections above
+
+### P&L formula
+```
+Gross Profit    = revenue.actual - cogs.actual
+Operating Profit (EBIT) = Gross Profit - operatingExpenses.actual
+Net Profit      = Operating Profit + otherIncome.actual - otherExpenses.actual
+```
+
+### Cash Flow (indirect method — future work)
+Needs:
+1. Net Profit from P&L for the period
+2. Add back depreciation (txns on SubCategory 5260)
+3. Working capital changes = reconstruct account balances at period start and end:
+   - Balance at date X = SUM(debit - credit) for asset accounts OR SUM(credit - debit) for liability accounts, for all AccountTransactions with date <= X
+   - AR change: 1120 accounts balance(end) - balance(start)
+   - Inventory change: 1130 accounts
+   - AP change: 2110 accounts
+4. Investing: bank txns (type=BANK) hitting 1200-category accounts
+5. Financing: bank txns hitting 2200 or 3100-category accounts
+
+### Key files for reports work
+| File | Purpose |
+|------|---------|
+| `apps/api/src/reports/reports.service.ts` | P&L service — main logic |
+| `apps/api/src/reports/reports.controller.ts` | `GET /reports/profit-and-loss` |
+| `apps/api/src/reports/dto/reports.dto.ts` | Response types |
+| `apps/api/prisma/schema.prisma` lines 657-732 | Account hierarchy models |
+| `apps/api/prisma/schema.prisma` lines 1497-1527 | AccountTransaction model |
+| `apps/api/seeders/seed-account-chart.ts` | Category/subcategory codes reference |
+| `apps/api/seeders/seed-account-types.ts` | Type codes reference |
+| `apps/api/src/accounts/journal/journal-posting.service.ts` | How postings are written |
+| `apps/web/components/features/user/reports/details/profit-and-loss/index.tsx` | P&L component (needs wiring) |
+| `apps/web/components/features/user/reports/details/profit-and-loss/mock-data.ts` | Types + mock to replace |
+| `apps/web/lib/api/hooks/useCurrencyFormat.ts` | `useEntityCurrencySymbol()` — use this, not hardcoded ₦ |
+
+### Frontend routing for reports
+- `/reports` → `ReportsDetails.tsx` (dispatcher) → imports component by `params.key`
+- `/reports/profit-and-loss` → renders `ProfitAndLoss` component
+- `/reports/cash-flow-statement` → renders `CashFlowStatement` component
+- The reports list page (`/reports`) uses static `reportsData` in `ReportsColumn.tsx` — no backend needed for the list
