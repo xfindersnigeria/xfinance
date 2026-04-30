@@ -45,6 +45,66 @@ export interface ProfitAndLossParams {
   compareEndDate?: string;
 }
 
+// ─── Cash Flow ────────────────────────────────────────────────────────────────
+
+export interface CFEntry {
+  actual: number;
+  comparison: number;
+}
+
+export interface CashFlowStatementData {
+  period: { startDate: string; endDate: string };
+  comparePeriod: { startDate: string; endDate: string } | null;
+  operating: {
+    netProfit: CFEntry;
+    depreciation: CFEntry;
+    arChange: CFEntry;
+    inventoryChange: CFEntry;
+    prepaidChange: CFEntry;
+    apChange: CFEntry;
+    wagesPayableChange: CFEntry;
+    deferredRevenueChange: CFEntry;
+    netCash: CFEntry;
+  };
+  investing: {
+    fixedAssetsChange: CFEntry;
+    intangibleAssetsChange: CFEntry;
+    netCash: CFEntry;
+  };
+  financing: {
+    longTermDebtChange: CFEntry;
+    capitalStockChange: CFEntry;
+    netCash: CFEntry;
+  };
+  netCashChange: CFEntry;
+  cashAtStart: CFEntry;
+  cashAtEnd: CFEntry;
+  kpis: {
+    operatingCashFlow: CFEntry;
+    investingCashFlow: CFEntry;
+    financingCashFlow: CFEntry;
+    netCashIncrease: CFEntry;
+  };
+}
+
+export interface CashFlowParams {
+  startDate: string;
+  endDate: string;
+  compareStartDate?: string;
+  compareEndDate?: string;
+}
+
+export const getCashFlowStatement = async (
+  params: CashFlowParams
+): Promise<CashFlowStatementData> => {
+  const q = new URLSearchParams({ startDate: params.startDate, endDate: params.endDate });
+  if (params.compareStartDate) q.append("compareStartDate", params.compareStartDate);
+  if (params.compareEndDate) q.append("compareEndDate", params.compareEndDate);
+  return apiClient<CashFlowStatementData>(`reports/cash-flow-statement?${q.toString()}`);
+};
+
+// ─── Profit & Loss ────────────────────────────────────────────────────────────
+
 export const getProfitAndLoss = async (
   params: ProfitAndLossParams
 ): Promise<ProfitAndLossData> => {

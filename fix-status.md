@@ -70,10 +70,34 @@ Files created/updated:
 
 TSC: clean (both API and web, exit 0)
 
+### 5. Cash Flow Statement — Full Stack ✅
+Files created/updated:
+
+**Backend:**
+- `apps/api/src/reports/dto/reports.dto.ts` — Added `CFEntryDto`, `CashFlowOperatingDto`, `CashFlowInvestingDto`, `CashFlowFinancingDto`, `CashFlowKPIsDto`, `CashFlowStatementDto`
+- `apps/api/src/reports/reports.service.ts` — Added `getCashFlowStatement()`, `fetchCFData()` (3-query approach: account metadata + opening txns + period txns, all balance groups computed in-memory), `buildCFResponse()`
+- `apps/api/src/reports/reports.controller.ts` — Added `GET /reports/cash-flow-statement?startDate&endDate&compareStartDate?&compareEndDate?`
+
+**Endpoint:** `GET /reports/cash-flow-statement?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&compareStartDate=?&compareEndDate=?`
+
+**Frontend:**
+- `apps/web/lib/api/services/reportService.ts` — Added `CFEntry`, `CashFlowStatementData`, `CashFlowParams`, `getCashFlowStatement()`
+- `apps/web/lib/api/hooks/useReports.ts` — Added `useCashFlowStatement()` React Query hook
+- `apps/web/components/features/user/reports/details/cash-flow-statement/index.tsx` — Fully rewritten:
+  - `quarterToDates()` maps period selector → ISO dates
+  - `useCashFlowStatement` hook drives all data
+  - `buildCFItems(data)` maps API response → `CFItem[]` tree (Operating/Investing/Financing sections, subtotals, net, cashlines)
+  - `buildKPIItems(data)` builds 4 KPI cards from `kpis.*`
+  - Loading skeleton + error state + empty state
+  - Sections auto-collapse on period change via `useEffect`
+  - Comparison column hidden when `comparePeriod` is null in API response
+  - Uses `useEntityCurrencySymbol()` — no hardcoded currency
+
+TSC: clean (both API and web, exit 0)
+
 ## PENDING ⬜
 
-### 5. Cash Flow Statement Backend
-More complex — needs balance reconstruction. See accounting context below for approach.
+_Nothing currently pending._
 
 ---
 

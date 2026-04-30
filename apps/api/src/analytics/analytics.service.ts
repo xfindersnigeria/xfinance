@@ -652,7 +652,7 @@ export class AnalyticsService {
         },
         select: {
           total: true,
-          invoiceDate: true,
+          dueDate: true,
         },
       });
 
@@ -664,7 +664,7 @@ export class AnalyticsService {
       };
 
       unpaidInvoices.forEach((invoice) => {
-        const ageInMs = now.getTime() - new Date(invoice.invoiceDate).getTime();
+        const ageInMs = now.getTime() - new Date(invoice.dueDate).getTime();
         const ageInDays = Math.floor(ageInMs / (1000 * 60 * 60 * 24));
 
         if (ageInDays <= 30) {

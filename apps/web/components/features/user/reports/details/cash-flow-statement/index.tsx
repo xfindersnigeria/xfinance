@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -21,16 +21,33 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
-  cfLineItems,
-  kpiItems,
-  PERIODS,
   CFItem,
+  CFItemType,
   CFKPIItem,
+  PERIODS,
   getAllSectionIds,
 } from "./mock-data";
 import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { useCashFlowStatement } from "@/lib/api/hooks/useReports";
+import { CashFlowStatementData } from "@/lib/api/services/reportService";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function quarterToDates(period: string): {
+  startDate: string;
+  endDate: string;
+} {
+  const [q, yearStr] = period.split(" ");
+  const year = parseInt(yearStr, 10);
+  const ranges: Record<string, [string, string]> = {
+    Q1: [`${year}-01-01`, `${year}-03-31`],
+    Q2: [`${year}-04-01`, `${year}-06-30`],
+    Q3: [`${year}-07-01`, `${year}-09-30`],
+    Q4: [`${year}-10-01`, `${year}-12-31`],
+  };
+  const [startDate, endDate] = ranges[q] ?? [`${year}-01-01`, `${year}-03-31`];
+  return { startDate, endDate };
+}
 
 const QUARTER_END: Record<string, string> = {
   Q1: "March 31",
@@ -56,12 +73,191 @@ function getQuarterEndLabel(period: string): string {
 
 function amountColor(
   value: number | null,
-  variant: "default" | "colored" | "purple" = "default"
+  variant: "default" | "colored" | "purple" = "default",
 ): string {
   if (value === null) return "text-gray-400";
   if (variant === "purple") return "text-purple-600";
-  if (variant === "colored") return value < 0 ? "text-red-500" : "text-green-600";
+  if (variant === "colored")
+    return value < 0 ? "text-red-500" : "text-green-600";
   return value < 0 ? "text-red-500" : "text-gray-800";
+}
+
+function calcChangePct(actual: number, comparison: number): number {
+  if (comparison === 0) return 0;
+  return ((actual - comparison) / Math.abs(comparison)) * 100;
+}
+
+// ─── Build CFItem[] from API response ────────────────────────────────────────
+
+function buildCFItems(data: CashFlowStatementData): CFItem[] {
+  const e = (
+    id: string,
+    label: string,
+    entry: { actual: number; comparison: number },
+    type: CFItemType = "item",
+  ): CFItem => ({
+    id,
+    label,
+    type,
+    actual: entry.actual,
+    comparison: data.comparePeriod ? entry.comparison : null,
+  });
+
+  return [
+    {
+      id: "operating-activities",
+      label: "Operating Activities",
+      type: "section",
+      actual: null,
+      comparison: null,
+      children: [
+        e("net-profit", "Net Profit", data.operating.netProfit),
+        {
+          id: "adj-label",
+          label: "Adjustments for:",
+          type: "label",
+          actual: null,
+          comparison: null,
+        },
+        e(
+          "depreciation",
+          "Depreciation & Amortization",
+          data.operating.depreciation,
+        ),
+        {
+          id: "wc-label",
+          label: "Changes in Working Capital:",
+          type: "label",
+          actual: null,
+          comparison: null,
+        },
+        e(
+          "accounts-receivable",
+          "Accounts Receivable",
+          data.operating.arChange,
+        ),
+        e("inventory", "Inventory", data.operating.inventoryChange),
+        e("prepaid-expenses", "Prepaid Expenses", data.operating.prepaidChange),
+        e("accounts-payable", "Accounts Payable", data.operating.apChange),
+        e("wages-payable", "Wages Payable", data.operating.wagesPayableChange),
+        e(
+          "deferred-revenue",
+          "Deferred Revenue",
+          data.operating.deferredRevenueChange,
+        ),
+      ],
+    },
+    {
+      id: "net-cash-operating",
+      label: "Net Cash from Operating Activities",
+      type: "subtotal",
+      actual: data.operating.netCash.actual,
+      comparison: data.comparePeriod ? data.operating.netCash.comparison : null,
+    },
+    {
+      id: "investing-activities",
+      label: "Investing Activities",
+      type: "section",
+      actual: null,
+      comparison: null,
+      children: [
+        e(
+          "fixed-assets-change",
+          "Purchase of Property, Plant & Equipment",
+          data.investing.fixedAssetsChange,
+        ),
+        e(
+          "intangible-assets-change",
+          "Purchase of Intangible Assets",
+          data.investing.intangibleAssetsChange,
+        ),
+      ],
+    },
+    {
+      id: "net-cash-investing",
+      label: "Net Cash from Investing Activities",
+      type: "subtotal",
+      actual: data.investing.netCash.actual,
+      comparison: data.comparePeriod ? data.investing.netCash.comparison : null,
+    },
+    {
+      id: "financing-activities",
+      label: "Financing Activities",
+      type: "section",
+      actual: null,
+      comparison: null,
+      children: [
+        e(
+          "long-term-debt-change",
+          "Long-term Debt Change",
+          data.financing.longTermDebtChange,
+        ),
+        e(
+          "capital-stock-change",
+          "Capital Stock / Equity Raised",
+          data.financing.capitalStockChange,
+        ),
+      ],
+    },
+    {
+      id: "net-cash-financing",
+      label: "Net Cash from Financing Activities",
+      type: "subtotal",
+      actual: data.financing.netCash.actual,
+      comparison: data.comparePeriod ? data.financing.netCash.comparison : null,
+    },
+    {
+      id: "net-increase",
+      label: "Net Increase (Decrease) in Cash",
+      type: "net",
+      actual: data.netCashChange.actual,
+      comparison: data.comparePeriod ? data.netCashChange.comparison : null,
+    },
+    {
+      id: "cash-beginning",
+      label: "Cash and Cash Equivalents, Beginning of Period",
+      type: "cashline",
+      actual: data.cashAtStart.actual,
+      comparison: data.comparePeriod ? data.cashAtStart.comparison : null,
+      showBadge: false,
+    },
+    {
+      id: "cash-end",
+      label: "Cash and Cash Equivalents, End of Period",
+      type: "cashline",
+      actual: data.cashAtEnd.actual,
+      comparison: data.comparePeriod ? data.cashAtEnd.comparison : null,
+      showBadge: true,
+    },
+  ];
+}
+
+function buildKPIItems(data: CashFlowStatementData): CFKPIItem[] {
+  const { kpis } = data;
+  const hasCompare = !!data.comparePeriod;
+
+  const toKPI = (
+    label: string,
+    entry: { actual: number; comparison: number },
+    badgeVariant: CFKPIItem["badgeVariant"],
+  ): CFKPIItem => {
+    const pct = hasCompare ? calcChangePct(entry.actual, entry.comparison) : 0;
+    return {
+      label,
+      value: entry.actual,
+      previous: hasCompare ? entry.comparison : 0,
+      badgeText: `${Math.abs(pct).toFixed(1)}%`,
+      badgeVariant,
+      trendUp: pct >= 0,
+    };
+  };
+
+  return [
+    toKPI("Operating Cash Flow", kpis.operatingCashFlow, "green"),
+    toKPI("Investing Cash Flow", kpis.investingCashFlow, "orange"),
+    toKPI("Financing Cash Flow", kpis.financingCashFlow, "purple"),
+    toKPI("Net Cash Increase", kpis.netCashIncrease, "blue"),
+  ];
 }
 
 // ─── Change Cell ──────────────────────────────────────────────────────────────
@@ -92,22 +288,34 @@ function ChangeCell({
     const badgeClass = blueBadge
       ? "bg-blue-600 text-white"
       : isPositive
-      ? "bg-green-500 text-white"
-      : "bg-red-500 text-white";
+        ? "bg-green-500 text-white"
+        : "bg-red-500 text-white";
     return (
       <div className="flex justify-end">
-        <span className={cn("text-xs px-2.5 py-1 rounded-full font-semibold", badgeClass)}>
-          {sign}{Math.abs(pct).toFixed(1)}%
+        <span
+          className={cn(
+            "text-xs px-2.5 py-1 rounded-full font-semibold",
+            badgeClass,
+          )}
+        >
+          {sign}
+          {Math.abs(pct).toFixed(1)}%
         </span>
       </div>
     );
   }
 
   return (
-    <div className={cn("flex items-center justify-end gap-1 text-xs font-medium", colorCls)}>
+    <div
+      className={cn(
+        "flex items-center justify-end gap-1 text-xs font-medium",
+        colorCls,
+      )}
+    >
       <Icon className="w-3 h-3" />
       <span>
-        {sign}{Math.abs(pct).toFixed(1)}%
+        {sign}
+        {Math.abs(pct).toFixed(1)}%
       </span>
     </div>
   );
@@ -121,7 +329,7 @@ function buildRows(
   toggleSection: (id: string) => void,
   showComparison: boolean,
   sym: string,
-  isChild = false
+  isChild = false,
 ): React.ReactNode[] {
   const rows: React.ReactNode[] = [];
   const indentPx = isChild ? 40 : 16;
@@ -152,14 +360,27 @@ function buildRows(
             <td className="px-4 py-3 text-right text-sm text-gray-400">-</td>
             {showComparison && (
               <>
-                <td className="px-4 py-3 text-right text-sm text-gray-400">-</td>
-                <td className="px-4 py-3 text-right text-sm text-gray-400">-</td>
+                <td className="px-4 py-3 text-right text-sm text-gray-400">
+                  -
+                </td>
+                <td className="px-4 py-3 text-right text-sm text-gray-400">
+                  -
+                </td>
               </>
             )}
-          </tr>
+          </tr>,
         );
         if (!isCollapsed && item.children?.length) {
-          rows.push(...buildRows(item.children, collapsed, toggleSection, showComparison, sym, true));
+          rows.push(
+            ...buildRows(
+              item.children,
+              collapsed,
+              toggleSection,
+              showComparison,
+              sym,
+              true,
+            ),
+          );
         }
         break;
       }
@@ -176,7 +397,7 @@ function buildRows(
             <td
               className={cn(
                 "px-4 py-2.5 text-right text-sm whitespace-nowrap",
-                amountColor(item.actual)
+                amountColor(item.actual),
               )}
             >
               {fmt(item.actual, sym)}
@@ -186,17 +407,20 @@ function buildRows(
                 <td
                   className={cn(
                     "px-4 py-2.5 text-right text-sm whitespace-nowrap",
-                    amountColor(item.comparison)
+                    amountColor(item.comparison),
                   )}
                 >
                   {fmt(item.comparison, sym)}
                 </td>
                 <td className="px-4 py-2.5 min-w-[100px]">
-                  <ChangeCell actual={item.actual} comparison={item.comparison} />
+                  <ChangeCell
+                    actual={item.actual}
+                    comparison={item.comparison}
+                  />
                 </td>
               </>
             )}
-          </tr>
+          </tr>,
         );
         break;
       }
@@ -217,7 +441,7 @@ function buildRows(
                 <td />
               </>
             )}
-          </tr>
+          </tr>,
         );
         break;
       }
@@ -229,7 +453,7 @@ function buildRows(
             <td
               className={cn(
                 "px-4 py-3 text-right text-sm font-bold whitespace-nowrap",
-                amountColor(item.actual, "colored")
+                amountColor(item.actual, "colored"),
               )}
             >
               {fmt(item.actual, sym)}
@@ -239,17 +463,20 @@ function buildRows(
                 <td
                   className={cn(
                     "px-4 py-3 text-right text-sm font-bold whitespace-nowrap",
-                    amountColor(item.comparison, "colored")
+                    amountColor(item.comparison, "colored"),
                   )}
                 >
                   {fmt(item.comparison, sym)}
                 </td>
                 <td className="px-4 py-3 min-w-[100px]">
-                  <ChangeCell actual={item.actual} comparison={item.comparison} />
+                  <ChangeCell
+                    actual={item.actual}
+                    comparison={item.comparison}
+                  />
                 </td>
               </>
             )}
-          </tr>
+          </tr>,
         );
         break;
       }
@@ -261,7 +488,7 @@ function buildRows(
             <td
               className={cn(
                 "px-4 py-3 text-right text-sm font-bold whitespace-nowrap",
-                amountColor(item.actual, "purple")
+                amountColor(item.actual, "purple"),
               )}
             >
               {fmt(item.actual, sym)}
@@ -271,17 +498,21 @@ function buildRows(
                 <td
                   className={cn(
                     "px-4 py-3 text-right text-sm font-bold whitespace-nowrap",
-                    amountColor(item.comparison, "purple")
+                    amountColor(item.comparison, "purple"),
                   )}
                 >
                   {fmt(item.comparison, sym)}
                 </td>
                 <td className="px-4 py-3 min-w-[100px]">
-                  <ChangeCell actual={item.actual} comparison={item.comparison} asBadge />
+                  <ChangeCell
+                    actual={item.actual}
+                    comparison={item.comparison}
+                    asBadge
+                  />
                 </td>
               </>
             )}
-          </tr>
+          </tr>,
         );
         break;
       }
@@ -291,13 +522,15 @@ function buildRows(
         rows.push(
           <tr
             key={item.id}
-            className={cn(isEnd ? "border-t border-gray-300" : "border-t-4 border-gray-200")}
+            className={cn(
+              isEnd ? "border-t border-gray-300" : "border-t-4 border-gray-200",
+            )}
           >
             <td className="px-4 py-3 text-sm">{item.label}</td>
             <td
               className={cn(
                 "px-4 py-3 text-right text-sm whitespace-nowrap",
-                isEnd ? amountColor(item.actual, "purple") : "text-gray-800"
+                isEnd ? amountColor(item.actual, "purple") : "text-gray-800",
               )}
             >
               {fmt(item.actual, sym)}
@@ -307,7 +540,9 @@ function buildRows(
                 <td
                   className={cn(
                     "px-4 py-3 text-right text-sm whitespace-nowrap",
-                    isEnd ? amountColor(item.comparison, "purple") : "text-gray-800"
+                    isEnd
+                      ? amountColor(item.comparison, "purple")
+                      : "text-gray-800",
                   )}
                 >
                   {fmt(item.comparison, sym)}
@@ -326,7 +561,7 @@ function buildRows(
                 </td>
               </>
             )}
-          </tr>
+          </tr>,
         );
         break;
       }
@@ -357,7 +592,7 @@ function KPICard({ item, sym }: { item: CFKPIItem; sym: string }) {
         <span
           className={cn(
             "flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium shrink-0",
-            BADGE_CLASSES[item.badgeVariant]
+            BADGE_CLASSES[item.badgeVariant],
           )}
         >
           <Icon className="w-3 h-3" />
@@ -367,7 +602,7 @@ function KPICard({ item, sym }: { item: CFKPIItem; sym: string }) {
       <p
         className={cn(
           "text-xl font-semibold",
-          isNegative ? "text-red-500" : "text-green-600"
+          isNegative ? "text-red-500" : "text-green-600",
         )}
       >
         {fmt(item.value, sym)}
@@ -382,18 +617,78 @@ function KPICard({ item, sym }: { item: CFKPIItem; sym: string }) {
   );
 }
 
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+
+function Skeleton({ className }: { className?: string }) {
+  return <div className={cn("animate-pulse bg-gray-200 rounded", className)} />;
+}
+
+function LoadingSkeleton() {
+  return (
+    <div className="flex flex-col gap-6 pb-10">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div
+            key={i}
+            className="bg-white rounded-2xl border p-4 shadow-sm flex flex-col gap-3"
+          >
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-7 w-1/2" />
+            <Skeleton className="h-3 w-2/3" />
+          </div>
+        ))}
+      </div>
+      <div className="bg-white rounded-2xl border shadow-sm p-6 flex flex-col gap-3">
+        {Array.from({ length: 12 }).map((_, i) => (
+          <Skeleton
+            key={i}
+            className={cn("h-4", i % 4 === 0 ? "w-1/3" : "w-full")}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
+
+const STATIC_SECTION_IDS = [
+  "operating-activities",
+  "investing-activities",
+  "financing-activities",
+];
 
 export default function CashFlowStatement() {
   const router = useRouter();
   const sym = useEntityCurrencySymbol();
-  const [period, setPeriod] = useState("Q3 2025");
+  const [period, setPeriod] = useState("Q2 2026");
   const [compareType, setCompareType] = useState<"period" | "budget">("period");
   const [comparePeriod, setComparePeriod] = useState("Q2 2025");
   const [showComparison, setShowComparison] = useState(true);
   const [collapsed, setCollapsed] = useState<Set<string>>(
-    () => new Set(getAllSectionIds(cfLineItems))
+    () => new Set(STATIC_SECTION_IDS),
   );
+
+  const periodDates = quarterToDates(period);
+  const compareDates =
+    compareType === "period" ? quarterToDates(comparePeriod) : null;
+
+  const {
+    data: cashFlowData,
+    isLoading,
+    isError,
+  } = useCashFlowStatement({
+    startDate: periodDates.startDate,
+    endDate: periodDates.endDate,
+    compareStartDate: compareDates?.startDate,
+    compareEndDate: compareDates?.endDate,
+  });
+
+  const data = (cashFlowData as any)?.data || null;
+
+  useEffect(() => {
+    setCollapsed(new Set(STATIC_SECTION_IDS));
+  }, [period, comparePeriod]);
 
   const toggleSection = (id: string) => {
     setCollapsed((prev) => {
@@ -404,8 +699,15 @@ export default function CashFlowStatement() {
     });
   };
 
+  const cfItems = data ? buildCFItems(data) : [];
+  const kpiItems = data ? buildKPIItems(data) : [];
   const compareLabel = compareType === "period" ? comparePeriod : "Budget";
-  const rows = buildRows(cfLineItems, collapsed, toggleSection, showComparison, sym);
+  const hasData = !!data;
+  const effectiveShowComparison = showComparison && !!data?.comparePeriod;
+
+  const rows = hasData
+    ? buildRows(cfItems, collapsed, toggleSection, effectiveShowComparison, sym)
+    : [];
 
   return (
     <div className="flex flex-col gap-6 pb-10">
@@ -421,7 +723,8 @@ export default function CashFlowStatement() {
           </button>
           <h1 className="text-xl font-semibold">Cash Flow Statement</h1>
           <p className="text-sm text-primary">
-            Statement of cash flows from operating, investing, and financing activities
+            Statement of cash flows from operating, investing, and financing
+            activities
           </p>
         </div>
         <div className="flex items-center gap-2 mt-6 shrink-0">
@@ -429,7 +732,7 @@ export default function CashFlowStatement() {
             variant="outline"
             size="sm"
             className="gap-2 rounded-xl"
-            onClick={() => window.print()}
+            // onClick={() => window.print()}
           >
             <Printer className="w-4 h-4" />
             Print
@@ -451,7 +754,9 @@ export default function CashFlowStatement() {
             </SelectTrigger>
             <SelectContent>
               {PERIODS.map((p) => (
-                <SelectItem key={p} value={p}>{p}</SelectItem>
+                <SelectItem key={p} value={p}>
+                  {p}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -465,7 +770,7 @@ export default function CashFlowStatement() {
                 "px-3 py-1 text-sm rounded-lg transition-all",
                 compareType === "period"
                   ? "bg-white shadow-sm font-medium"
-                  : "text-gray-600 hover:text-gray-900"
+                  : "text-gray-600 hover:text-gray-900",
               )}
               onClick={() => setCompareType("period")}
             >
@@ -476,7 +781,7 @@ export default function CashFlowStatement() {
                 "px-3 py-1 text-sm rounded-lg transition-all",
                 compareType === "budget"
                   ? "bg-white shadow-sm font-medium"
-                  : "text-gray-600 hover:text-gray-900"
+                  : "text-gray-600 hover:text-gray-900",
               )}
               onClick={() => setCompareType("budget")}
             >
@@ -492,7 +797,9 @@ export default function CashFlowStatement() {
             </SelectTrigger>
             <SelectContent>
               {PERIODS.map((p) => (
-                <SelectItem key={p} value={p}>{p}</SelectItem>
+                <SelectItem key={p} value={p}>
+                  {p}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -508,66 +815,95 @@ export default function CashFlowStatement() {
         </Button>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {kpiItems.map((kpi) => (
-          <KPICard key={kpi.label} item={kpi} sym={sym} />
-        ))}
-      </div>
+      {isLoading && <LoadingSkeleton />}
 
-      {/* Report Document */}
-      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
-        {/* Company header */}
-        <div className="text-center py-6 border-b">
-          <p className="font-semibold text-base">Cash Flow Statement</p>
-          <p className="text-primary text-sm mt-0.5">Cash Flow Statement</p>
-          <p className="text-gray-500 text-sm mt-0.5">{getQuarterEndLabel(period)}</p>
+      {isError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">
+          Failed to load cash flow statement. Please try again.
         </div>
+      )}
 
-        {/* Scrollable table with sticky header */}
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="sticky top-0 z-10 bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  Activity
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
-                  {period}
-                </th>
-                {showComparison && (
-                  <>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
-                      {compareLabel}
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[100px]">
-                      Change
-                    </th>
-                  </>
-                )}
-              </tr>
-            </thead>
-            <tbody>{rows}</tbody>
-          </table>
-        </div>
+      {!isLoading && !isError && (
+        <>
+          {/* KPI Cards */}
+          {kpiItems.length > 0 && (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {kpiItems.map((kpi) => (
+                <KPICard key={kpi.label} item={kpi} sym={sym} />
+              ))}
+            </div>
+          )}
 
-        {/* Report Notes */}
-        <div className="m-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
-          <p className="text-sm font-medium mb-2">Report Notes</p>
-          <ul className="text-sm text-gray-600 space-y-1">
-            <li>• This cash flow statement is prepared using the indirect method.</li>
-            <li>
-              • Cash and cash equivalents include cash on hand, demand deposits, and
-              short-term investments with maturities of three months or less.
-            </li>
-            <li>
-              • Non-cash transactions are excluded from this statement and disclosed
-              separately when material.
-            </li>
-            <li>• All amounts are presented in {sym} unless otherwise stated.</li>
-          </ul>
-        </div>
-      </div>
+          {/* Report Document */}
+          <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
+            {/* Document header */}
+            <div className="text-center py-6 border-b">
+              <p className="font-semibold text-base">Cash Flow Statement</p>
+              <p className="text-primary text-sm mt-0.5">
+                Statement of Cash Flows (Indirect Method)
+              </p>
+              <p className="text-gray-500 text-sm mt-0.5">
+                {getQuarterEndLabel(period)}
+              </p>
+            </div>
+
+            {cfItems.length === 0 ? (
+              <div className="py-16 text-center text-gray-500 text-sm">
+                No cash flow transactions found for this period.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="sticky top-0 z-10 bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                        Activity
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
+                        {period}
+                      </th>
+                      {effectiveShowComparison && (
+                        <>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
+                            {compareLabel}
+                          </th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide min-w-[100px]">
+                            Change
+                          </th>
+                        </>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>{rows}</tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Report Notes */}
+            <div className="m-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
+              <p className="text-sm font-medium mb-2">Report Notes</p>
+              <ul className="text-sm text-gray-600 space-y-1">
+                <li>
+                  • This cash flow statement is prepared using the indirect
+                  method.
+                </li>
+                <li>
+                  • Cash and cash equivalents include cash on hand, demand
+                  deposits, and short-term investments with maturities of three
+                  months or less.
+                </li>
+                <li>
+                  • Non-cash transactions are excluded from this statement and
+                  disclosed separately when material.
+                </li>
+                <li>
+                  • All amounts are presented in {sym} unless otherwise stated.
+                </li>
+              </ul>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
