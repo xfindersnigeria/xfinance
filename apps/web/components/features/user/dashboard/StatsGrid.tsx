@@ -4,7 +4,7 @@ import {
   Banknote,
   Landmark,
   TrendingDown,
-  Users,
+  ReceiptText,
 } from "lucide-react";
 import React from "react";
 import StatCard from "./StatCard";
@@ -43,11 +43,13 @@ export default function StatsGrid({ data, loading }: StatsGridProps) {
       isPositive: (data?.liabilities?.changePercent ?? 0) <= 0,
     },
     {
-      title: "Active Customers",
-      icon: <Users className="h-5 w-5" />,
-      value: data?.activeCustomers?.count?.toString() ?? "0",
-      percentage: data?.activeCustomers?.changePercent ?? 0,
-      isPositive: (data?.activeCustomers?.changePercent ?? 0) >= 0,
+      title: "Outstanding Receivables",
+      icon: <ReceiptText className="h-5 w-5" />,
+      value: data?.outstandingReceivables?.total
+        ? `${sym}${(data.outstandingReceivables.total).toLocaleString()}`
+        : `${sym}0`,
+      percentage: Math.abs(Number((data?.outstandingReceivables?.changePercent ?? 0).toFixed(2))),
+      isPositive: (data?.outstandingReceivables?.changePercent ?? 0) <= 0,
     },
   ];
 

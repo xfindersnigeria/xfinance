@@ -249,27 +249,27 @@ export class AnalyticsService {
       const liabilitiesChangePercent =
         previousLiabilities > 0 ? (liabilitiesChange / previousLiabilities) * 100 : 0;
 
-      // Active Customers
-      const [activeCustomers, totalCustomers] = await Promise.all([
-        this.prisma.customer.count({
-          where: { entityId, isActive: true },
+      // Outstanding Receivables (total unpaid invoice amounts)
+      const [currentOutstandingAgg, previousOutstandingAgg] = await Promise.all([
+        this.prisma.invoice.aggregate({
+          where: { entityId, status: { in: ['Sent', 'Overdue', 'Partial'] } },
+          _sum: { total: true },
         }),
-        this.prisma.customer.count({
-          where: { entityId },
+        this.prisma.invoice.aggregate({
+          where: {
+            entityId,
+            status: { in: ['Sent', 'Overdue', 'Partial'] },
+            invoiceDate: { lte: previousMonthEnd },
+          },
+          _sum: { total: true },
         }),
       ]);
 
-      const previousActiveCustomers = await this.prisma.customer.count({
-        where: {
-          entityId,
-          isActive: true,
-          createdAt: { lte: previousMonthEnd },
-        },
-      });
-
-      const customersChange = activeCustomers - previousActiveCustomers;
-      const customersChangePercent =
-        previousActiveCustomers > 0 ? (customersChange / previousActiveCustomers) * 100 : 100;
+      const currentReceivables = currentOutstandingAgg._sum.total || 0;
+      const previousReceivables = previousOutstandingAgg._sum.total || 0;
+      const receivablesChange = currentReceivables - previousReceivables;
+      const receivablesChangePercent =
+        previousReceivables > 0 ? (receivablesChange / previousReceivables) * 100 : currentReceivables > 0 ? 100 : 0;
 
       return {
         revenue: {
@@ -287,10 +287,10 @@ export class AnalyticsService {
           change: Number(liabilitiesChange.toFixed(2)),
           changePercent: Number(liabilitiesChangePercent.toFixed(2)),
         },
-        activeCustomers: {
-          count: activeCustomers,
-          change: Number(customersChange.toFixed(2)),
-          changePercent: Number(customersChangePercent.toFixed(2)),
+        outstandingReceivables: {
+          total: Number(currentReceivables.toFixed(2)),
+          change: Number(receivablesChange.toFixed(2)),
+          changePercent: Number(receivablesChangePercent.toFixed(2)),
         },
       };
     } catch (error) {

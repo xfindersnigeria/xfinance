@@ -17,8 +17,8 @@ export class KPIDto {
     changePercent: number;
   };
 
-  activeCustomers?: {
-    count: number;
+  outstandingReceivables?: {
+    total: number;
     change: number;
     changePercent: number;
   };

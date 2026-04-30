@@ -20,7 +20,7 @@ export interface KPIs {
   revenue: KPI;
   bankBalance: KPI;
   liabilities: KPI;
-  activeCustomers: KPI;
+  outstandingReceivables: KPI;
 }
 
 export interface MonthlyBreakdown {
