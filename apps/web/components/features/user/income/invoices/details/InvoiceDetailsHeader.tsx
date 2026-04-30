@@ -3,15 +3,15 @@
 import React, { useState } from "react";
 import {
   ArrowLeft,
-  Currency,
   Download,
-  MoreVertical,
+  Loader2,
   Printer,
   Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import InvoiceDetailsActions from "./InvoiceDetailsActions";
+import { useSendInvoice, useDownloadInvoice } from "@/lib/api/hooks/useSales";
 
 interface InvoiceDetailsHeaderProps {
   invoice: any;
@@ -22,6 +22,9 @@ export default function InvoiceDetailsHeader({
   invoice,
   onBack,
 }: InvoiceDetailsHeaderProps) {
+  const sendInvoice = useSendInvoice();
+  const downloadInvoice = useDownloadInvoice();
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "Sent":
@@ -64,28 +67,46 @@ export default function InvoiceDetailsHeader({
           <div className="flex flex-wrap gap-2 md:flex-nowrap justify-end w-full">
             {/* Hidden on small screens, shown on sm and up */}
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" className="gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => window.print()}
+              >
                 <Printer className="w-4 h-4" />
                 <span className="hidden md:inline">Print</span>
               </Button>
-              <Button variant="outline" size="sm" className="gap-2">
-                <Download className="w-4 h-4" />
-                <span className="hidden md:inline">Download PDF</span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                disabled={downloadInvoice.isPending}
+                onClick={() => downloadInvoice.mutate(invoice.id)}
+              >
+                {downloadInvoice.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
+                <span className="hidden md:inline">
+                  {downloadInvoice.isPending ? "Downloading…" : "Download PDF"}
+                </span>
               </Button>
             </div>
-            {/* <Button
-              size="sm"
-              className="bg-green-600 hover:bg-green-700 text-white gap-2 flex-1 sm:flex-none"
-            >
-              <Currency className="w-4 h-4" />
-              <span className="text-xs sm:text-sm">Record Payment</span>
-            </Button> */}
             <Button
               size="sm"
               className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 flex-1 sm:flex-none"
+              disabled={sendInvoice.isPending}
+              onClick={() => sendInvoice.mutate(invoice.id)}
             >
-              <Send className="w-4 h-4" />
-              <span className="text-xs sm:text-sm">Send</span>
+              {sendInvoice.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
+              <span className="text-xs sm:text-sm">
+                {sendInvoice.isPending ? "Sending…" : "Send to Customer"}
+              </span>
             </Button>
             <InvoiceDetailsActions invoice={invoice} />
           </div>

@@ -43,6 +43,48 @@ export class EmailService {
   }
 
   /**
+   * Send an email with a PDF attachment (base64 encoded buffer).
+   */
+  async sendEmailWithAttachment({
+    to,
+    toName,
+    subject,
+    html,
+    attachment,
+    attachmentName,
+    from = process.env.DEFAULT_EMAIL_FROM,
+  }: {
+    to: string;
+    toName?: string;
+    subject: string;
+    html: string;
+    attachment: Buffer;
+    attachmentName: string;
+    from?: string;
+  }) {
+    const base64Content = attachment.toString('base64');
+    const result = await this.zeptomail.sendMail({
+      from: {
+        address: from || process.env.DEFAULT_EMAIL_FROM!,
+        name: process.env.DEFAULT_EMAIL_FROM_NAME || 'x-finance',
+      },
+      to: [{ email_address: { address: to, name: toName || to } }],
+      subject,
+      htmlbody: html,
+      attachments: [
+        {
+          content: base64Content,
+          mime_type: 'application/pdf',
+          name: attachmentName,
+        },
+      ],
+    } as any);
+
+    this.logger.log(`Email with attachment sent to ${to}`);
+    return result;
+  }
+
+  /**
    * Helper to wrap email content in the base template.
    */
   wrapWithBaseTemplate(

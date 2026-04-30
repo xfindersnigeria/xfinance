@@ -22,6 +22,8 @@ import {
   ItemsType,
 } from 'prisma/generated/enums';
 import { BullmqService } from '@/bullmq/bullmq.service';
+import { PdfService } from '@/pdf/pdf.service';
+import { EmailService } from '@/email/email.service';
 
 @Injectable()
 export class InvoiceService {
@@ -30,6 +32,8 @@ export class InvoiceService {
   constructor(
     private prisma: PrismaService,
     private bullmqService: BullmqService,
+    private pdfService: PdfService,
+    private emailService: EmailService,
   ) {}
 
   /**
@@ -1341,6 +1345,128 @@ export class InvoiceService {
         `Error in updateOverdueInvoices cron job: ${error instanceof Error ? error.message : String(error)}`,
       );
       // Don't throw - cron jobs should fail gracefully
+    }
+  }
+
+  /**
+   * Generate invoice PDF and email it to the customer.
+   * Also marks the invoice as Sent if it was in Draft/Pending.
+   */
+  async sendInvoice(invoiceId: string, entityId: string, performedBy: string) {
+    try {
+      const invoice = await this.prisma.invoice.findFirst({
+        where: { OR: [{ id: invoiceId }, { invoiceNumber: invoiceId }] },
+        include: {
+          customer: true,
+          entity: true,
+          invoiceItem: { include: { item: true } },
+        },
+      });
+
+      if (!invoice) {
+        throw new HttpException('Invoice not found', HttpStatus.NOT_FOUND);
+      }
+      if (invoice.entityId !== entityId) {
+        throw new HttpException('Access denied', HttpStatus.FORBIDDEN);
+      }
+
+      const customerEmail = invoice.customer?.email;
+      if (!customerEmail) {
+        throw new HttpException(
+          'Customer has no email address on file',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      // Fetch entity's first bank account for payment details in PDF
+      const bankAccountRaw = await this.prisma.bankAccount.findFirst({
+        where: { entityId },
+        select: { bankName: true, accountName: true, accountNumber: true, routingNumber: true },
+      });
+
+      // Generate PDF
+      const pdfBuffer = await this.pdfService.generate('invoice', {
+        invoice,
+        customer: invoice.customer,
+        entity: invoice.entity,
+        bankAccount: bankAccountRaw ?? null,
+      });
+
+      // Build HTML email body
+      const dueDate = invoice.dueDate
+        ? new Date(invoice.dueDate).toLocaleDateString('en-GB', {
+            day: '2-digit', month: 'short', year: 'numeric',
+          })
+        : '';
+      const total = (Number(invoice.total) || 0).toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+      });
+      const entityName = (invoice.entity as any)?.name || 'Your supplier';
+
+      const emailHtml = `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1a1a1a">
+          <h2 style="color:#3b4fea;margin-bottom:8px">Invoice from ${entityName}</h2>
+          <p>Dear ${invoice.customer?.name || 'Customer'},</p>
+          <p>Please find your invoice <strong>${invoice.invoiceNumber}</strong> attached to this email.</p>
+          <table style="width:100%;border-collapse:collapse;margin:16px 0">
+            <tr>
+              <td style="padding:8px;border:1px solid #e5e7eb;background:#f9fafb;font-weight:600">Invoice Number</td>
+              <td style="padding:8px;border:1px solid #e5e7eb">${invoice.invoiceNumber}</td>
+            </tr>
+            <tr>
+              <td style="padding:8px;border:1px solid #e5e7eb;background:#f9fafb;font-weight:600">Amount Due</td>
+              <td style="padding:8px;border:1px solid #e5e7eb"><strong>${invoice.currency || 'USD'} ${total}</strong></td>
+            </tr>
+            ${dueDate ? `<tr>
+              <td style="padding:8px;border:1px solid #e5e7eb;background:#f9fafb;font-weight:600">Due Date</td>
+              <td style="padding:8px;border:1px solid #e5e7eb">${dueDate}</td>
+            </tr>` : ''}
+          </table>
+          <p>Please open the attached PDF for full invoice details.</p>
+          <p style="margin-top:24px;color:#6b7280;font-size:13px">
+            If you have any questions about this invoice, please reply to this email.
+          </p>
+          <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0"/>
+          <p style="color:#9ca3af;font-size:12px">Sent via XFinance</p>
+        </div>`;
+
+      await this.emailService.sendEmailWithAttachment({
+        to: customerEmail,
+        toName: invoice.customer?.name,
+        subject: `Invoice ${invoice.invoiceNumber} from ${entityName}`,
+        html: emailHtml,
+        attachment: pdfBuffer,
+        attachmentName: `invoice-${invoice.invoiceNumber}.pdf`,
+      });
+
+      // Mark invoice as Sent if it was Draft
+      if (invoice.status === InvoiceStatus.Draft || invoice.status === ('Pending' as any)) {
+        await this.prisma.invoice.update({
+          where: { id: invoice.id },
+          data: { status: InvoiceStatus.Sent },
+        });
+      }
+
+      // Log activity
+      await this.logActivity(
+        invoice.id,
+        InvoiceActivityType.Sent,
+        `Invoice sent to ${customerEmail}`,
+        performedBy,
+        { recipientEmail: customerEmail },
+        invoice.groupId,
+      );
+
+      return {
+        message: `Invoice sent successfully to ${customerEmail}`,
+        statusCode: 200,
+      };
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      throw new HttpException(
+        `Failed to send invoice: ${error instanceof Error ? error.message : String(error)}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 }

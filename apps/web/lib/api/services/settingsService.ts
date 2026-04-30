@@ -269,6 +269,17 @@ export interface EntityConfig {
   emailNotifications: boolean;
   twoFactorAuth: boolean;
   auditLog: boolean;
+  invoicePrefix?: string | null;
+  paymentTerm?: string | null;
+  lateFees?: boolean;
+  paymentReminders?: boolean;
+  taxRate?: number | null;
+  bankName?: string | null;
+  bankAccountName?: string | null;
+  bankAccountNumber?: string | null;
+  bankRoutingNumber?: string | null;
+  bankSwiftCode?: string | null;
+  invoiceNotes?: string | null;
 }
 
 export interface UpdateEntityConfigPayload {
@@ -281,6 +292,17 @@ export interface UpdateEntityConfigPayload {
   emailNotifications?: boolean;
   twoFactorAuth?: boolean;
   auditLog?: boolean;
+  invoicePrefix?: string;
+  paymentTerm?: string;
+  lateFees?: boolean;
+  paymentReminders?: boolean;
+  taxRate?: string;
+  bankName?: string;
+  bankAccountName?: string;
+  bankAccountNumber?: string;
+  bankRoutingNumber?: string;
+  bankSwiftCode?: string;
+  invoiceNotes?: string;
 }
 
 export const getEntityConfig = async () =>

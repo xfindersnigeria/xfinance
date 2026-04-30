@@ -9,6 +9,7 @@ import { BankingService } from '@/banking/banking.service';
 import { AccountService } from '@/accounts/account/account.service';
 import { OpeningBalanceService } from '@/accounts/opening-balance/opening-balance.service';
 import { PdfService } from '@/pdf/pdf.service';
+import { EmailService } from '@/email/email.service';
 import { CacheService } from '@/cache/cache.service';
 import { SubscriptionService } from '@/subscription/subscription.service';
 import { MenuService } from '@/menu/menu.service';
@@ -17,7 +18,7 @@ import { PubsubService } from '@/cache/pubsub.service';
 
 @Module({
   imports: [PrismaModule, ScheduleModule.forRoot(), BullmqModule],
-  providers: [InvoiceService, AuthService, BankingService, AccountService, OpeningBalanceService, PdfService, MenuService, SubscriptionService, CacheService, PubsubService],
+  providers: [InvoiceService, AuthService, BankingService, AccountService, OpeningBalanceService, PdfService, EmailService, MenuService, SubscriptionService, CacheService, PubsubService],
   controllers: [InvoiceController],
   exports: [InvoiceService],
 })

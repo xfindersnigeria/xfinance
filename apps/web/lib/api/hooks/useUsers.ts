@@ -127,11 +127,11 @@ export const useUpdateUser = (
 
   return useMutation({
     mutationFn: ({ userId, payload }) => updateUser(userId, payload),
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["users", "list"] });
-      queryClient.invalidateQueries({ queryKey: ["users", "detail", data.id] });
+      queryClient.invalidateQueries({ queryKey: ["users", "detail", variables.userId] });
       toast.success("User updated successfully");
-      closeModal(MODAL.ADMIN_USER_EDIT);
+      closeModal(MODAL.ADMIN_USER_EDIT + "-" + variables.userId);
     },
     onError: (error) => {
       toast.error(

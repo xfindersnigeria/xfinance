@@ -98,13 +98,19 @@ export default function PaymentMadeForm({
   const bills = (billsData as any)?.bills || [];
   const cashAccounts = (accountsData?.data as any) || [];
 
-  // Update bill details when bill is selected
+  // Update bill details and auto-fill amount when bill is selected
   useEffect(() => {
     if (selectedBillId && bills.length > 0) {
       const selectedBill = bills.find((b: any) => b.id === selectedBillId);
       if (selectedBill) {
-        setBillAmount(selectedBill.total || 0);
-        setPaidAmount(selectedBill.paidAmount || 0);
+        const total = selectedBill.total || 0;
+        const paid = selectedBill.paidAmount || 0;
+        const outstanding = selectedBill.outstandingBalance ?? Math.max(0, total - paid);
+        setBillAmount(total);
+        setPaidAmount(paid);
+        if (!isEditMode) {
+          form.setValue("amount", outstanding > 0 ? outstanding : 0, { shouldValidate: true });
+        }
       }
     }
   }, [selectedBillId, bills]);
@@ -274,51 +280,56 @@ export default function PaymentMadeForm({
           </div>
 
           {/* Bill Amount And Remaining Amount */}
-          {/* {selectedBillId && (
+          {selectedBillId && (
             <div className="bg-green-50 p-4 rounded-2xl border space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-gray-600">Total Bill Amount</p>
-                  <p className="text-lg font-bold text-gray-900">
-                    ${billAmount.toLocaleString("en-US", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
+              {remainingAmount <= 0 ? (
+                <div className="flex items-start gap-2 text-green-700 bg-green-100 p-3 rounded border border-green-200">
+                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                  <p className="text-sm font-medium">
+                    This bill has already been fully paid. No outstanding balance remains.
                   </p>
                 </div>
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-gray-600">Already Paid</p>
-                  <p className="text-lg font-bold text-blue-600">
-                    ${paidAmount.toLocaleString("en-US", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-gray-600">Total Bill Amount</p>
+                    <p className="text-lg font-bold text-gray-900">
+                      {sym}{billAmount.toLocaleString("en-US", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-gray-600">Already Paid</p>
+                    <p className="text-lg font-bold text-blue-600">
+                      {sym}{paidAmount.toLocaleString("en-US", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-gray-600">Outstanding</p>
+                    <p className="text-lg font-bold text-red-600">
+                      {sym}{remainingAmount.toLocaleString("en-US", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </p>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-gray-600">Remaining</p>
-                  <p
-                    className={`text-lg font-bold ${
-                      remainingAmount > 0 ? "text-red-600" : "text-green-600"
-                    }`}
-                  >
-                    ${remainingAmount.toLocaleString("en-US", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </p>
-                </div>
-              </div>
-              {watchAmount > remainingAmount && (
+              )}
+              {remainingAmount > 0 && watchAmount > remainingAmount && (
                 <div className="flex items-start gap-2 text-yellow-700 bg-yellow-50 p-2 rounded border border-yellow-200">
                   <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
                   <p className="text-xs">
-                    Payment amount exceeds remaining bill balance
+                    Payment amount exceeds remaining bill balance. This will result in an overpayment.
                   </p>
                 </div>
               )}
             </div>
-          )} */}
+          )}
 
           {/* Payment Details */}
           <div className="rounded-2xl border bg-blue-50 p-4">
@@ -361,17 +372,18 @@ export default function PaymentMadeForm({
                         type="number"
                         min={0}
                         step="0.01"
-                        placeholder={
-                          selectedBillId
-                            ? `Max: $${remainingAmount.toFixed(2)}`
-                            : "0.00"
-                        }
+                        placeholder="0.00"
                         value={field.value}
                         onChange={(e) =>
                           field.onChange(parseFloat(e.target.value) || 0)
                         }
                       />
                     </FormControl>
+                    {selectedBillId && remainingAmount > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Outstanding: {sym}{remainingAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </p>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}

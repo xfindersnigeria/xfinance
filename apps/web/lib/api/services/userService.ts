@@ -20,6 +20,8 @@ export interface User {
   lastName: string;
   department?: string;
   systemRole: 'user' | 'admin' | 'superadmin';
+  entityId?: string | null;
+  adminEntities?: string[];
   roleId: string;
   role: RoleInfo;
   isActive: boolean;
@@ -63,7 +65,10 @@ export interface UpdateUserPayload {
   department?: string;
   roleId?: string;
   isActive?: boolean;
-  entityAccessIds?: string[];
+  requirePasswordChange?: boolean;
+  systemRole?: 'admin' | 'user';
+  entityId?: string | null;
+  adminEntities?: string[];
 }
 
 export interface UserStats {

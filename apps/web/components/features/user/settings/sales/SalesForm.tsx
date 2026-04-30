@@ -1,12 +1,12 @@
 "use client";
 
-import React from "react";
-import { toast } from "sonner";
+import React, { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Form,
   FormControl,
@@ -24,15 +24,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Save } from "lucide-react";
+import { Save, Loader2 } from "lucide-react";
+import { useEntityConfig, useUpdateEntityConfig } from "@/lib/api/hooks/useSettings";
 
-// Zod schema for Sales Form
 const salesFormSchema = z.object({
   invoiceNumberPrefix: z.string().min(1, "Invoice prefix is required"),
   defaultPaymentTerms: z.string().min(1, "Payment terms is required"),
   latePaymentFees: z.boolean().default(false),
   sendPaymentReminders: z.boolean().default(true),
-  defaultSalesTaxRate: z.string().regex(/^\d+(\.\d{1,2})?$/, "Valid percentage required").default("8.25"),
+  defaultSalesTaxRate: z.string().default("0"),
+  bankName: z.string().optional(),
+  bankAccountName: z.string().optional(),
+  bankAccountNumber: z.string().optional(),
+  bankRoutingNumber: z.string().optional(),
+  bankSwiftCode: z.string().optional(),
+  invoiceNotes: z.string().optional(),
 });
 
 type SalesFormData = z.infer<typeof salesFormSchema>;
@@ -52,6 +58,11 @@ const paymentTermsOptions = [
 ];
 
 export default function SalesForm({ onSuccess }: SalesFormProps) {
+  const { data: configData, isLoading } = useEntityConfig();
+  const { mutateAsync: updateConfig, isPending } = useUpdateEntityConfig();
+
+  const config = (configData as any)?.data;
+
   const form = useForm<SalesFormData>({
     resolver: zodResolver(salesFormSchema) as any,
     defaultValues: {
@@ -59,19 +70,59 @@ export default function SalesForm({ onSuccess }: SalesFormProps) {
       defaultPaymentTerms: "net-30",
       latePaymentFees: false,
       sendPaymentReminders: true,
-      defaultSalesTaxRate: "8.25",
+      defaultSalesTaxRate: "0",
+      bankName: "",
+      bankAccountName: "",
+      bankAccountNumber: "",
+      bankRoutingNumber: "",
+      bankSwiftCode: "",
+      invoiceNotes: "",
     },
   });
 
+  // Prefill form once config loads
+  useEffect(() => {
+    if (!config) return;
+    form.reset({
+      invoiceNumberPrefix: config.invoicePrefix || "INV-",
+      defaultPaymentTerms: config.paymentTerm || "net-30",
+      latePaymentFees: config.lateFees ?? false,
+      sendPaymentReminders: config.paymentReminders ?? true,
+      defaultSalesTaxRate: config.taxRate != null ? String(config.taxRate) : "0",
+      bankName: config.bankName || "",
+      bankAccountName: config.bankAccountName || "",
+      bankAccountNumber: config.bankAccountNumber || "",
+      bankRoutingNumber: config.bankRoutingNumber || "",
+      bankSwiftCode: config.bankSwiftCode || "",
+      invoiceNotes: config.invoiceNotes || "",
+    });
+  }, [config]);
+
   const onSubmit = async (values: SalesFormData) => {
-    try {
-      console.log("Income Form submitted:", values);
-      toast.success("Income settings saved successfully");
-      if (onSuccess) onSuccess();
-    } catch (error) {
-      toast.error("Failed to save income settings");
-    }
+    await updateConfig({
+      invoicePrefix: values.invoiceNumberPrefix,
+      paymentTerm: values.defaultPaymentTerms,
+      lateFees: values.latePaymentFees,
+      paymentReminders: values.sendPaymentReminders,
+      taxRate: values.defaultSalesTaxRate,
+      bankName: values.bankName,
+      bankAccountName: values.bankAccountName,
+      bankAccountNumber: values.bankAccountNumber,
+      bankRoutingNumber: values.bankRoutingNumber,
+      bankSwiftCode: values.bankSwiftCode,
+      invoiceNotes: values.invoiceNotes,
+    });
+    if (onSuccess) onSuccess();
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="animate-spin w-5 h-5 mr-2" />
+        Loading settings...
+      </div>
+    );
+  }
 
   return (
     <div className="w-full space-y-6 bg-white p-6 rounded-lg shadow-sm">
@@ -82,9 +133,10 @@ export default function SalesForm({ onSuccess }: SalesFormProps) {
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          {/* Income Settings Section */}
+          {/* Invoice Settings */}
           <div className="bg-white p-6 rounded-lg border border-gray-200 space-y-6">
-            {/* Invoice Number Prefix */}
+            <h3 className="font-semibold text-gray-900">Invoice Settings</h3>
+
             <div className="pb-6 border-b">
               <FormField
                 control={form.control}
@@ -94,15 +146,9 @@ export default function SalesForm({ onSuccess }: SalesFormProps) {
                     <FormLabel className="text-base font-semibold text-gray-900">
                       Invoice Number Prefix
                     </FormLabel>
-                    <FormDescription className="text-sm text-gray-600 mt-1">
-                      Prefix used for invoice numbering (e.g., INV-)
-                    </FormDescription>
+                    <FormDescription>Prefix used for invoice numbering (e.g., INV-)</FormDescription>
                     <FormControl>
-                      <Input
-                        placeholder="INV-"
-                        className="rounded-lg border-gray-300 mt-2 w-full max-w-md"
-                        {...field}
-                      />
+                      <Input placeholder="INV-" className="max-w-md" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -110,7 +156,6 @@ export default function SalesForm({ onSuccess }: SalesFormProps) {
               />
             </div>
 
-            {/* Default Payment Terms */}
             <div className="pb-6 border-b">
               <FormField
                 control={form.control}
@@ -120,12 +165,10 @@ export default function SalesForm({ onSuccess }: SalesFormProps) {
                     <FormLabel className="text-base font-semibold text-gray-900">
                       Default Payment Terms
                     </FormLabel>
-                    <FormDescription className="text-sm text-gray-600 mt-1">
-                      Default payment terms for new invoices
-                    </FormDescription>
+                    <FormDescription>Default payment terms for new invoices</FormDescription>
                     <FormControl>
                       <Select value={field.value} onValueChange={field.onChange}>
-                        <SelectTrigger className="rounded-lg border-gray-300 mt-2 w-full max-w-md">
+                        <SelectTrigger className="max-w-md">
                           <SelectValue placeholder="Select payment terms" />
                         </SelectTrigger>
                         <SelectContent>
@@ -143,15 +186,10 @@ export default function SalesForm({ onSuccess }: SalesFormProps) {
               />
             </div>
 
-            {/* Late Payment Fees */}
             <div className="flex items-center justify-between pb-6 border-b">
               <div className="flex-1">
-                <FormLabel className="text-base font-semibold text-gray-900">
-                  Late Payment Fees
-                </FormLabel>
-                <FormDescription className="text-sm text-gray-600 mt-1">
-                  Automatically add late fees to overdue invoices
-                </FormDescription>
+                <FormLabel className="text-base font-semibold text-gray-900">Late Payment Fees</FormLabel>
+                <FormDescription>Automatically add late fees to overdue invoices</FormDescription>
               </div>
               <FormField
                 control={form.control}
@@ -159,25 +197,17 @@ export default function SalesForm({ onSuccess }: SalesFormProps) {
                 render={({ field }) => (
                   <FormItem>
                     <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
                     </FormControl>
                   </FormItem>
                 )}
               />
             </div>
 
-            {/* Send Payment Reminders */}
             <div className="flex items-center justify-between pb-6 border-b">
               <div className="flex-1">
-                <FormLabel className="text-base font-semibold text-gray-900">
-                  Send Payment Reminders
-                </FormLabel>
-                <FormDescription className="text-sm text-gray-600 mt-1">
-                  Automatically email customers about upcoming/overdue payments
-                </FormDescription>
+                <FormLabel className="text-base font-semibold text-gray-900">Send Payment Reminders</FormLabel>
+                <FormDescription>Automatically email customers about upcoming/overdue payments</FormDescription>
               </div>
               <FormField
                 control={form.control}
@@ -185,40 +215,26 @@ export default function SalesForm({ onSuccess }: SalesFormProps) {
                 render={({ field }) => (
                   <FormItem>
                     <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
                     </FormControl>
                   </FormItem>
                 )}
               />
             </div>
 
-            {/* Default Sales Tax Rate */}
             <div>
               <FormField
                 control={form.control}
                 name="defaultSalesTaxRate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-base font-semibold text-gray-900">
-                      Default Sales Tax Rate
-                    </FormLabel>
-                    <FormDescription className="text-sm text-gray-600 mt-1">
-                      Default tax rate applied to new invoices
-                    </FormDescription>
+                    <FormLabel className="text-base font-semibold text-gray-900">Default Sales Tax Rate</FormLabel>
+                    <FormDescription>Default tax rate applied to new invoices</FormDescription>
                     <div className="flex items-center gap-2 mt-2">
                       <FormControl>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          placeholder="8.25"
-                          className="rounded-lg border-gray-300 w-full max-w-md"
-                          {...field}
-                        />
+                        <Input type="number" step="0.01" placeholder="0" className="max-w-md" {...field} />
                       </FormControl>
-                      <span className="text-gray-900 font-semibold">%</span>
+                      <span className="font-semibold text-gray-900">%</span>
                     </div>
                     <FormMessage />
                   </FormItem>
@@ -227,14 +243,118 @@ export default function SalesForm({ onSuccess }: SalesFormProps) {
             </div>
           </div>
 
-          {/* Save Button */}
+          {/* Bank Details for Invoices */}
+          <div className="bg-white p-6 rounded-lg border border-gray-200 space-y-4">
+            <div>
+              <h3 className="font-semibold text-gray-900">Bank Details</h3>
+              <p className="text-sm text-gray-500 mt-0.5">These details appear on your invoice for payment instructions</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="bankName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Bank Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., Wells Fargo Bank" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="bankAccountName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Account Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., Acme Corp." {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="bankAccountNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Account Number</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., 123456789" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="bankRoutingNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Routing Number</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., 021000021" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="bankSwiftCode"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>SWIFT / BIC Code</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., WFBIUS65" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </div>
+
+          {/* Invoice Notes */}
+          <div className="bg-white p-6 rounded-lg border border-gray-200 space-y-4">
+            <div>
+              <h3 className="font-semibold text-gray-900">Default Invoice Notes</h3>
+              <p className="text-sm text-gray-500 mt-0.5">Shown at the bottom of every invoice (payment terms, thank you note, etc.)</p>
+            </div>
+            <FormField
+              control={form.control}
+              name="invoiceNotes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Textarea
+                      placeholder="e.g., Thank you for your business! Payment is due within 30 days. Please include invoice number with your payment."
+                      rows={4}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
           <div className="flex justify-end">
             <Button
               type="submit"
+              disabled={isPending}
               className="bg-primary text-white rounded-lg px-8 py-6 font-semibold flex items-center gap-2"
             >
-              <Save className="w-4 h-4" />
-              Save Settings
+              {isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+              {isPending ? "Saving..." : "Save Settings"}
             </Button>
           </div>
         </form>

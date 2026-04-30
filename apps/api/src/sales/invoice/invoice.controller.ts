@@ -185,6 +185,17 @@ export class InvoiceController {
     return this.invoiceService.deleteInvoice(invoiceId, entityId, userId);
   }
 
+  @Post(':invoiceId/send')
+  @UseGuards(AuthGuard)
+  @ApiOperation({ summary: 'Send invoice PDF to customer via email' })
+  @ApiParam({ name: 'invoiceId', description: 'Invoice ID', type: 'string' })
+  async sendInvoice(@Req() req, @Param('invoiceId') invoiceId: string) {
+    const entityId = getEffectiveEntityId(req);
+    if (!entityId) throw new UnauthorizedException('Access denied!');
+    const performedBy = req.user?.id || 'system';
+    return this.invoiceService.sendInvoice(invoiceId, entityId, performedBy);
+  }
+
   @Get(':invoiceId/download')
   @UseGuards(AuthGuard)
   @ApiOperation({ summary: 'Download invoice as PDF' })

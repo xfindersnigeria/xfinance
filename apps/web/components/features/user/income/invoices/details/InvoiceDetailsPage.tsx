@@ -12,6 +12,7 @@ import { useRouter, useParams } from "next/navigation";
 import { useInvoice } from "@/lib/api/hooks/useSales";
 import Loader from "@/app/loading";
 import { useEntity } from "@/lib/api/hooks/useEntity";
+import { useEntityConfig } from "@/lib/api/hooks/useSettings";
 
 export default function InvoiceDetailsPage() {
   const router = useRouter();
@@ -30,6 +31,9 @@ export default function InvoiceDetailsPage() {
     isLoading: entityLoading,
     isError: entityError,
   } = useEntity((fetchedInvoice as any)?.entityId || "");
+
+  const { data: configData } = useEntityConfig();
+  const entityConfig = (configData as any)?.data;
 
   console.log("Fetched Entity:", fetchedEntity);
 
@@ -69,11 +73,11 @@ export default function InvoiceDetailsPage() {
       };
 
   const sampleBank = {
-    bankName: "Wells Fargo Bank",
-    accountName: "Hunslow Inc.",
-    accountNumber: "****7892",
-    routingNumber: "121000248",
-    swiftCode: "WFBIUS65",
+    bankName: entityConfig?.bankName || "",
+    accountName: entityConfig?.bankAccountName || "",
+    accountNumber: entityConfig?.bankAccountNumber || "",
+    routingNumber: entityConfig?.bankRoutingNumber || "",
+    swiftCode: entityConfig?.bankSwiftCode || "",
   };
 
   const mappedLineItems = ((fetchedInvoice as any)?.invoiceItem || []).map(
@@ -132,7 +136,7 @@ export default function InvoiceDetailsPage() {
         total: totalVal || (fetchedInvoice as any).total || totalVal,
         balanceDue: (fetchedInvoice as any).balanceDue || subtotalVal,
         currency: (fetchedInvoice as any).currency || "USD",
-        notes: (fetchedInvoice as any).notes || "",
+        notes: (fetchedInvoice as any).notes || entityConfig?.invoiceNotes || "",
         bankDetails: sampleBank,
         activity: (fetchedInvoice as any).activities
           ? (fetchedInvoice as any).activities.map((a: any) => ({
@@ -182,8 +186,7 @@ export default function InvoiceDetailsPage() {
         total: 16500.0,
         balanceDue: 15000.0,
         currency: "USD",
-        notes:
-          "Thank you for your business! Payment is due within 30 days. Please include invoice number with your payment.",
+        notes: entityConfig?.invoiceNotes || "Thank you for your business! Payment is due within 30 days. Please include invoice number with your payment.",
         bankDetails: sampleBank,
         activity: [],
       };

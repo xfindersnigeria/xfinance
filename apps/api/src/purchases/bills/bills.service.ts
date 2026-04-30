@@ -211,6 +211,9 @@ const { projectId, milestoneId, ...restBillData } = billData;
               phone: true,
             },
           },
+          paymentsMade: {
+            select: { amount: true },
+          },
         },
         orderBy: {
           billDate: 'desc',
@@ -224,22 +227,28 @@ const { projectId, milestoneId, ...restBillData } = billData;
     const totalPages = Math.ceil(total / limit);
 
     // Normalize nullable fields (Prisma may return null) and format createdAt
-    const transformedBills = bills.map((b) => ({
-      ...b,
-      billNumber: b.billNumber ?? undefined,
-      poNumber: b.poNumber ?? undefined,
-      notes: b.notes ?? undefined,
-      attachment:
-        b.attachment === null
-          ? undefined
-          : (b.attachment as Record<string, any>),
-      items: (b.items as any[]) || [], // Items stored as JSON array
-      createdAt:
-        b.createdAt instanceof Date ? b.createdAt.toISOString() : b.createdAt,
-      postedAt: b.postedAt instanceof Date
-        ? b.postedAt.toISOString()
-        : b.postedAt,
-    }));
+    const transformedBills = bills.map((b) => {
+      const paidAmount = b.paymentsMade.reduce((sum, p) => sum + p.amount, 0);
+      const { paymentsMade: _, ...rest } = b as any;
+      return {
+        ...rest,
+        billNumber: b.billNumber ?? undefined,
+        poNumber: b.poNumber ?? undefined,
+        notes: b.notes ?? undefined,
+        attachment:
+          b.attachment === null
+            ? undefined
+            : (b.attachment as Record<string, any>),
+        items: (b.items as any[]) || [],
+        createdAt:
+          b.createdAt instanceof Date ? b.createdAt.toISOString() : b.createdAt,
+        postedAt: b.postedAt instanceof Date
+          ? b.postedAt.toISOString()
+          : b.postedAt,
+        paidAmount,
+        outstandingBalance: Math.max(0, b.total - paidAmount),
+      };
+    });
 
     return {
       bills: transformedBills,

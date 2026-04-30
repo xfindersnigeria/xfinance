@@ -37,6 +37,8 @@ export interface UpdateUserDto {
   adminEntities?: string[]; // For admins: restrict to these entities (empty = full access)
   isActive?: boolean;
   requirePasswordChange?: boolean;
+  systemRole?: 'admin' | 'user'; // Change system role; admin→entityId cleared, user→entityId required
+  entityId?: string | null; // Required when changing to user role
 }
 
 @Injectable()
@@ -371,13 +373,57 @@ export class UserService {
       updateData.roleId = dto.roleId;
     }
 
+    // System role change
+    if (dto.systemRole !== undefined) {
+      const newSystemRole = dto.systemRole === 'admin' ? systemRole.admin : systemRole.user;
+
+      if (dto.systemRole === 'admin') {
+        // Changing to admin: clear entityId, reset adminEntities
+        updateData.systemRole = newSystemRole;
+        updateData.entityId = null;
+        updateData.adminEntities = dto.adminEntities ?? user.adminEntities;
+      } else {
+        // Changing to user: entityId is required
+        const resolvedEntityId = dto.entityId ?? user.entityId;
+        if (!resolvedEntityId) {
+          throw new BadRequestException('entityId is required when systemRole is user');
+        }
+        const entity = await this.prisma.entity.findUnique({
+          where: { id: resolvedEntityId },
+          select: { id: true, groupId: true },
+        });
+        if (!entity || entity.groupId !== groupId) {
+          throw new BadRequestException('Entity not found or does not belong to this group');
+        }
+        updateData.systemRole = newSystemRole;
+        updateData.entityId = resolvedEntityId;
+        updateData.adminEntities = [];
+      }
+    } else if (dto.entityId !== undefined) {
+      // entityId change without systemRole change — only valid for user-role users
+      const effectiveRole = user.systemRole;
+      if (effectiveRole !== systemRole.user) {
+        throw new BadRequestException('Only entity-scoped users can have entityId changed directly');
+      }
+      if (dto.entityId === null) {
+        throw new BadRequestException('entityId cannot be null for user-scoped users');
+      }
+      const entity = await this.prisma.entity.findUnique({
+        where: { id: dto.entityId },
+        select: { id: true, groupId: true },
+      });
+      if (!entity || entity.groupId !== groupId) {
+        throw new BadRequestException('Entity not found or does not belong to this group');
+      }
+      updateData.entityId = dto.entityId;
+    }
+
     // Admin entity restriction
-    if (dto.adminEntities !== undefined) {
+    if (dto.adminEntities !== undefined && dto.systemRole === undefined) {
       // Only admins can have restricted entity access
-      if (user.systemRole !== systemRole.admin) {
-        throw new BadRequestException(
-          'Only admins can have entity restrictions',
-        );
+      const effectiveRole = updateData.systemRole ?? user.systemRole;
+      if (effectiveRole !== systemRole.admin) {
+        throw new BadRequestException('Only admins can have entity restrictions');
       }
       updateData.adminEntities = dto.adminEntities;
     }
@@ -395,8 +441,9 @@ export class UserService {
       lastName: updated.lastName,
       department: updated.department,
       systemRole: updated.systemRole,
-      isActive: updated.isActive,
+      entityId: updated.entityId,
       adminEntities: updated.adminEntities,
+      isActive: updated.isActive,
       role: updated.role,
     };
   }

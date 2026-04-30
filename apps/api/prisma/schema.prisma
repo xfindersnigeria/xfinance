@@ -1087,6 +1087,13 @@ model Settings {
   emailNotifications  Boolean   @default(true)
   twoFactorAuth       Boolean   @default(false)
   auditLog            Boolean   @default(true)
+  // Invoice bank details (shown on invoice PDF/view)
+  bankName            String?
+  bankAccountName     String?
+  bankAccountNumber   String?
+  bankRoutingNumber   String?
+  bankSwiftCode       String?
+  invoiceNotes        String?
   entityId            String
   groupId             String   // denormalized — extraction handle
   entity              Entity    @relation(fields: [entityId], references: [id])
