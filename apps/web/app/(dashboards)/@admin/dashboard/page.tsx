@@ -47,11 +47,11 @@ export default function AdminDashboard() {
           loading={isLoading}
         />
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      {/* <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <ConsolidationStatusChart />
         <FXImpactSummaryCard />
         <QuickActionsCard />
-      </div>
+      </div> */}
     </div>
   );
 }
