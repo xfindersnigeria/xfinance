@@ -63,6 +63,7 @@ import { ProductUnitModule } from './settings/product/unit/unit.module';
 import { ProductBrandModule } from './settings/product/brand/brand.module';
 import { CurrencyModule } from './settings/currency/currency.module';
 import { ConfigModule } from './settings/config/config.module';
+import { ReportsModule } from './reports/reports.module';
 
 @Module({
   imports: [
@@ -124,6 +125,7 @@ import { ConfigModule } from './settings/config/config.module';
     CurrencyModule,
     ConfigModule,
     CustomizationModule,
+    ReportsModule,
   ],
   controllers: [AppController],
   providers: [

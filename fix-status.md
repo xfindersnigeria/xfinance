@@ -11,8 +11,44 @@ Files changed:
 
 ---
 
-## 2. Reports — Profit & Loss (Analysis & Way Forward)
-**Status: ANALYSIS DONE — Implementation pending**
+## 2. Reports — Profit & Loss Backend
+**Status: DONE — TSC clean**
+
+Files created:
+- `apps/api/src/reports/dto/reports.dto.ts` — DTOs: PLAccountLineDto, PLSectionDto, PLKPIEntryDto, ProfitAndLossDto
+- `apps/api/src/reports/reports.service.ts` — queries AccountTransaction filtered to type 4000/5000, groups by category code, builds P&L sections + derived KPIs
+- `apps/api/src/reports/reports.controller.ts` — `GET /reports/profit-and-loss?startDate&endDate&compareStartDate?&compareEndDate?`
+- `apps/api/src/reports/reports.module.ts`
+- `apps/api/src/app.module.ts` — ReportsModule registered
+
+**Response shape:**
+```json
+{ "data": {
+    "period": { "startDate": "...", "endDate": "..." },
+    "comparePeriod": null | { ... },
+    "revenue": { "actual": 0, "comparison": 0, "accounts": [...] },
+    "otherIncome": { ... },
+    "cogs": { ... },
+    "operatingExpenses": { ... },
+    "otherExpenses": { ... },
+    "grossProfit": { "actual": 0, "comparison": 0 },
+    "operatingProfit": { "actual": 0, "comparison": 0 },
+    "netProfit": { "actual": 0, "comparison": 0 },
+    "kpis": { "totalRevenue": {...}, "grossProfit": {...}, "operatingProfit": {...}, "netProfit": {...} }
+  }
+}
+```
+
+**Next: Frontend wiring (service + hook + component)**
+
+---
+
+## 3. Reports — Profit & Loss Frontend
+**Status: PENDING**
+
+---
+
+## 3. Reports System Analysis
 
 ### System Understanding
 
