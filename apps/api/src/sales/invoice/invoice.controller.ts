@@ -15,8 +15,15 @@ import {
 } from '@nestjs/common';
 import { InvoiceService } from './invoice.service';
 import { AuthGuard } from '@/auth/guards/auth.guard';
-import { getEffectiveEntityId, getEffectiveGroupId } from '@/auth/utils/context.util';
-import { CreateInvoiceDto, UpdateInvoiceDto, UpdateInvoiceStatusDto } from './dto/invoice.dto';
+import {
+  getEffectiveEntityId,
+  getEffectiveGroupId,
+} from '@/auth/utils/context.util';
+import {
+  CreateInvoiceDto,
+  UpdateInvoiceDto,
+  UpdateInvoiceStatusDto,
+} from './dto/invoice.dto';
 import { GetInvoicesQueryDto } from './dto/get-invoices-query.dto';
 import { GetPaidInvoicesQueryDto } from './dto/get-paid-invoices-query.dto';
 import { GetEntityInvoicesResponseDto } from './dto/get-entity-invoices-response.dto';
@@ -34,6 +41,7 @@ import {
   ApiParam,
   ApiBody,
 } from '@nestjs/swagger';
+import { ConfigService } from '@/settings/config/config.service';
 
 @ApiTags('Invoices')
 @Controller('sales/invoices')
@@ -42,6 +50,7 @@ export class InvoiceController {
     private invoiceService: InvoiceService,
     private pdfService: PdfService,
     private bankingService: BankingService, // If you have a service for bank accounts
+    private settingsService: ConfigService, // To fetch invoice notes from settings
   ) {}
 
   @Post()
@@ -57,7 +66,7 @@ export class InvoiceController {
     return this.invoiceService.createInvoice(body, entityId, userId, groupId);
   }
 
-   @Get('analytics')
+  @Get('analytics')
   @UseGuards(AuthGuard)
   @ApiOperation({ summary: 'Get invoice analytics (Aging & Revenue)' })
   @ApiBearerAuth('jwt')
@@ -95,8 +104,6 @@ export class InvoiceController {
     if (!entityId) throw new UnauthorizedException('Access denied!');
     return this.invoiceService.getPaidInvoices(entityId, query);
   }
-
-  
 
   @Get(':invoiceId')
   @UseGuards(AuthGuard)
@@ -138,17 +145,29 @@ export class InvoiceController {
     const entityId = getEffectiveEntityId(req);
     const userId = req.user?.id;
     if (!entityId) throw new UnauthorizedException('Access denied!');
-    return this.invoiceService.updateInvoice(invoiceId, entityId, groupId,  body, userId);
+    return this.invoiceService.updateInvoice(
+      invoiceId,
+      entityId,
+      groupId,
+      body,
+      userId,
+    );
   }
 
   @Patch(':invoiceId/status')
   @UseGuards(AuthGuard)
-  @ApiOperation({ summary: 'Update invoice status (Draft → Sent with automatic journal posting)' })
+  @ApiOperation({
+    summary:
+      'Update invoice status (Draft → Sent with automatic journal posting)',
+  })
   @ApiParam({ name: 'invoiceId', description: 'Invoice ID', type: 'string' })
   @ApiBody({ type: UpdateInvoiceStatusDto })
   @ApiBearerAuth('jwt')
   @ApiCookieAuth('cookieAuth')
-  @ApiOkResponse({ description: 'Invoice status updated successfully and posted to journal if applicable' })
+  @ApiOkResponse({
+    description:
+      'Invoice status updated successfully and posted to journal if applicable',
+  })
   @ApiUnauthorizedResponse({ description: 'Access denied' })
   @ApiNotFoundResponse({ description: 'Invoice not found' })
   @ApiForbiddenResponse({
@@ -163,7 +182,13 @@ export class InvoiceController {
     const entityId = getEffectiveEntityId(req);
     const userId = req.user?.id;
     if (!entityId) throw new UnauthorizedException('Access denied!');
-    return this.invoiceService.updateInvoiceStatus(invoiceId, entityId, groupId,  body.status, userId);
+    return this.invoiceService.updateInvoiceStatus(
+      invoiceId,
+      entityId,
+      groupId,
+      body.status,
+      userId,
+    );
   }
 
   @Delete(':invoiceId')
@@ -200,23 +225,50 @@ export class InvoiceController {
   @UseGuards(AuthGuard)
   @ApiOperation({ summary: 'Download invoice as PDF' })
   @ApiParam({ name: 'invoiceId', description: 'Invoice ID', type: 'string' })
-  async downloadInvoice(@Req() req, @Param('invoiceId') invoiceId: string, @Res() res) {
+  async downloadInvoice(
+    @Req() req,
+    @Param('invoiceId') invoiceId: string,
+    @Res() res,
+  ) {
     const entityId = getEffectiveEntityId(req);
     if (!entityId) throw new UnauthorizedException('Access denied!');
 
     // Fetch invoice with all required relations
-    const invoice = await this.invoiceService.getInvoiceById(invoiceId, entityId);
+    const invoice = await this.invoiceService.getInvoiceById(
+      invoiceId,
+      entityId,
+    );
     const customer = invoice.customer;
     const entity = invoice.entity;
     // Get first bank account for entity
-    const bankAccount = await this.bankingService.getBankAccounts(entityId);
+    // const bankAccount = await this.bankingService.getBankAccounts(entityId);
+    // const settings = await this.prisma.settings.findFirst({
+    //   where: { entityId },
+    // });
+    const { data: settings } = await this.settingsService.getEntityConfig(
+      entityId,
+      getEffectiveGroupId(req) as string,
+    );
+    const bankAccountRaw = settings
+      ? {
+          bankName: settings.bankName,
+          accountName: settings.bankAccountName,
+          accountNumber: settings.bankAccountNumber,
+          routingNumber: settings.bankRoutingNumber,
+          bankSwiftCode: settings.bankSwiftCode,
+          // invoiceNotes: settings.invoiceNotes,
+        }
+      : null;
 
     // Prepare data for template
     const pdfData = {
-      invoice,
+      invoice: {
+        ...invoice,
+        notes: (settings && settings.invoiceNotes) || '',
+      },
       customer,
       entity,
-      bankAccount: bankAccount.data[0],
+      bankAccount: bankAccountRaw ?? null,
     };
 
     // Generate PDF
@@ -224,7 +276,10 @@ export class InvoiceController {
 
     // Send PDF as download
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=invoice-${invoice.invoiceNumber}.pdf`);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename=invoice-${invoice.invoiceNumber}.pdf`,
+    );
     res.send(pdfBuffer);
   }
 }
