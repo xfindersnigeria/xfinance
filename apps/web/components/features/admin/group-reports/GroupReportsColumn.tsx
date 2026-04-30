@@ -91,11 +91,11 @@ export const groupReportsColumns: Column<any>[] = [
       </button>
     ),
   },
-  {
-    key: "lastVisited",
-    title: "LAST VISITED",
-    className: "text-xs min-w-[150px]",
-  },
+  // {
+  //   key: "lastVisited",
+  //   title: "LAST VISITED",
+  //   className: "text-xs min-w-[150px]",
+  // },
   {
     key: "createdBy",
     title: "CREATED BY",

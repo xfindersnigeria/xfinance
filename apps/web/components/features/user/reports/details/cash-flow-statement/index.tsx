@@ -28,6 +28,7 @@ import {
   CFKPIItem,
   getAllSectionIds,
 } from "./mock-data";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -38,10 +39,10 @@ const QUARTER_END: Record<string, string> = {
   Q4: "December 31",
 };
 
-function fmt(value: number | null): string {
+function fmt(value: number | null, sym: string): string {
   if (value === null) return "-";
   const abs = Math.abs(value);
-  const s = `$${abs.toLocaleString("en", {
+  const s = `${sym}${abs.toLocaleString("en", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
@@ -119,6 +120,7 @@ function buildRows(
   collapsed: Set<string>,
   toggleSection: (id: string) => void,
   showComparison: boolean,
+  sym: string,
   isChild = false
 ): React.ReactNode[] {
   const rows: React.ReactNode[] = [];
@@ -157,7 +159,7 @@ function buildRows(
           </tr>
         );
         if (!isCollapsed && item.children?.length) {
-          rows.push(...buildRows(item.children, collapsed, toggleSection, showComparison, true));
+          rows.push(...buildRows(item.children, collapsed, toggleSection, showComparison, sym, true));
         }
         break;
       }
@@ -177,7 +179,7 @@ function buildRows(
                 amountColor(item.actual)
               )}
             >
-              {fmt(item.actual)}
+              {fmt(item.actual, sym)}
             </td>
             {showComparison && (
               <>
@@ -187,7 +189,7 @@ function buildRows(
                     amountColor(item.comparison)
                   )}
                 >
-                  {fmt(item.comparison)}
+                  {fmt(item.comparison, sym)}
                 </td>
                 <td className="px-4 py-2.5 min-w-[100px]">
                   <ChangeCell actual={item.actual} comparison={item.comparison} />
@@ -230,7 +232,7 @@ function buildRows(
                 amountColor(item.actual, "colored")
               )}
             >
-              {fmt(item.actual)}
+              {fmt(item.actual, sym)}
             </td>
             {showComparison && (
               <>
@@ -240,7 +242,7 @@ function buildRows(
                     amountColor(item.comparison, "colored")
                   )}
                 >
-                  {fmt(item.comparison)}
+                  {fmt(item.comparison, sym)}
                 </td>
                 <td className="px-4 py-3 min-w-[100px]">
                   <ChangeCell actual={item.actual} comparison={item.comparison} />
@@ -262,7 +264,7 @@ function buildRows(
                 amountColor(item.actual, "purple")
               )}
             >
-              {fmt(item.actual)}
+              {fmt(item.actual, sym)}
             </td>
             {showComparison && (
               <>
@@ -272,7 +274,7 @@ function buildRows(
                     amountColor(item.comparison, "purple")
                   )}
                 >
-                  {fmt(item.comparison)}
+                  {fmt(item.comparison, sym)}
                 </td>
                 <td className="px-4 py-3 min-w-[100px]">
                   <ChangeCell actual={item.actual} comparison={item.comparison} asBadge />
@@ -298,7 +300,7 @@ function buildRows(
                 isEnd ? amountColor(item.actual, "purple") : "text-gray-800"
               )}
             >
-              {fmt(item.actual)}
+              {fmt(item.actual, sym)}
             </td>
             {showComparison && (
               <>
@@ -308,7 +310,7 @@ function buildRows(
                     isEnd ? amountColor(item.comparison, "purple") : "text-gray-800"
                   )}
                 >
-                  {fmt(item.comparison)}
+                  {fmt(item.comparison, sym)}
                 </td>
                 <td className="px-4 py-3 min-w-[100px]">
                   {isEnd ? (
@@ -343,7 +345,7 @@ const BADGE_CLASSES: Record<CFKPIItem["badgeVariant"], string> = {
   blue: "bg-blue-100 text-blue-700",
 };
 
-function KPICard({ item }: { item: CFKPIItem }) {
+function KPICard({ item, sym }: { item: CFKPIItem; sym: string }) {
   const isNegative = item.value < 0;
   const prevIsNegative = item.previous < 0;
   const Icon = item.trendUp ? TrendingUp : TrendingDown;
@@ -368,12 +370,12 @@ function KPICard({ item }: { item: CFKPIItem }) {
           isNegative ? "text-red-500" : "text-green-600"
         )}
       >
-        {fmt(item.value)}
+        {fmt(item.value, sym)}
       </p>
       <p className="text-xs text-gray-500">
         Previous:{" "}
         <span className={prevIsNegative ? "text-red-400" : ""}>
-          {fmt(item.previous)}
+          {fmt(item.previous, sym)}
         </span>
       </p>
     </div>
@@ -384,6 +386,7 @@ function KPICard({ item }: { item: CFKPIItem }) {
 
 export default function CashFlowStatement() {
   const router = useRouter();
+  const sym = useEntityCurrencySymbol();
   const [period, setPeriod] = useState("Q3 2025");
   const [compareType, setCompareType] = useState<"period" | "budget">("period");
   const [comparePeriod, setComparePeriod] = useState("Q2 2025");
@@ -402,7 +405,7 @@ export default function CashFlowStatement() {
   };
 
   const compareLabel = compareType === "period" ? comparePeriod : "Budget";
-  const rows = buildRows(cfLineItems, collapsed, toggleSection, showComparison);
+  const rows = buildRows(cfLineItems, collapsed, toggleSection, showComparison, sym);
 
   return (
     <div className="flex flex-col gap-6 pb-10">
@@ -508,7 +511,7 @@ export default function CashFlowStatement() {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {kpiItems.map((kpi) => (
-          <KPICard key={kpi.label} item={kpi} />
+          <KPICard key={kpi.label} item={kpi} sym={sym} />
         ))}
       </div>
 
@@ -516,7 +519,7 @@ export default function CashFlowStatement() {
       <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
         {/* Company header */}
         <div className="text-center py-6 border-b">
-          <p className="font-semibold text-base">Hunslow Accounting System</p>
+          <p className="font-semibold text-base">Cash Flow Statement</p>
           <p className="text-primary text-sm mt-0.5">Cash Flow Statement</p>
           <p className="text-gray-500 text-sm mt-0.5">{getQuarterEndLabel(period)}</p>
         </div>
@@ -561,7 +564,7 @@ export default function CashFlowStatement() {
               • Non-cash transactions are excluded from this statement and disclosed
               separately when material.
             </li>
-            <li>• All amounts are presented in USD unless otherwise stated.</li>
+            <li>• All amounts are presented in {sym} unless otherwise stated.</li>
           </ul>
         </div>
       </div>

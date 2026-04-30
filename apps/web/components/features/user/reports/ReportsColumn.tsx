@@ -222,12 +222,12 @@ export const reportsColumns: Column<any>[] = [
       </Link>
     ),
   },
-  {
-    key: "lastVisited",
-    title: "LAST VISITED",
-    className: "text-xs",
-    render: (value) => <span className="text-gray-700">{value}</span>,
-  },
+  // {
+  //   key: "lastVisited",
+  //   title: "LAST VISITED",
+  //   className: "text-xs",
+  //   render: (value) => <span className="text-gray-700">{value}</span>,
+  // },
   {
     key: "createdBy",
     title: "CREATED BY",

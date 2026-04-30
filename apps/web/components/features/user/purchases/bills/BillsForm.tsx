@@ -56,7 +56,7 @@ const billSchema = z.object({
   lineItems: z.array(lineItemSchema).min(1, "At least 1 item"),
   discount: z.number().min(0, "Min 0"),
   tax: z.number().min(0, "Min 0"),
-  accountsPayableId: z.string().optional(),
+  accountsPayableId: z.string().min(1, "Accounts Payable is required"),
   subject: z.string().optional(),
   notes: z.string().optional(),
   attachments: z.any().optional(),
@@ -105,8 +105,10 @@ export default function BillsForm({
   const updateBill = useUpdateBill();
   const { data: vendorsData, isLoading: vendorsLoading } = useVendors();
   const { data: configRes } = useEntityConfig();
-  const entityBaseCurrency: string = (configRes as any)?.data?.baseCurrency ?? "";
-  const currencySymbol = getCurrencyByCode(entityBaseCurrency)?.symbol ?? entityBaseCurrency ?? "—";
+  const entityBaseCurrency: string =
+    (configRes as any)?.data?.baseCurrency ?? "";
+  const currencySymbol =
+    getCurrencyByCode(entityBaseCurrency)?.symbol ?? entityBaseCurrency ?? "—";
 
   const { data: accountsData, isLoading: accountsLoading } = useAccounts({
     type: "Expenses",
@@ -354,7 +356,11 @@ export default function BillsForm({
                           field.onChange(newDate);
                           const terms = form.getValues("paymentTerms");
                           if (terms) {
-                            form.setValue("dueDate", calcDueDate(newDate, terms), { shouldValidate: true });
+                            form.setValue(
+                              "dueDate",
+                              calcDueDate(newDate, terms),
+                              { shouldValidate: true },
+                            );
                           }
                         }}
                       />
@@ -464,7 +470,9 @@ export default function BillsForm({
                         onValueChange={(val) => {
                           field.onChange(val);
                           const billDate = form.getValues("billDate");
-                          form.setValue("dueDate", calcDueDate(billDate, val), { shouldValidate: true });
+                          form.setValue("dueDate", calcDueDate(billDate, val), {
+                            shouldValidate: true,
+                          });
                         }}
                         value={field.value}
                       >

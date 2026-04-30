@@ -5,6 +5,8 @@ import {
   PLSectionDto,
   PLKPIEntryDto,
   ProfitAndLossDto,
+  CFEntryDto,
+  CashFlowStatementDto,
 } from './dto/reports.dto';
 
 // Category codes from the seeded chart of accounts

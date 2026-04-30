@@ -50,29 +50,30 @@ TSC: clean (exit 0)
 
 ---
 
+### 3. Reports Frontend — Profit & Loss wiring ✅
+Files created/updated:
+- `apps/web/lib/api/services/reportService.ts` — `getProfitAndLoss(params)`, full TypeScript types (PLSection, PLAccountLine, PLKPIEntry, ProfitAndLossData)
+- `apps/web/lib/api/hooks/useReports.ts` — React Query hook `useProfitAndLoss`, queryKey includes all 4 date params, enabled guard
+- `apps/web/components/features/user/reports/details/profit-and-loss/index.tsx` — fully rewritten:
+  - Uses `useEntityCurrencySymbol()` — no hardcoded currency
+  - Quarter selector maps to ISO dates via `quarterToDates()` helper
+  - Calls `useProfitAndLoss` hook; loading skeleton + empty state handled
+  - `buildPLItems(data)` maps API → PLItem[] tree; `buildKPIItems(data)` builds KPI cards
+  - Sections collapse/expand per period change; comparison period fully wired
+  - Still imports PLItem/KPIItem *types only* from `./mock-data` (the mock data values are gone)
+
+### 4. Cash Flow Statement — Currency fix ✅
+- `apps/web/components/features/user/reports/details/cash-flow-statement/index.tsx`
+  - Added `useEntityCurrencySymbol()` — replaces hardcoded `$` and `USD`
+  - `fmt(value, sym)` threaded through `buildRows` and `KPICard`
+  - Still uses mock data (backend is more complex — see Cash Flow section below)
+
+TSC: clean (both API and web, exit 0)
+
 ## PENDING ⬜
 
-### 3. Reports Frontend — Profit & Loss wiring
-What to build:
-- `apps/web/lib/api/services/reportService.ts` — `getProfitAndLoss(params)` calling `GET /backend/reports/profit-and-loss`
-- `apps/web/lib/api/hooks/useReports.ts` — SWR hook returning `{ data, isLoading, error }`
-- `apps/web/components/features/user/reports/details/profit-and-loss/index.tsx`:
-  - Remove all imports from `./mock-data`
-  - Replace hardcoded `₦` in `formatCurrency()` with `useEntityCurrencySymbol()` from `@/lib/api/hooks/useCurrencyFormat`
-  - Replace quarter string selector with actual start/end date state (map Q1-Q4 to ISO dates, or switch to a date-range picker — user to decide)
-  - On period change → call `useProfitAndLoss({ startDate, endDate, compareStartDate, compareEndDate })`
-  - Map API response → `PLItem[]` tree for `buildRows()`:
-    - `revenue.accounts` → children of a "Revenue" section item
-    - `cogs.accounts` → children of "Cost of Goods Sold" section
-    - `operatingExpenses.accounts` → children of "Operating Expenses" section
-    - `otherIncome.accounts` → children of "Other Income" section
-    - `otherExpenses.accounts` → children of "Other Expenses" section
-    - Subtotal/calculated/net rows derived from `grossProfit`, `operatingProfit`, `netProfit`
-    - KPI cards from `kpis.*`
-  - Show loading skeleton while fetching; show "no data" if all sections empty
-
-### 4. Cash Flow Statement Backend
-More complex — needs P&L frontend done first. See accounting context below for approach.
+### 5. Cash Flow Statement Backend
+More complex — needs balance reconstruction. See accounting context below for approach.
 
 ---
 

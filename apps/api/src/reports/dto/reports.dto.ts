@@ -37,3 +37,53 @@ export class ProfitAndLossDto {
   netProfit: PLKPIEntryDto;
   kpis: PLKPIsDto;
 }
+
+// ─── Cash Flow Statement ──────────────────────────────────────────────────────
+
+export class CFEntryDto {
+  actual: number;
+  comparison: number;
+}
+
+export class CashFlowOperatingDto {
+  netProfit: CFEntryDto;
+  depreciation: CFEntryDto;
+  arChange: CFEntryDto;
+  inventoryChange: CFEntryDto;
+  prepaidChange: CFEntryDto;
+  apChange: CFEntryDto;
+  wagesPayableChange: CFEntryDto;
+  deferredRevenueChange: CFEntryDto;
+  netCash: CFEntryDto;
+}
+
+export class CashFlowInvestingDto {
+  fixedAssetsChange: CFEntryDto;
+  intangibleAssetsChange: CFEntryDto;
+  netCash: CFEntryDto;
+}
+
+export class CashFlowFinancingDto {
+  longTermDebtChange: CFEntryDto;
+  capitalStockChange: CFEntryDto;
+  netCash: CFEntryDto;
+}
+
+export class CashFlowKPIsDto {
+  operatingCashFlow: CFEntryDto;
+  investingCashFlow: CFEntryDto;
+  financingCashFlow: CFEntryDto;
+  netCashIncrease: CFEntryDto;
+}
+
+export class CashFlowStatementDto {
+  period: { startDate: string; endDate: string };
+  comparePeriod: { startDate: string; endDate: string } | null;
+  operating: CashFlowOperatingDto;
+  investing: CashFlowInvestingDto;
+  financing: CashFlowFinancingDto;
+  netCashChange: CFEntryDto;
+  cashAtStart: CFEntryDto;
+  cashAtEnd: CFEntryDto;
+  kpis: CashFlowKPIsDto;
+}
