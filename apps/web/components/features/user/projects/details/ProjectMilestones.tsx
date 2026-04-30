@@ -19,7 +19,7 @@ interface ProjectMilestonesProps {
 
 const STATUS_STYLE: Record<string, string> = {
   Completed: "bg-green-100 text-green-700",
-  In_Progress: "bg-indigo-100 text-indigo-700",
+  In_Progress: "bg-indigo-100 text-primary",
   Upcoming: "bg-gray-100 text-gray-600",
   On_Hold: "bg-yellow-100 text-yellow-700",
 };

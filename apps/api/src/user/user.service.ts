@@ -66,8 +66,12 @@ export class UserService {
     // Verify group exists
     const group = await this.prisma.group.findUnique({
       where: { id: groupId },
-      select: { id: true, name: true, subdomain: true },
+      select: { id: true, name: true, subdomain: true, logo: true },
     });
+
+    const logoUrl =
+      (group?.logo as any)?.secureUrl ?? 'https://xfinance.ng/images/logo.png';
+
     if (!group) throw new NotFoundException('Group not found');
 
     // If ENTITY scope, verify entity exists and belongs to group
@@ -114,7 +118,7 @@ export class UserService {
         requirePasswordChange: dto.requirePasswordChange ?? true,
         sendWelcomeEmail: dto.sendWelcomeEmail ?? true,
         customMessage: dto.customMessage,
-        group,
+        group: { ...group, logo: logoUrl },
         entity: entity || undefined,
       });
     }
@@ -127,7 +131,7 @@ export class UserService {
         systemRole: systemRoleValue,
         requirePasswordChange: dto.requirePasswordChange ?? true,
         sendWelcomeEmail: dto.sendWelcomeEmail ?? true,
-        group,
+        group: { ...group, logo: logoUrl },
         entity: entity || undefined,
       });
     }
@@ -149,7 +153,7 @@ export class UserService {
       requirePasswordChange: boolean;
       sendWelcomeEmail: boolean;
       customMessage?: string;
-      group: { id: string; name: string; subdomain: string };
+      group: { id: string; name: string; subdomain: string; logo: string };
     },
   ) {
     // Check subscription limit
@@ -207,6 +211,7 @@ export class UserService {
         groupName: options.group.name,
         groupSlug: options.group.subdomain,
         entityName: options.entity?.name,
+        logo: options.group?.logo,
       });
     }
 
@@ -217,7 +222,7 @@ export class UserService {
       lastName: user.lastName,
       systemRole: user.systemRole,
       isActive: user.isActive,
-      message: `User created. Welcome email sent.`
+      message: `User created. Welcome email sent.`,
       // message: options.sendWelcomeEmail
       //   ? `User created. Welcome email sent.`
       //   : `User created. No email sent (set sendWelcomeEmail to true to send).`,
@@ -235,7 +240,7 @@ export class UserService {
       systemRole: systemRole;
       requirePasswordChange: boolean;
       sendWelcomeEmail: boolean;
-      group: { id: string; name: string; subdomain: string };
+      group: { id: string; name: string; subdomain: string; logo: string };
       entity?: { id: string; name: string }; // Added entity to options
     },
   ) {
@@ -306,7 +311,8 @@ export class UserService {
           groupName: options.group.name,
           groupSlug: options.group.subdomain,
           entityName: options.entity?.name,
-          loginUrl: `https://${options.group.subdomain}.fevico.com.ng/auth/login`,
+          loginUrl: `https://${options.group.subdomain}.xfinance.ng/auth/login`,
+          logo: options.group?.logo,
         });
       }
     }

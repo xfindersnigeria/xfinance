@@ -49,18 +49,19 @@ export class OpeningBalanceService {
    */
   async createOpeningBalance(
     entityId: string,
+    groupId: string,
     dto: CreateOpeningBalanceDto,
   ): Promise<OpeningBalanceCreationResult> {
     try {
       // Check if entity exists
-      const entity = await this.prisma.entity.findUnique({
-        where: { id: entityId },
-        select: { id: true, groupId: true },
-      });
+      // const entity = await this.prisma.entity.findUnique({
+      //   where: { id: entityId },
+      //   select: { id: true, groupId: true },
+      // });
 
-      if (!entity) {
-        throw new UnauthorizedException('Entity not found or access denied');
-      }
+      // if (!entity) {
+      //   throw new UnauthorizedException('Entity not found or access denied');
+      // }
 
       // Get all accounts with their types for validation
       const accountIds = dto.items.map((item) => item.accountId);
@@ -154,7 +155,7 @@ export class OpeningBalanceService {
         const openingBalance = await tx.openingBalance.create({
           data: {
             entityId,
-            groupId: entity.groupId ?? null,
+            groupId,
             date: dto.date,
             fiscalYear: dto.fiscalYear || null,
             totalDebit,
@@ -189,6 +190,7 @@ export class OpeningBalanceService {
       await this.bullmqService.addJob('post-opening-balance-journal', {
         openingBalanceId: result.id,
         entityId,
+        groupId,
         items: result.items,
         validItems: result.items, // All items are valid due to all-or-nothing validation
         accountMap: Array.from(accountMap.entries()).map(([id, acc]) => ({
@@ -220,6 +222,7 @@ export class OpeningBalanceService {
   async postOpeningBalanceJournal(
     openingBalanceId: string,
     entityId: string,
+    groupId: string,
     items: any[],
     validItems: any[],
     accountMapData: any[],
@@ -245,6 +248,7 @@ export class OpeningBalanceService {
               item.credit,
               accountMap.get(item.accountId)!,
               entityId,
+              groupId,
             );
           }
         },
@@ -280,6 +284,7 @@ export class OpeningBalanceService {
     credit: number,
     account: any,
     entityId: string,
+    groupId: string,
   ): Promise<void> {
     try {
       // Get Opening Balance Equity account
@@ -328,6 +333,7 @@ export class OpeningBalanceService {
           date: new Date(),
           reference: generateJournalReference('OB'),
           entityId,
+          groupId,
           lines: lines as any,
         },
       });
@@ -381,7 +387,8 @@ export class OpeningBalanceService {
               debitAmount: line.debit,
               creditAmount: line.credit,
               runningBalance: newBalance,
-              entityId: entityId,
+              entityId,
+              groupId,
               relatedEntityId: openingBalanceId,
               relatedEntityType: 'OpeningBalance',
               metadata: {

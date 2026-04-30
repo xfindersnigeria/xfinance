@@ -17,7 +17,7 @@ import { ApiOperation, ApiOkResponse, ApiBearerAuth, ApiCookieAuth } from '@nest
 import { OpeningBalanceService } from './opening-balance.service';
 import { CreateOpeningBalanceDto, UpdateOpeningBalanceDto, GetOpeningBalanceResponseDto, GetOpeningBalancesQueryDto, GetOpeningBalancesResponseDto } from './dto/opening-balance.dto';
 import { AuthGuard } from '@/auth/guards/auth.guard';
-import { getEffectiveEntityId } from '@/auth/utils/context.util';
+import { getEffectiveEntityId, getEffectiveGroupId } from '@/auth/utils/context.util';
 
 @Controller('account/opening-balances')
 export class OpeningBalanceController {
@@ -27,9 +27,10 @@ export class OpeningBalanceController {
   @UseGuards(AuthGuard)
   @HttpCode(HttpStatus.CREATED)
   async create(@Req() req, @Body() dto: CreateOpeningBalanceDto): Promise<GetOpeningBalanceResponseDto> {
+    const groupId = getEffectiveGroupId(req) as string;
     const entityId = getEffectiveEntityId(req);
     if (!entityId) throw new UnauthorizedException('Access denied!');
-    return this.openingBalanceService.createOpeningBalance(entityId, dto);
+    return this.openingBalanceService.createOpeningBalance(entityId, groupId, dto);
   }
 
   @Get('')

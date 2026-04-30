@@ -28,7 +28,7 @@ import { Request } from 'express';
 import { JournalService } from './journal.service';
 import { CreateJournalDto, UpdateJournalDto } from './dto/journal.dto';
 import { Journal } from 'prisma/generated/client';
-import { getEffectiveEntityId } from '@/auth/utils/context.util';
+import { getEffectiveEntityId, getEffectiveGroupId } from '@/auth/utils/context.util';
 
 @ApiTags('Journal')
 @Controller('journal')
@@ -42,8 +42,10 @@ export class JournalController {
   @ApiOperation({ summary: 'Create a new journal entry' })
   @ApiBody({ type: CreateJournalDto })
   @ApiResponse({ status: 201, description: 'Journal created' })
-  async create(@Body() createJournalDto: CreateJournalDto): Promise<Journal> {
-    return this.journalsService.create(createJournalDto);
+  async create(@Req() req, @Body() createJournalDto: CreateJournalDto): Promise<Journal> {
+    const groupId = getEffectiveGroupId(req) as string;
+    const entityId = getEffectiveEntityId(req) as string;
+    return this.journalsService.create({...createJournalDto, entityId, groupId});
   }
 
   @Get()
@@ -103,9 +105,10 @@ export class JournalController {
     @Req() req: Request,
     @Param('id') id: string,
   ): Promise<Journal> {
+    const groupId = getEffectiveGroupId(req) as string;
     const entityId = getEffectiveEntityId(req);
     if (!entityId) throw new BadRequestException('Access denied!');
-    return this.journalsService.activateDraftJournal(id, entityId);
+    return this.journalsService.activateDraftJournal(id, entityId, groupId);
   }
 
   @Get('by-reference/:reference')

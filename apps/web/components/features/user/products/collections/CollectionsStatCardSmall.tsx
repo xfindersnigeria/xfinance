@@ -20,7 +20,7 @@ export default function CollectionsStatCardSmall({
       <CardTitle className="text-gray-500 text-sm font-medium">{title}</CardTitle>
       </CardHeader>
       <CardContent className="p-0 flex-1 flex flex-col justify-between">
-      <div className="text-3xl font-bold text-blue-800 mb-1">{value}</div>
+      <div className="text-3xl font-bold text-primary mb-1">{value}</div>
       {subtitle && (
         <div className="text-gray-400 text-sm font-normal">{subtitle}</div>
       )}

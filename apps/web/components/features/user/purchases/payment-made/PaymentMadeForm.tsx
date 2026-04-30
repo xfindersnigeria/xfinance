@@ -33,6 +33,7 @@ import { MODAL } from "@/lib/data/modal-data";
 import { useAccounts } from "@/lib/api/hooks/useAccounts";
 import { paymentMethodOptions } from "../../income/payment-received/PaymentReceivedForm";
 import { useEffect, useState } from "react";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 const paymentSchema = z.object({
   vendorId: z.string().min(1, "Vendor is required"),
@@ -74,10 +75,11 @@ export default function PaymentMadeForm({
   const { closeModal } = useModal();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedVendorId, setSelectedVendorId] = useState<string>(
-    propVendorId || payment?.vendorId || ""
+    propVendorId || payment?.vendorId || "",
   );
+  const sym = useEntityCurrencySymbol();
   const [selectedBillId, setSelectedBillId] = useState<string>(
-    propBillId || payment?.billId || ""
+    propBillId || payment?.billId || "",
   );
   const [billAmount, setBillAmount] = useState(0);
   const [paidAmount, setPaidAmount] = useState(0);
@@ -86,9 +88,8 @@ export default function PaymentMadeForm({
   const updatePaymentMade = useUpdatePaymentMade();
 
   const { data: vendorsData, isLoading: vendorsLoading } = useVendors();
-  const { data: billsData, isLoading: billsLoading } = useBillsByVendor(
-    selectedVendorId
-  );
+  const { data: billsData, isLoading: billsLoading } =
+    useBillsByVendor(selectedVendorId);
   const { data: accountsData, isLoading: accountsLoading } = useAccounts({
     subCategory: "Cash and Cash Equivalents",
   });
@@ -144,9 +145,10 @@ export default function PaymentMadeForm({
       const payload = {
         ...values,
         amount: Number(values.amount),
-        paymentDate: values.paymentDate instanceof Date 
-          ? values.paymentDate.toISOString() 
-          : new Date(values.paymentDate).toISOString(),
+        paymentDate:
+          values.paymentDate instanceof Date
+            ? values.paymentDate.toISOString()
+            : new Date(values.paymentDate).toISOString(),
       };
 
       if (isEditMode && payment?.id) {
@@ -172,10 +174,7 @@ export default function PaymentMadeForm({
   return (
     <FormProvider {...form}>
       <Form {...form}>
-        <form
-          className="space-y-4"
-          onSubmit={form.handleSubmit(onSubmit)}
-        >
+        <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
           {/* Vendor and Bill Selection */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-blue-50 p-4 rounded-2xl border">
             <FormField
@@ -199,7 +198,9 @@ export default function PaymentMadeForm({
                       <SelectTrigger className="w-full bg-white">
                         <SelectValue
                           placeholder={
-                            vendorsLoading ? "Loading vendors..." : "Select vendor"
+                            vendorsLoading
+                              ? "Loading vendors..."
+                              : "Select vendor"
                           }
                         />
                       </SelectTrigger>
@@ -245,8 +246,8 @@ export default function PaymentMadeForm({
                             billsLoading
                               ? "Loading bills..."
                               : !selectedVendorId
-                              ? "Select vendor first"
-                              : "Select bill"
+                                ? "Select vendor first"
+                                : "Select bill"
                           }
                         />
                       </SelectTrigger>
@@ -254,11 +255,8 @@ export default function PaymentMadeForm({
                         {Array.isArray(bills) && bills.length > 0 ? (
                           bills.map((b: any) => (
                             <SelectItem key={b.id} value={b.id}>
-                              {b.billNumber || b.id} - $
-                              {(b.total || 0).toLocaleString("en-US", {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2,
-                              })}
+                              {b.billNumber || b.id} - ({sym}
+                              {b.total.toLocaleString()})
                             </SelectItem>
                           ))
                         ) : (
@@ -338,8 +336,14 @@ export default function PaymentMadeForm({
                     <FormControl>
                       <Input
                         type="date"
-                        value={field.value instanceof Date ? format(field.value, "yyyy-MM-dd") : format(new Date(field.value), "yyyy-MM-dd")}
-                        onChange={(e) => field.onChange(new Date(e.target.value))}
+                        value={
+                          field.value instanceof Date
+                            ? format(field.value, "yyyy-MM-dd")
+                            : format(new Date(field.value), "yyyy-MM-dd")
+                        }
+                        onChange={(e) =>
+                          field.onChange(new Date(e.target.value))
+                        }
                       />
                     </FormControl>
                     <FormMessage />
@@ -363,7 +367,9 @@ export default function PaymentMadeForm({
                             : "0.00"
                         }
                         value={field.value}
-                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                        onChange={(e) =>
+                          field.onChange(parseFloat(e.target.value) || 0)
+                        }
                       />
                     </FormControl>
                     <FormMessage />
@@ -490,8 +496,8 @@ export default function PaymentMadeForm({
               {isSubmitting
                 ? "Recording..."
                 : isEditMode
-                ? "Update Payment"
-                : "Record Payment"}
+                  ? "Update Payment"
+                  : "Record Payment"}
             </Button>
           </div>
         </form>

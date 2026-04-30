@@ -134,7 +134,7 @@ export const ordersColumns: Column<any>[] = [
     render: (value) => {
       if (value === "POS")
         return (
-          <Badge className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full font-medium">
+          <Badge className="bg-indigo-100 text-primary px-3 py-1 rounded-full font-medium">
             POS
           </Badge>
         );

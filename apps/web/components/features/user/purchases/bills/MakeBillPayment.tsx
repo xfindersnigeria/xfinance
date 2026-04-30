@@ -101,7 +101,7 @@ export default function MakeBillPayment({
                 {selectedBill && (
                     <Alert className="bg-blue-50 border-blue-200">
                         <Info className="h-4 w-4 text-blue-600" />
-                        <AlertDescription className="text-blue-800 text-sm">
+                        <AlertDescription className="text-primary text-sm">
                             Making payment for <span className="font-bold">Bill #{selectedBill.billNumber}</span>.
                             Outstanding balance: <span className="font-bold">${balanceDue.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                         </AlertDescription>

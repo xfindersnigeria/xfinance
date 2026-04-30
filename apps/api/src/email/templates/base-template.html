@@ -19,18 +19,18 @@
   <body>
     <div class="container">
       <div class="header">
-        <img src="https://x-finance.fevico.com.ng/images/logo.png" width="120" alt="Company Logo" class="logo" />
-        <div class="company">X-Finance</div>
+        <img src="{{logoUrl}}" width="120" alt="Company Logo" class="logo" />
+        <div class="company">{{slug}}</div>
       </div>
       <div class="content">
         {{content}}
       </div>
       <div class="footer">
-        <div class="footer-text">© {{year}} X-Finance. All rights reserved.</div>
-        <div class="footer-text">
+        <div class="footer-text">© {{year}} {{slug}}. All rights reserved.</div>
+        <!-- <div class="footer-text">
           <a href="https://x-finance.fevico.com.ng/privacy">Privacy Policy</a> |
           <a href="https://x-finance.fevico.com.ng/unsubscribe">Unsubscribe</a>
-        </div>
+        </div> -->
       </div>
     </div>
   </body>

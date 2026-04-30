@@ -261,7 +261,7 @@ export default function AttendanceForm({
                             height={40}
                           />
                         ) : (
-                          <span className="text-indigo-700 font-bold text-sm">
+                          <span className="text-primary font-bold text-sm">
                             {field.name.split(" ").map((n) => n[0]).join("")}
                           </span>
                         )}

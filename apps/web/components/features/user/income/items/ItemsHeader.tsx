@@ -64,12 +64,12 @@ export default function ItemsHeader({ data, loading }: ItemsHeaderProps) {
         />
         <ItemsStatCardSmall
           title="Service Items"
-          value={<span className="text-2xl font-bold text-blue-600">{totalServices}</span>}
+          value={<span className="text-2xl font-bold text-primary">{totalServices}</span>}
           subtitle="Non-inventory services"
         />
         <ItemsStatCardSmall
           title="Goods Items"
-          value={<span className="text-2xl font-bold text-purple-600">{totalGoods}</span>}
+          value={<span className="text-2xl font-bold text-primary">{totalGoods}</span>}
           subtitle="Inventory goods"
         />
         <ItemsStatCardSmall

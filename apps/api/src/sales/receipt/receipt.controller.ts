@@ -14,7 +14,10 @@ import {
 } from '@nestjs/common';
 import { ReceiptService } from './receipt.service';
 import { AuthGuard } from '@/auth/guards/auth.guard';
-import { getEffectiveEntityId, getEffectiveGroupId } from '@/auth/utils/context.util';
+import {
+  getEffectiveEntityId,
+  getEffectiveGroupId,
+} from '@/auth/utils/context.util';
 import { CreateReceiptDto, UpdateReceiptDto } from './dto/receipt.dto';
 import { GetReceiptsQueryDto } from './dto/get-receipts-query.dto';
 import { GetReceiptsResponseDto } from './dto/get-receipts-response.dto';
@@ -134,8 +137,13 @@ export class ReceiptController {
     description: 'You do not have permission to update this receipt',
   })
   async toggleReceiptStatus(@Req() req, @Param('receiptId') receiptId: string) {
+    const groupId = getEffectiveGroupId(req) as string;
     const entityId = getEffectiveEntityId(req);
     if (!entityId) throw new UnauthorizedException('Access denied!');
-    return this.receiptService.toggleReceiptStatus(receiptId, entityId);
+    return this.receiptService.toggleReceiptStatus(
+      receiptId,
+      entityId,
+      groupId,
+    );
   }
 }

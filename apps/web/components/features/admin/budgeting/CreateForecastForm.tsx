@@ -57,7 +57,7 @@ const PERIOD_TYPES = ['Monthly', 'Quarterly', 'Yearly'];
 const CATEGORY_BADGE: Record<string, string> = {
   Revenue: 'bg-green-100 text-green-800',
   Expense: 'bg-orange-100 text-orange-800',
-  Asset: 'bg-blue-100 text-blue-800',
+  Asset: 'bg-blue-100 text-primary',
   Liability: 'bg-yellow-100 text-yellow-800',
   Equity: 'bg-purple-100 text-purple-800',
 };

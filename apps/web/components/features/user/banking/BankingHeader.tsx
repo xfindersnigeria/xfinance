@@ -60,7 +60,7 @@ export default function BankingHeader({
           <BankingStatCardSmall
             title="Total Cash"
             value={
-              <span className="text-3xl font-bold text-blue-800">
+              <span className="text-3xl font-bold text-primary">
                 {formatCurrency(data?.totalBankCash ?? 0)}
               </span>
             }

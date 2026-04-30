@@ -25,7 +25,7 @@ export default function InvoiceDetailsHeader({
   const getStatusColor = (status: string) => {
     switch (status) {
       case "Sent":
-        return "bg-blue-100 text-blue-800";
+        return "bg-blue-100 text-primary";
       case "Paid":
         return "bg-green-100 text-green-800";
       case "Draft":

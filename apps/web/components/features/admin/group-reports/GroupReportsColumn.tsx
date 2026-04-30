@@ -85,7 +85,7 @@ export const groupReportsColumns: Column<any>[] = [
     title: "REPORT NAME",
     className: "text-xs min-w-[280px]",
     render: (value, row) => (
-      <button className="text-indigo-700 font-medium flex items-center gap-2 hover:underline cursor-pointer text-left">
+      <button className="text-primary font-medium flex items-center gap-2 hover:underline cursor-pointer text-left">
         <FileText className="w-4 h-4 shrink-0" />
         <span>{value}</span>
       </button>

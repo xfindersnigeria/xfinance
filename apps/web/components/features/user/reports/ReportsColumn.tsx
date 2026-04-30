@@ -95,7 +95,7 @@ export const reportsColumns: Column<any>[] = [
       <Link
         prefetch
         href={`/reports/${row.id}`}
-        className="text-indigo-700 font-medium flex items-center gap-2 hover:underline cursor-pointer"
+        className="text-primary font-medium flex items-center gap-2 hover:underline cursor-pointer"
       >
         <FileText className="w-3 h-3" />
         {value}

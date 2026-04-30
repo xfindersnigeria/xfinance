@@ -22,8 +22,12 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Building2, DollarSign } from "lucide-react";
-import { useCreateBankAccount, useUpdateBankAccount } from "@/lib/api/hooks/useBanking";
-import { toast } from "sonner";
+import {
+  useCreateBankAccount,
+  useUpdateBankAccount,
+} from "@/lib/api/hooks/useBanking";
+import { useCurrencies, useEntityConfig } from "@/lib/api/hooks/useSettings";
+// import { getCurrencyByCode } from "@/lib/utils/currencies";
 
 const bankAccountSchema = z.object({
   accountName: z.string().min(1, "Account name required"),
@@ -52,11 +56,23 @@ interface BankFormProps {
   isEditMode?: boolean;
 }
 
-export default function BankForm({ account, isEditMode = false }: BankFormProps) {
+export default function BankForm({
+  account,
+  isEditMode = false,
+}: BankFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const createBankAccount = useCreateBankAccount();
   const updateBankAccount = useUpdateBankAccount();
+
+  const { data: configRes } = useEntityConfig();
+  const entityBaseCurrency: string =
+    (configRes as any)?.data?.baseCurrency ?? "";
+  const multiCurrency: boolean =
+    (configRes as any)?.data?.multiCurrency ?? false;
+
+  const { data: currencyRes } = useCurrencies(true);
+  const activeCurrencies: any[] = (currencyRes as any)?.data ?? [];
 
   const form = useForm<BankAccountFormType>({
     resolver: zodResolver(bankAccountSchema),
@@ -64,7 +80,7 @@ export default function BankForm({ account, isEditMode = false }: BankFormProps)
       accountName: account?.accountName || "",
       bankName: account?.bankName || "",
       accountType: (account?.accountType as any) || "checking",
-      currency: account?.currency || "USD",
+      currency: account?.currency || entityBaseCurrency || "",
       accountNumber: account?.accountNumber || "",
       routingNumber: account?.routingNumber || "",
       openingBalance: account?.openingBalance || 0,
@@ -78,7 +94,7 @@ export default function BankForm({ account, isEditMode = false }: BankFormProps)
         accountName: account.accountName || "",
         bankName: account.bankName || "",
         accountType: (account.accountType as any) || "checking",
-        currency: account.currency || "USD",
+        currency: account?.currency || entityBaseCurrency || "",
         accountNumber: account.accountNumber || "",
         routingNumber: account.routingNumber || "",
         openingBalance: account.openingBalance || 0,
@@ -120,7 +136,10 @@ export default function BankForm({ account, isEditMode = false }: BankFormProps)
       form.reset();
       setIsSubmitting(false);
     } catch (error) {
-      console.error(`Error ${isEditMode ? "updating" : "creating"} bank account:`, error);
+      console.error(
+        `Error ${isEditMode ? "updating" : "creating"} bank account:`,
+        error,
+      );
       setIsSubmitting(false);
     }
   };
@@ -128,10 +147,7 @@ export default function BankForm({ account, isEditMode = false }: BankFormProps)
   return (
     <FormProvider {...form}>
       <Form {...form}>
-        <form
-          className=" space-y-4"
-          onSubmit={form.handleSubmit(onSubmit)}
-        >
+        <form className=" space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
           {/* Account Basics */}
           <div className="rounded-2xl border bg-linear-to-br from-blue-50 to-white p-4">
             <div className="flex items-center gap-2 mb-3">
@@ -146,10 +162,7 @@ export default function BankForm({ account, isEditMode = false }: BankFormProps)
                   <FormItem>
                     <FormLabel>Account Name *</FormLabel>
                     <FormControl>
-                      <Input
-                        placeholder="e.g., Operating Account"
-                        {...field}
-                      />
+                      <Input placeholder="e.g., Operating Account" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -163,10 +176,7 @@ export default function BankForm({ account, isEditMode = false }: BankFormProps)
                   <FormItem>
                     <FormLabel>Bank Name *</FormLabel>
                     <FormControl>
-                      <Input
-                        placeholder="e.g., Chase Business"
-                        {...field}
-                      />
+                      <Input placeholder="e.g., Chase Business" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -191,8 +201,12 @@ export default function BankForm({ account, isEditMode = false }: BankFormProps)
                           <SelectContent>
                             <SelectItem value="checking">Checking</SelectItem>
                             <SelectItem value="savings">Savings</SelectItem>
-                            <SelectItem value="money market">Money Market</SelectItem>
-                            <SelectItem value="credit card">Credit Card</SelectItem>
+                            <SelectItem value="money market">
+                              Money Market
+                            </SelectItem>
+                            <SelectItem value="credit card">
+                              Credit Card
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       </FormControl>
@@ -201,33 +215,35 @@ export default function BankForm({ account, isEditMode = false }: BankFormProps)
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name="currency"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Currency *</FormLabel>
-                      <FormControl>
-                        <Select
-                          onValueChange={field.onChange}
-                          value={field.value}
-                        >
-                          <SelectTrigger className="w-full bg-white">
-                            <SelectValue placeholder="Select currency" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="USD">USD</SelectItem>
-                            <SelectItem value="EUR">EUR</SelectItem>
-                            <SelectItem value="GBP">GBP</SelectItem>
-                            <SelectItem value="NGN">NGN</SelectItem>
-                            <SelectItem value="CAD">CAD</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {multiCurrency && (
+                  <FormField
+                    control={form.control}
+                    name="currency"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Currency</FormLabel>
+                        <FormControl>
+                          <Select
+                            onValueChange={field.onChange}
+                            value={field.value}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select currency" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {activeCurrencies.map((c: any) => (
+                                <SelectItem key={c.code} value={c.code}>
+                                  {c.symbol} {c.code} — {c.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -246,10 +262,7 @@ export default function BankForm({ account, isEditMode = false }: BankFormProps)
                   <FormItem>
                     <FormLabel>Account Number *</FormLabel>
                     <FormControl>
-                      <Input
-                        placeholder="Enter account number"
-                        {...field}
-                      />
+                      <Input placeholder="Enter account number" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -263,10 +276,7 @@ export default function BankForm({ account, isEditMode = false }: BankFormProps)
                   <FormItem>
                     <FormLabel>Routing Number (Optional)</FormLabel>
                     <FormControl>
-                      <Input
-                        placeholder="Enter routing number"
-                        {...field}
-                      />
+                      <Input placeholder="Enter routing number" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

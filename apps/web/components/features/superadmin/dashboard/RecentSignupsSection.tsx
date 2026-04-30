@@ -57,7 +57,7 @@ function getPlanColor(plan: string) {
     case 'Professional':
       return 'bg-indigo-100 text-indigo-800';
     case 'Starter':
-      return 'bg-blue-100 text-blue-800';
+      return 'bg-blue-100 text-primary';
     default:
       return 'bg-gray-100 text-gray-800';
   }

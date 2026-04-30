@@ -483,7 +483,7 @@ export default function SetBudgetForm({ onSuccess }: SetBudgetFormProps) {
               <AlertCircle className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
               <div>
                 <p className="font-semibold text-blue-900 mb-3">Budget Tips</p>
-                <ul className="text-sm text-blue-800 space-y-2">
+                <ul className="text-sm text-primary space-y-2">
                   <li>• Review historical data from the "Last Period" column to inform your budget</li>
                   <li>• Set realistic targets based on business goals and market conditions</li>
                   <li>• Budget amounts can be updated throughout the period as needed</li>

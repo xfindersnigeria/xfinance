@@ -266,7 +266,7 @@ export default function ProcessPayrollForm({
                   checked={selected[idx]}
                   onCheckedChange={(checked) => handleSelect(idx, !!checked)}
                 />
-                <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-lg">
+                <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-primary font-bold text-lg">
                   {row.name
                     .split(" ")
                     .map((n: any) => n[0])

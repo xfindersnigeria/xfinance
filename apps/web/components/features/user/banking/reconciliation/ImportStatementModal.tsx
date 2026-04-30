@@ -107,7 +107,7 @@ export default function ImportStatementModal({
             <>
               <div className="flex items-center gap-2 rounded-lg bg-blue-100 px-4 py-2">
                 <FileSpreadsheet className="w-5 h-5 text-blue-600" />
-                <span className="text-sm font-medium text-blue-800 max-w-[200px] truncate">
+                <span className="text-sm font-medium text-primary max-w-[200px] truncate">
                   {selectedFile.name}
                 </span>
                 <button
@@ -116,7 +116,7 @@ export default function ImportStatementModal({
                     e.stopPropagation();
                     setSelectedFile(null);
                   }}
-                  className="text-blue-500 hover:text-blue-800"
+                  className="text-blue-500 hover:text-primary"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -144,7 +144,7 @@ export default function ImportStatementModal({
 
         {/* Expected format info */}
         <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 space-y-2">
-          <p className="text-xs font-semibold text-blue-800">Expected Format:</p>
+          <p className="text-xs font-semibold text-primary">Expected Format:</p>
           <p className="text-xs text-blue-700 leading-relaxed">
             Your file should include columns for{" "}
             <span className="font-medium">Date, Description, Reference,</span>{" "}

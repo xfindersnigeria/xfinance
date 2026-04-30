@@ -58,7 +58,7 @@ export default function EntityDataStatus() {
                   className={`rounded-full ${
                     entity.status === "Complete"
                       ? "bg-green-100 text-green-700 hover:bg-green-100"
-                      : "bg-indigo-100 text-indigo-700 hover:bg-indigo-100"
+                      : "bg-indigo-100 text-primary hover:bg-indigo-100"
                   }`}
                 >
                   {entity.status}

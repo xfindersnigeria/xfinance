@@ -47,7 +47,7 @@ const colorOptions = [
   { value: "green", label: "Green", className: "bg-green-100 text-green-700" },
   { value: "purple", label: "Purple", className: "bg-purple-100 text-purple-700" },
   { value: "orange", label: "Orange", className: "bg-orange-100 text-orange-700" },
-  { value: "indigo", label: "Indigo", className: "bg-indigo-100 text-indigo-700" },
+  { value: "indigo", label: "Indigo", className: "bg-indigo-100 text-primary" },
   { value: "red", label: "Red", className: "bg-red-100 text-red-700" },
   { value: "yellow", label: "Yellow", className: "bg-yellow-100 text-yellow-700" },
   { value: "pink", label: "Pink", className: "bg-pink-100 text-pink-700" },

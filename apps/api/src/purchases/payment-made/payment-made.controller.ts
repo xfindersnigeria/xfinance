@@ -189,8 +189,9 @@ export class PaymentMadeController {
       'Payment Made posting is not in Failed status or requeuing failed',
   })
   async retryFailedPayment(@Req() req, @Param('id') paymentMadeId: string) {
+    const groupId = getEffectiveGroupId(req) as string;
     const entityId = getEffectiveEntityId(req);
     if (!entityId) throw new UnauthorizedException('Access denied!');
-    return this.paymentMadeService.retryFailedPayment(paymentMadeId, entityId);
+    return this.paymentMadeService.retryFailedPayment(paymentMadeId, entityId, groupId);
   }
 }

@@ -18,17 +18,17 @@ export class JournalService {
     private bullmqService: BullmqService,
   ) {}
 
-  async create(dto: CreateJournalDto): Promise<Journal> {
+  async create(dto: any): Promise<Journal> {
     try {
       // Validate entity exists
-      const entity = await this.prisma.entity.findUnique({
-        where: { id: dto.entityId },
-        select: { id: true, groupId: true },
-      });
+      // const entity = await this.prisma.entity.findUnique({
+      //   where: { id: dto.entityId },
+      //   select: { id: true, groupId: true },
+      // });
 
-      if (!entity) {
-        throw new BadRequestException('Entity not found');
-      }
+      // if (!entity) {
+      //   throw new BadRequestException('Entity not found');
+      // }
 
       // Calculate totals
       const totalDebit = dto.lines.reduce(
@@ -87,7 +87,7 @@ export class JournalService {
           lines: dto.lines as any, // Store lines with per-line descriptions
           reference,
           entityId: dto.entityId,
-          groupId: entity.groupId ?? null,
+          groupId: dto.groupId,
           status: dto.status || 'Active', // Draft or Active (default)
         },
       });
@@ -98,6 +98,7 @@ export class JournalService {
         await this.bullmqService.addJob('post-manual-journal', {
           journalId: journal.id,
           entityId: dto.entityId,
+          groupId: dto.groupId,
           lines: dto.lines,
           accountMap: Array.from(accountMap.entries()).map(([id, acc]) => ({
             id,
@@ -125,6 +126,7 @@ export class JournalService {
   async activateDraftJournal(
     journalId: string,
     entityId: string,
+    groupId: string,
   ): Promise<Journal> {
     try {
       // Get the journal
@@ -145,7 +147,7 @@ export class JournalService {
       const accounts = await this.prisma.account.findMany({
         where: {
           id: { in: accountIds },
-          entityId: entityId,
+          entityId,
         },
         include: {
           subCategory: {
@@ -179,8 +181,9 @@ export class JournalService {
 
       // Queue journal posting to BullMQ
       await this.bullmqService.addJob('post-manual-journal', {
-        journalId: journalId,
-        entityId: entityId,
+        journalId,
+        entityId,
+        groupId,
         lines: lines,
         accountMap: Array.from(accountMap.entries()).map(([id, acc]) => ({
           id,

@@ -170,6 +170,7 @@ export const useCreateInvoice = (
     mutationFn: salesService.createInvoice,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["customers"] })
       // queryClient.invalidateQueries({ queryKey: ["projects", "income"] });
       toast.success("Invoice created successfully");
       closeModal(MODAL.INVOICE_CREATE); // ← changed to _CREATE (more consistent)

@@ -314,7 +314,7 @@ export default function ChartOfAccountsForm({
                 <p className="font-semibold text-blue-900 mb-2">
                   Master Chart of Accounts Guidelines
                 </p>
-                <ul className="text-sm text-blue-800 space-y-1">
+                <ul className="text-sm text-primary space-y-1">
                   <li>
                     • Account codes should follow your organization's numbering
                     convention

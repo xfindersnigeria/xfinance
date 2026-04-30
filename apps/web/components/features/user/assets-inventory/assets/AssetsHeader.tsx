@@ -49,7 +49,7 @@ export default function AssetsHeader({
         <AssetsStatCardSmall
           title="Total Assets"
           value={
-            <span className="text-3xl font-bold text-blue-800">
+            <span className="text-3xl font-bold text-primary">
               {summary?.total || 0}
             </span>
           }
@@ -66,7 +66,7 @@ export default function AssetsHeader({
         <AssetsStatCardSmall
           title="In Use"
           value={
-            <span className="text-3xl font-bold text-blue-800">
+            <span className="text-3xl font-bold text-primary">
               {summary?.inUse || 0}
             </span>
           }
@@ -76,7 +76,7 @@ export default function AssetsHeader({
         <AssetsStatCardSmall
           title="In Storage"
           value={
-            <span className="text-3xl font-bold text-blue-800">
+            <span className="text-3xl font-bold text-primary">
               {summary?.inStorage || 0}
             </span>
           }
@@ -86,7 +86,7 @@ export default function AssetsHeader({
         <AssetsStatCardSmall
           title="Total Value"
           value={
-            <span className="text-3xl font-bold text-blue-800">
+            <span className="text-3xl font-bold text-primary">
               {sym}
               {((summary?.depricableValue || 0)).toLocaleString(undefined, {
                 maximumFractionDigits: 0,

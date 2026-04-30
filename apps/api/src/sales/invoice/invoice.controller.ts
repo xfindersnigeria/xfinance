@@ -134,10 +134,11 @@ export class InvoiceController {
     @Param('invoiceId') invoiceId: string,
     @Body() body: UpdateInvoiceDto,
   ) {
+    const groupId = getEffectiveGroupId(req) as string;
     const entityId = getEffectiveEntityId(req);
     const userId = req.user?.id;
     if (!entityId) throw new UnauthorizedException('Access denied!');
-    return this.invoiceService.updateInvoice(invoiceId, entityId, body, userId);
+    return this.invoiceService.updateInvoice(invoiceId, entityId, groupId,  body, userId);
   }
 
   @Patch(':invoiceId/status')
@@ -158,10 +159,11 @@ export class InvoiceController {
     @Param('invoiceId') invoiceId: string,
     @Body() body: UpdateInvoiceStatusDto,
   ) {
+    const groupId = getEffectiveGroupId(req) as string;
     const entityId = getEffectiveEntityId(req);
     const userId = req.user?.id;
     if (!entityId) throw new UnauthorizedException('Access denied!');
-    return this.invoiceService.updateInvoiceStatus(invoiceId, entityId, body.status, userId);
+    return this.invoiceService.updateInvoiceStatus(invoiceId, entityId, groupId,  body.status, userId);
   }
 
   @Delete(':invoiceId')

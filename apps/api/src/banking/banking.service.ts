@@ -154,6 +154,7 @@ export class BankingService {
       await this.bullmqService.addJob('post-opening-balance-journal', {
         openingBalanceId: openingBalanceRecord.id,
         entityId: effectiveEntityId,
+        groupId,
         items: [openingBalanceItem],
         validItems: [openingBalanceItem],
         accountMap: Array.from(accountMap.entries()).map(([id, acc]) => ({

@@ -97,6 +97,7 @@ export class PaymentMadeService {
           paymentData: {
             reference: paymentMade.reference || paymentMade.id,
             entityId,
+            groupId,
             billId: paymentMade.billId,
             amount: newAmount,
             paymentAccountId: paymentMade.accountId,
@@ -385,7 +386,7 @@ export class PaymentMadeService {
   /**
    * Retry failed payment made journal posting
    */
-  async retryFailedPayment(paymentMadeId: string, entityId: string): Promise<any> {
+  async retryFailedPayment(paymentMadeId: string, entityId: string, groupId: string): Promise<any> {
     try {
       const paymentMade = await this.prisma.paymentMade.findUnique({
         where: { id: paymentMadeId },
@@ -438,6 +439,7 @@ export class PaymentMadeService {
           paymentData: {
             reference: paymentMade.reference || paymentMade.id,
             entityId,
+            groupId,
             amount: paymentMade.amount,
             paymentAccountId: paymentMade.accountId,
             apAccountId: apAccount.id,

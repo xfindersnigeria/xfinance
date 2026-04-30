@@ -66,6 +66,7 @@ export class GroupService {
         email: createGroupDto.email,
         groupName: createGroupDto.name,
         groupSlug: group.subdomain,
+        logo: logo.secureUrl,
       });
 
       return group;

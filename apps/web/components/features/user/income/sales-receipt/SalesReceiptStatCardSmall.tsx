@@ -33,7 +33,7 @@ export default function SalesReceiptStatCardSmall({
           </>
         ) : (
           <>
-            <div className="text-xl font-bold text-indigo-700">{value}</div>
+            <div className="text-xl font-bold text-primary">{value}</div>
             {subtitle && <div className="text-sm text-muted-foreground mt-1">{subtitle}</div>}
           </>
         )}

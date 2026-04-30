@@ -105,6 +105,7 @@ export class ReceiptService {
             receiptData: {
               receiptNumber: result.receiptNumber,
               entityId,
+              groupId,
               subtotal,
               tax,
               total,
@@ -348,7 +349,7 @@ export class ReceiptService {
     }
   }
 
-  async toggleReceiptStatus(receiptId: string, entityId: string) {
+  async toggleReceiptStatus(receiptId: string, entityId: string, groupId: string) {
     try {
       const receipt = await this.prisma.receipt.findUnique({
         where: { id: receiptId },
@@ -396,6 +397,7 @@ export class ReceiptService {
             receiptData: {
               receiptNumber: receipt.receiptNumber,
               entityId,
+              groupId,
               subtotal: receipt.subtotal,
               tax: receipt.tax,
               total: receipt.total,

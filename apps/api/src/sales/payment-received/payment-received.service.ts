@@ -144,6 +144,7 @@ export class PaymentReceivedService {
             paymentNumber: finalPaymentNumber,
             bankAccountId: body.depositTo,
             entityId,
+            groupId,
           },
         });
 

@@ -447,6 +447,7 @@ export class InvoiceService {
             invoiceData: {
               invoiceNumber: result.invoiceNumber,
               entityId,
+              groupId,
               subtotal,
               tax,
               total,
@@ -737,6 +738,7 @@ export class InvoiceService {
   async updateInvoice(
     invoiceId: string,
     entityId: string,
+    groupId: string,
     body: UpdateInvoiceDto,
     performedBy: string,
   ) {
@@ -899,6 +901,7 @@ export class InvoiceService {
             invoiceData: {
               invoiceNumber: invoice.invoiceNumber,
               entityId,
+              groupId,
               subtotal: hasItems ? subtotal : invoice.subtotal,
               tax: hasItems ? tax : invoice.tax,
               total: hasItems ? total : invoice.total,
@@ -1183,6 +1186,7 @@ export class InvoiceService {
   async updateInvoiceStatus(
     invoiceId: string,
     entityId: string,
+    groupId: string,
     newStatus: InvoiceStatus,
     performedBy: string,
   ) {
@@ -1266,6 +1270,7 @@ export class InvoiceService {
             invoiceData: {
               invoiceNumber: invoice.invoiceNumber,
               entityId,
+              groupId,
               subtotal: invoice.subtotal,
               tax: invoice.tax,
               total: invoice.total,

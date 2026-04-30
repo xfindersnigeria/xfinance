@@ -27,7 +27,7 @@ import { AuditLogEntry } from "@/lib/api/services/auditService";
 
 const ACTION_COLORS: Record<string, string> = {
   Create: "bg-green-100 text-green-800",
-  Update: "bg-blue-100 text-blue-800",
+  Update: "bg-blue-100 text-primary",
   Delete: "bg-red-100 text-red-800",
   Other: "bg-gray-100 text-gray-700",
 };

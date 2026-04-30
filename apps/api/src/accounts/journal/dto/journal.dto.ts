@@ -79,10 +79,10 @@ export class CreateJournalDto {
   @Type(() => JournalLineDto)
   lines: JournalLineDto[];
 
-  @ApiProperty({ example: 'comp_abc123' })
-  @IsString()
-  @IsNotEmpty()
-  entityId: string;
+  // @ApiProperty({ example: 'comp_abc123' })
+  // @IsString()
+  // @IsNotEmpty()
+  // entityId: string;
 }
 
 export class UpdateJournalDto {

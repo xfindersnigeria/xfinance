@@ -134,7 +134,7 @@ function AccountRow({
                 key={idx}
                 className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-50 border border-indigo-200"
               >
-                <span className="font-semibold text-indigo-700 text-[10px] rounded-full h-4 w-4 flex items-center justify-center bg-white shadow">
+                <span className="font-semibold text-primary text-[10px] rounded-full h-4 w-4 flex items-center justify-center bg-white shadow">
                   {mapping.code}
                 </span>
                 <span className="text-primary text-xs">

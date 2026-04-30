@@ -39,7 +39,7 @@ export const usersColumns: Column<any>[] = [
     title: "Actions",
     className: "text-sm",
     render: (_, row: any) => (
-      <button className="text-blue-600 hover:text-blue-800 font-medium text-sm">
+      <button className="text-blue-600 hover:text-primary font-medium text-sm">
         Edit
       </button>
     ),

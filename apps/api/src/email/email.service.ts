@@ -12,7 +12,8 @@ export class EmailService {
   constructor() {
     this.zeptomail = new SendMailClient({
       token: process.env.ZEPTOMAIL_API_KEY!,
-      url: process.env.ZEPTOMAIL_API_URL || 'https://api.zeptomail.com/v1.1/email',
+      url:
+        process.env.ZEPTOMAIL_API_URL || 'https://api.zeptomail.com/v1.1/email',
     });
   }
 
@@ -28,7 +29,10 @@ export class EmailService {
     from?: string;
   }) {
     const result = await this.zeptomail.sendMail({
-      from: { address: from || process.env.DEFAULT_EMAIL_FROM!, name: process.env.DEFAULT_EMAIL_FROM_NAME || 'x-finance' },
+      from: {
+        address: from || process.env.DEFAULT_EMAIL_FROM!,
+        name: process.env.DEFAULT_EMAIL_FROM_NAME || 'x-finance',
+      },
       to: [{ email_address: { address: to, name: to } }],
       subject,
       htmlbody: html,
@@ -44,6 +48,8 @@ export class EmailService {
   wrapWithBaseTemplate(
     contentHtml: string,
     subject: string,
+    slug: string,
+    logo: string,
     variables: Record<string, string | number> = {},
   ): string {
     let base = fs.readFileSync(
@@ -51,8 +57,12 @@ export class EmailService {
       path.resolve(__dirname, './templates/base-template.html'),
       'utf8',
     );
+    const logoUrl = logo || 'https://xfinance.ng/images/logo.png';
+    const groupSlug = slug || 'Xfinance';
     base = base.replace(/{{subject}}/g, subject);
     base = base.replace(/{{content}}/g, contentHtml);
+    base = base.replace(/{{slug}}/g, groupSlug);
+    base = base.replace(/{{logoUrl}}/g, logoUrl);
     for (const [key, value] of Object.entries(variables)) {
       base = base.replace(new RegExp(`{{${key}}}`, 'g'), String(value));
     }

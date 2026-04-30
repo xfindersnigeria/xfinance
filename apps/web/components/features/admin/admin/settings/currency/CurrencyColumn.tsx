@@ -50,7 +50,7 @@ export const currencyColumns: Column<GroupCurrencyRow>[] = [
     className: "text-xs",
     render: (value) =>
       value ? (
-        <Badge className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full font-medium">
+        <Badge className="bg-indigo-100 text-primary px-3 py-1 rounded-full font-medium">
           Primary
         </Badge>
       ) : (

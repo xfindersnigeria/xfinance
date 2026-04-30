@@ -102,7 +102,7 @@ export function MasterChartOfAccountsHeader({
               onClick={() => handleFilterClick(filter.id)}
               className={`text-sm px-3 py-1.5 rounded-md transition-colors ${
                 currentFilter === filter.id
-                  ? "bg-indigo-100 text-indigo-700 font-medium"
+                  ? "bg-indigo-100 text-primary font-medium"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}
             >

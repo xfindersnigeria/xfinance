@@ -151,9 +151,10 @@ export class BullmqProcessor extends WorkerHost {
   }
 
   async handleCreateGroupDefaults(job: Job) {
-    const { groupId, email, groupName, groupSlug } = job.data as {
+    const { groupId, email, groupName, groupSlug, logo } = job.data as {
       groupId: string;
       email: string;
+      logo?: string;
       groupName?: string;
       groupSlug?: string;
     };
@@ -323,14 +324,17 @@ export class BullmqProcessor extends WorkerHost {
             loginUrl: `https://${groupSlug}.${process.env.DOMAIN}/auth/login`,
           },
         );
+        const subjectSlug = groupSlug || "Xfinance"
         const html = this.emailService.wrapWithBaseTemplate(
           htmlContent,
-          'Welcome to X-Finance',
+          `Welcome to ${subjectSlug}`,
+          groupSlug!,
+          logo!,
           { year: new Date().getFullYear() },
         );
         await this.emailService.sendEmail({
           to: email,
-          subject: 'Welcome to X-Finance',
+          subject: `Welcome to ${subjectSlug}`,
           html,
         });
         this.logger.log(`[Job ${job.id}] Sent welcome email to group admin`);
@@ -408,6 +412,7 @@ export class BullmqProcessor extends WorkerHost {
       groupName,
       entityName,
       groupSlug,
+      logo,
     } = job.data as {
       email: string;
       firstName: string;
@@ -419,6 +424,7 @@ export class BullmqProcessor extends WorkerHost {
       groupName: string;
       groupSlug: string;
       entityName?: string;
+      logo: string;
     };
 
     this.logger.log(
@@ -449,9 +455,13 @@ export class BullmqProcessor extends WorkerHost {
         loginUrl: `https://${groupSlug}.${process.env.DOMAIN}/auth/login`,
       });
 
+      const subjectSlug = groupSlug || "Xfinance" 
+
       const html = this.emailService.wrapWithBaseTemplate(
         htmlContent,
-        'Welcome to X-Finance',
+        `Welcome to ${subjectSlug}`,
+        groupSlug!,
+        logo,
         {
           year: new Date().getFullYear(),
         },
@@ -484,6 +494,7 @@ export class BullmqProcessor extends WorkerHost {
       invoiceData: {
         invoiceNumber: string;
         entityId: string;
+        groupId: string;
         subtotal: number;
         tax: number;
         total: number;
@@ -746,6 +757,7 @@ export class BullmqProcessor extends WorkerHost {
               creditAmount: line.credit,
               runningBalance: updatedAccounts[index].balance,
               entityId: invoiceData.entityId,
+              groupId: invoiceData.groupId,
               relatedEntityId: invoiceId,
               relatedEntityType: 'Invoice',
               metadata: {
@@ -780,6 +792,7 @@ export class BullmqProcessor extends WorkerHost {
         await tx.invoiceActivity.create({
           data: {
             invoiceId,
+            groupId: invoiceData.groupId,
             activityType: InvoiceActivityType.Sent,
             description: 'Invoice posted to journal',
             metadata: { reference: journalRef },
@@ -828,6 +841,7 @@ export class BullmqProcessor extends WorkerHost {
         paymentNumber: string;
         bankAccountId: string;
         entityId: string;
+        groupId: string
       };
     };
 
@@ -890,10 +904,10 @@ export class BullmqProcessor extends WorkerHost {
         },
       ];
 
-      const paymentReceivedEntity = await this.prisma.entity.findUnique({
-        where: { id: paymentData.entityId },
-        select: { groupId: true },
-      });
+      // const paymentReceivedEntity = await this.prisma.entity.findUnique({
+      //   where: { id: paymentData.entityId },
+      //   select: { groupId: true },
+      // });
 
       // Create journal entry in transaction
       await this.prisma.$transaction(async (tx) => {
@@ -907,7 +921,7 @@ export class BullmqProcessor extends WorkerHost {
             date: postedAt,
             reference: journalRef,
             entityId: paymentData.entityId,
-            groupId: paymentReceivedEntity!.groupId,
+            groupId: paymentData.groupId,
             lines: journalLines,
           },
         });
@@ -967,6 +981,7 @@ export class BullmqProcessor extends WorkerHost {
               creditAmount: line.credit,
               runningBalance: glAccountUpdate.balance,
               entityId: paymentData.entityId,
+              groupId: paymentData.groupId,
               relatedEntityId: paymentId,
               relatedEntityType: 'PaymentReceived',
               metadata: {
@@ -1041,6 +1056,7 @@ export class BullmqProcessor extends WorkerHost {
       receiptData: {
         receiptNumber: string;
         entityId: string;
+        groupId: string;
         subtotal: number;
         tax: number;
         total: number;
@@ -1193,10 +1209,10 @@ export class BullmqProcessor extends WorkerHost {
         );
       }
 
-      const receiptEntity = await this.prisma.entity.findUnique({
-        where: { id: receiptData.entityId },
-        select: { groupId: true },
-      });
+      // const receiptEntity = await this.prisma.entity.findUnique({
+      //   where: { id: receiptData.entityId },
+      //   select: { groupId: true },
+      // });
 
       // Create journal entry in transaction
       await this.prisma.$transaction(async (tx) => {
@@ -1210,7 +1226,7 @@ export class BullmqProcessor extends WorkerHost {
             date: postedAt,
             reference: journalRef,
             entityId: receiptData.entityId,
-            groupId: receiptEntity!.groupId,
+            groupId: receiptData.groupId,
             lines: journalLines,
           },
         });
@@ -1267,6 +1283,7 @@ export class BullmqProcessor extends WorkerHost {
               creditAmount: line.credit,
               runningBalance: updatedAccounts[index].balance,
               entityId: receiptData.entityId,
+              groupId: receiptData.groupId,
               relatedEntityId: receiptId,
               relatedEntityType: 'Receipt',
               metadata: {
@@ -1840,6 +1857,7 @@ export class BullmqProcessor extends WorkerHost {
       paymentData: {
         reference: string;
         entityId: string;
+        groupId: string;
         billId: string;
         amount: number;
         paymentAccountId: string;
@@ -1923,10 +1941,10 @@ export class BullmqProcessor extends WorkerHost {
         throw new Error(errorMsg);
       }
 
-      const paymentMadeEntity = await this.prisma.entity.findUnique({
-        where: { id: paymentData.entityId },
-        select: { groupId: true },
-      });
+      // const paymentMadeEntity = await this.prisma.entity.findUnique({
+      //   where: { id: paymentData.entityId },
+      //   select: { groupId: true },
+      // });
 
       // Create journal entry in transaction
       await this.prisma.$transaction(async (tx) => {
@@ -1940,7 +1958,7 @@ export class BullmqProcessor extends WorkerHost {
             date: postedAt,
             reference: journalRef,
             entityId: paymentData.entityId,
-            groupId: paymentMadeEntity!.groupId,
+            groupId: paymentData.groupId,
             lines: journalLines,
           },
         });
@@ -1990,6 +2008,7 @@ export class BullmqProcessor extends WorkerHost {
               creditAmount: line.credit,
               runningBalance: updatedAccounts[index].balance,
               entityId: paymentData.entityId,
+              groupId: paymentData.groupId,
               relatedEntityId: paymentMadeId,
               relatedEntityType: 'PaymentMade',
               metadata: {
@@ -2094,10 +2113,11 @@ export class BullmqProcessor extends WorkerHost {
   }
 
   async handleOpeningBalanceJournalPosting(job: Job): Promise<any> {
-    const { openingBalanceId, entityId, items, validItems, accountMap } =
+    const { openingBalanceId, entityId, groupId, items, validItems, accountMap } =
       job.data as {
         openingBalanceId: string;
         entityId: string;
+        groupId: string;
         items: any[];
         validItems: any[];
         accountMap: any[];
@@ -2112,6 +2132,7 @@ export class BullmqProcessor extends WorkerHost {
       await this.openingBalanceService.postOpeningBalanceJournal(
         openingBalanceId,
         entityId,
+        groupId,
         items,
         validItems,
         accountMap,
@@ -2157,9 +2178,10 @@ export class BullmqProcessor extends WorkerHost {
    * Applies posting rules: Assets/Expenses increase with debit, Liabilities/Equity/Revenue increase with credit
    */
   async handleManualJournalPosting(job: Job): Promise<any> {
-    const { journalId, entityId, lines, accountMap } = job.data as {
+    const { journalId, entityId, groupId, lines, accountMap } = job.data as {
       journalId: string;
       entityId: string;
+      groupId:string;
       lines: Array<{
         accountId: string;
         description: string;
@@ -2191,10 +2213,10 @@ export class BullmqProcessor extends WorkerHost {
         accountMap.map((item) => [item.id, item.account]),
       );
 
-      const manualJournalEntity = await this.prisma.entity.findUnique({
-        where: { id: entityId },
-        select: { groupId: true },
-      });
+      // const manualJournalEntity = await this.prisma.entity.findUnique({
+      //   where: { id: entityId },
+      //   select: { groupId: true },
+      // });
 
       // Update account balances for each line following posting rules
       await this.prisma.$transaction(
@@ -2244,8 +2266,8 @@ export class BullmqProcessor extends WorkerHost {
                 debitAmount: line.debit || 0,
                 creditAmount: line.credit || 0,
                 runningBalance: newBalance,
-                entityId: entityId,
-                groupId: manualJournalEntity!.groupId,
+                entityId,
+                groupId,
                 relatedEntityId: journalId,
                 relatedEntityType: 'Journal',
                 metadata: {
