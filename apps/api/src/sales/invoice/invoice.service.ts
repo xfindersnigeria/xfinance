@@ -491,7 +491,7 @@ export class InvoiceService {
       // Build where clause for filtering
       const whereClause: any = { entityId };
       if (query.status) {
-        if (query.status === 'Sent' as any) {
+        if (query.status === ('Sent' as any)) {
           // Active means all invoices except Draft
           whereClause.status = { not: InvoiceStatus.Draft };
         } else {
@@ -712,7 +712,9 @@ export class InvoiceService {
           },
           paymentReceived: true,
           activities: {
-            include: { user: { select: { id:true, firstName: true, lastName: true}} },
+            include: {
+              user: { select: { id: true, firstName: true, lastName: true } },
+            },
             orderBy: { createdAt: 'desc' },
           },
         },
@@ -1379,14 +1381,32 @@ export class InvoiceService {
       }
 
       // Fetch entity's first bank account for payment details in PDF
-      const bankAccountRaw = await this.prisma.bankAccount.findFirst({
+      // const bankAccountRaw = await this.prisma.bankAccount.findFirst({
+      //   where: { entityId },
+      //   select: { bankName: true, accountName: true, accountNumber: true, routingNumber: true },
+      // });
+
+      const settings = await this.prisma.settings.findFirst({
         where: { entityId },
-        select: { bankName: true, accountName: true, accountNumber: true, routingNumber: true },
       });
+
+      const bankAccountRaw = settings
+        ? {
+            bankName: settings.bankName,
+            accountName: settings.bankAccountName,
+            accountNumber: settings.bankAccountNumber,
+            routingNumber: settings.bankRoutingNumber,
+            bankSwiftCode: settings.bankSwiftCode,
+            // invoiceNotes: settings.invoiceNotes,
+          }
+        : null;
 
       // Generate PDF
       const pdfBuffer = await this.pdfService.generate('invoice', {
-        invoice,
+        invoice: {
+          ...invoice,
+          notes: (settings && settings.invoiceNotes) || '',
+        },
         customer: invoice.customer,
         entity: invoice.entity,
         bankAccount: bankAccountRaw ?? null,
@@ -1395,7 +1415,9 @@ export class InvoiceService {
       // Build HTML email body
       const dueDate = invoice.dueDate
         ? new Date(invoice.dueDate).toLocaleDateString('en-GB', {
-            day: '2-digit', month: 'short', year: 'numeric',
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
           })
         : '';
       const total = (Number(invoice.total) || 0).toLocaleString('en-US', {
@@ -1417,10 +1439,14 @@ export class InvoiceService {
               <td style="padding:8px;border:1px solid #e5e7eb;background:#f9fafb;font-weight:600">Amount Due</td>
               <td style="padding:8px;border:1px solid #e5e7eb"><strong>${invoice.currency || 'USD'} ${total}</strong></td>
             </tr>
-            ${dueDate ? `<tr>
+            ${
+              dueDate
+                ? `<tr>
               <td style="padding:8px;border:1px solid #e5e7eb;background:#f9fafb;font-weight:600">Due Date</td>
               <td style="padding:8px;border:1px solid #e5e7eb">${dueDate}</td>
-            </tr>` : ''}
+            </tr>`
+                : ''
+            }
           </table>
           <p>Please open the attached PDF for full invoice details.</p>
           <p style="margin-top:24px;color:#6b7280;font-size:13px">
@@ -1433,6 +1459,7 @@ export class InvoiceService {
       await this.emailService.sendEmailWithAttachment({
         to: customerEmail,
         toName: invoice.customer?.name,
+        senderName: entityName,
         subject: `Invoice ${invoice.invoiceNumber} from ${entityName}`,
         html: emailHtml,
         attachment: pdfBuffer,
@@ -1440,7 +1467,10 @@ export class InvoiceService {
       });
 
       // Mark invoice as Sent if it was Draft
-      if (invoice.status === InvoiceStatus.Draft || invoice.status === ('Pending' as any)) {
+      if (
+        invoice.status === InvoiceStatus.Draft ||
+        invoice.status === ('Pending' as any)
+      ) {
         await this.prisma.invoice.update({
           where: { id: invoice.id },
           data: { status: InvoiceStatus.Sent },

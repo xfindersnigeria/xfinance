@@ -48,6 +48,7 @@ export class EmailService {
   async sendEmailWithAttachment({
     to,
     toName,
+    senderName,
     subject,
     html,
     attachment,
@@ -56,6 +57,7 @@ export class EmailService {
   }: {
     to: string;
     toName?: string;
+    senderName?: string;
     subject: string;
     html: string;
     attachment: Buffer;
@@ -66,7 +68,7 @@ export class EmailService {
     const result = await this.zeptomail.sendMail({
       from: {
         address: from || process.env.DEFAULT_EMAIL_FROM!,
-        name: process.env.DEFAULT_EMAIL_FROM_NAME || 'x-finance',
+        name: senderName || process.env.DEFAULT_EMAIL_FROM_NAME || 'Xfinance',
       },
       to: [{ email_address: { address: to, name: toName || to } }],
       subject,
