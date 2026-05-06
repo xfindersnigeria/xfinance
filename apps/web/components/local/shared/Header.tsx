@@ -8,6 +8,7 @@ import {
   Pencil,
   Search as SearchIcon,
   Store,
+  Copy,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -46,6 +47,7 @@ export default function Header({
     effectiveRole: ENUM_ROLE;
     isImpersonating: boolean;
     groupName?: string;
+    subdomain?: string;
     entityName?: string;
   };
   loading?: boolean;
@@ -146,8 +148,8 @@ export default function Header({
                       user?.image?.secureUrl
                         ? user.image.secureUrl
                         : `https://api.dicebear.com/7.x/initials/png?seed=${encodeURIComponent(
-                            `${user?.firstName} ${user?.lastName}` || "user",
-                          )}`
+                          `${user?.firstName} ${user?.lastName}` || "user",
+                        )}`
                     }
                     alt={`${user?.firstName} ${user?.lastName}`}
                   />
@@ -176,6 +178,18 @@ export default function Header({
                 <DropdownMenuItem onClick={() => router.push("/subscription")}>
                   <CreditCard className="mr-2 size-4" />
                   <span>Subscription</span>
+                </DropdownMenuItem>
+              )}
+              {activeContext?.effectiveRole !== ENUM_ROLE.SUPERADMIN && activeContext?.subdomain && (
+                <DropdownMenuItem
+                  onClick={() => {
+                    const url = `https://${activeContext.subdomain}.xfinance.ng/auth/login`;
+                    navigator.clipboard.writeText(url);
+                    toast.success("Login URL copied to clipboard");
+                  }}
+                >
+                  <Copy className="mr-2 size-4" />
+                  <span>Copy Login URL</span>
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem>

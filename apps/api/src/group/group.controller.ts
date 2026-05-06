@@ -62,6 +62,7 @@ export class GroupController {
         email: { type: 'string', format: 'email' },
         phone: { type: 'string' },
         website: { type: 'string', format: 'uri' },
+        subdomain: { type: 'string' },
         subscriptionId: { type: 'string' },
         logo: { type: 'string', format: 'binary' },
       },
@@ -84,6 +85,7 @@ export class GroupController {
     @Body() createGroupDto: CreateGroupDto,
     @UploadedFile() file: Express.Multer.File,
   ) {
+    console.log(file, "fileeeee")
     return this.groupService.create(createGroupDto, file);
   }
 
@@ -116,6 +118,15 @@ export class GroupController {
   findAll(@Query() query: GetGroupsQueryDto) {
     console.log('Received query params:', query);
     return this.groupService.findAll(query);
+  }
+
+  @Get('subdomains/all')
+  @UseGuards(RolesGuard)
+  @Roles(systemRole.superadmin)
+  @ApiOperation({ summary: 'Get all registered subdomains' })
+  @ApiResponse({ status: 200, description: 'List of subdomains' })
+  getAllSubdomains() {
+    return this.groupService.getAllSubdomains();
   }
 
   @Get('stats/platform')

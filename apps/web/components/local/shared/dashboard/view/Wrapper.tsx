@@ -15,6 +15,7 @@ type ActiveContext = {
   effectiveRole: ENUM_ROLE;
   isImpersonating: boolean;
   groupName?: string;
+  subdomain?: string;
   entityName?: string;
 };
 
@@ -42,6 +43,7 @@ export default function Wrapper({
     effectiveRole: role,
     isImpersonating: Boolean(whoami?.impersonation?.isImpersonating),
     groupName: whoami?.group?.name ?? group?.groupName,
+    subdomain: whoami?.group?.subdomain ?? '',
     entityName:
       whoami?.context?.currentEntity?.name ?? entity?.entityName,
   };

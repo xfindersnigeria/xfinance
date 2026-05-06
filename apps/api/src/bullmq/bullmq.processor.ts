@@ -7,6 +7,7 @@ import { ModuleScope, RoleScope, systemRole } from 'prisma/generated/enums';
 import { EmailService } from '@/email/email.service';
 import * as path from 'path';
 import { seedDefaultChartOfAccounts } from '../../seeders/seed-account-chart';
+import { seedDefaultCurrencies } from '../../seeders/seed-currency';
 import { seedDefaultEntityAccounts } from '../../seeders/seed-entity-accounts';
 import { ItemsType, InvoiceActivityType } from 'prisma/generated/enums';
 import { BadRequestException } from '@nestjs/common';
@@ -217,6 +218,19 @@ export class BullmqProcessor extends WorkerHost {
         this.logger.debug(
           `[Job ${job.id}] Created admin role for group with id: ${adminRole.id} (cloned from template)`,
         );
+      }
+
+      // 1.4 Seed default currencies for the group
+      try {
+        await seedDefaultCurrencies(groupId);
+        this.logger.debug(
+          `[Job ${job.id}] Seeded default currencies for group`,
+        );
+      } catch (err) {
+        this.logger.error(
+          `[Job ${job.id}] Failed to seed currencies: ${err}`,
+        );
+        // Don't throw - continue with other setup steps
       }
 
       // 1.5 Seed default chart of accounts for the group

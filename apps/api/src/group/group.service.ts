@@ -41,11 +41,30 @@ export class GroupService {
         secureUrl: logo?.secureUrl || '',
       };
 
+      // Handle subdomain selection
+      const subdomain = createGroupDto.subdomain 
+        ? generateSubdomain(createGroupDto.subdomain) 
+        : generateSubdomain(createGroupDto.name);
+
+      // Check if subdomain is already taken
+      const existingSubdomain = await this.prisma.group.findUnique({
+        where: { subdomain },
+      });
+
+      if (existingSubdomain) {
+        throw new HttpException(
+          `Subdomain "${subdomain}" is already in use. Please choose another.`,
+          HttpStatus.CONFLICT,
+        );
+      }
+
+      const { subdomain: _, ...groupData } = createGroupDto;
+
       const group = await this.prisma.group.create({
         data: {
           id: groupId,
-          ...createGroupDto,
-          subdomain: generateSubdomain(createGroupDto.name),
+          ...groupData,
+          subdomain,
           logo: logoData,
         },
       });
@@ -60,13 +79,16 @@ export class GroupService {
         });
       }
 
+      // Invalidate subdomains cache
+      await this.cacheService.delete('groups:subdomains:all');
+
       // enqueue background job to create default role and owner user
       await this.bullmqService.addJob('create-group-user', {
         groupId: group.id,
         email: createGroupDto.email,
         groupName: createGroupDto.name,
         groupSlug: group.subdomain,
-        logo: logo.secureUrl,
+        logo: logo?.secureUrl || '',
       });
 
       return group;
@@ -285,7 +307,12 @@ export class GroupService {
       }
 
       try {
-        return await this.prisma.group.delete({ where: { id } });
+        const deletedGroup = await this.prisma.group.delete({ where: { id } });
+
+        // Invalidate subdomains cache
+        await this.cacheService.delete('groups:subdomains:all');
+
+        return deletedGroup;
       } catch (err) {
         if (
           err instanceof Prisma.PrismaClientKnownRequestError &&
@@ -314,6 +341,25 @@ export class GroupService {
         HttpStatus.BAD_REQUEST,
       );
     }
+  }
+
+  /**
+   * Get all registered subdomains for real-time validation.
+   * Cached for 24 hours or until a new group is created.
+   */
+  async getAllSubdomains() {
+    const cacheKey = 'groups:subdomains:all';
+    const cached = await this.cacheService.get<string[]>(cacheKey);
+    if (cached) return cached;
+
+    const groups = await this.prisma.group.findMany({
+      select: { subdomain: true },
+    });
+    const subdomains = groups.map((g) => g.subdomain);
+
+    // Cache for 24 hours
+    await this.cacheService.set(cacheKey, subdomains, { ttl: 86400 });
+    return subdomains;
   }
 
   /**

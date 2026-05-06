@@ -29,6 +29,7 @@ interface GroupRow {
   phone: string;
   website?: string | null;
   taxId: string;
+  subdomain: string;
   mrr: string;
   logo?: {
     publicId: string;
@@ -71,6 +72,7 @@ function transformGroupToRow(group: Group): GroupRow {
     phone: group.phone || '',
     website: group.website || '',
     taxId: group.taxId || '',
+    subdomain: group.subdomain || '',
     logo: group.logo ? {
       publicId: group.logo.publicId,
       secureUrl: group.logo.secureUrl,

@@ -72,6 +72,14 @@ export class CreateGroupDto {
   website?: string;
 
   @ApiPropertyOptional({
+    example: 'acme',
+    description: 'Custom subdomain for the group',
+  })
+  @IsOptional()
+  @IsString()
+  subdomain?: string;
+
+  @ApiPropertyOptional({
     example: 'sub_123abc',
     description: 'Subscription ID',
   })

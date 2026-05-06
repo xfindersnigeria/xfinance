@@ -19,8 +19,9 @@ export interface CreateGroupApiPayload {
   email: string;
   phone: string;
   website?: string;
+  subdomain?: string;
   subscriptionId?: string; // from form: subscriptionPlan
-  logo?: { publicId: string; secureUrl: string } |  null; // optional file upload
+  logo?: File | { publicId: string; secureUrl: string } |  null; // optional file upload
 }
 
 /**
@@ -41,6 +42,7 @@ export interface GroupFormData {
   email: string;
   phone: string;
   website?: string;
+  subdomain?: string;
   subscriptionPlan?: string;
   billingCycle?: string;
 }
@@ -65,8 +67,9 @@ export const transformGroupFormToApiPayload = (
     email: formData.email,
     phone: formData.phone,
     website: formData.website || undefined,
+    subdomain: formData.subdomain || undefined,
     subscriptionId: formData.subscriptionPlan || undefined,
-    logo: (formData.logo instanceof File) ? undefined : (formData.logo || undefined),
+    logo: formData.logo || undefined,
   };
 };
 
@@ -84,27 +87,22 @@ export const createGroup = (formData: GroupFormData): Promise<Group> => {
   const apiPayload = transformGroupFormToApiPayload(formData);
   
   // Use FormData for multipart/form-data when logo is present
-  if (apiPayload.logo) {
+  // Use FormData for multipart/form-data when logo is a File or has metadata
+  if (apiPayload.logo instanceof File || (apiPayload.logo && typeof apiPayload.logo === 'object')) {
     const formDataPayload = new FormData();
-    formDataPayload.append('name', apiPayload.name);
-    formDataPayload.append('legalName', apiPayload.legalName);
-    formDataPayload.append('taxId', apiPayload.taxId);
-    formDataPayload.append('industry', apiPayload.industry);
-    formDataPayload.append('address', apiPayload.address);
-    formDataPayload.append('city', apiPayload.city);
-    formDataPayload.append('province', apiPayload.province);
-    formDataPayload.append('postalCode', apiPayload.postalCode);
-    formDataPayload.append('country', apiPayload.country);
-    formDataPayload.append('email', apiPayload.email);
-    formDataPayload.append('phone', apiPayload.phone);
-    if (apiPayload.website) formDataPayload.append('website', apiPayload.website);
-    if (apiPayload.subscriptionId) formDataPayload.append('subscriptionId', apiPayload.subscriptionId);
-    if (apiPayload.logo) {
-      const logoData = apiPayload.logo as any;
-      if (logoData.publicId && logoData.secureUrl) {
-        formDataPayload.append('logo', JSON.stringify(logoData));
+    
+    // Append all fields to FormData
+    Object.entries(apiPayload).forEach(([key, value]) => {
+      if (key === 'logo') {
+        if (value instanceof File) {
+          formDataPayload.append('logo', value);
+        } else if (value && typeof value === 'object') {
+          formDataPayload.append('logo', JSON.stringify(value));
+        }
+      } else if (value !== undefined && value !== null) {
+        formDataPayload.append(key, value.toString());
       }
-    }
+    });
 
     return apiClient<Group>('groups', {
       method: 'POST',
@@ -125,7 +123,26 @@ export const createGroup = (formData: GroupFormData): Promise<Group> => {
  * @param payload - Partial group data to update
  * @returns Promise resolving to updated Group
  */
-export const updateGroup = ({ id, ...payload }: UpdateGroupPayload): Promise<Group> => {
+export const updateGroup = ({ id, ...payload }: UpdateGroupPayload & { logo?: File | any }): Promise<Group> => {
+  // Use FormData if logo is a File
+  if (payload.logo instanceof File) {
+    const formDataPayload = new FormData();
+    Object.entries(payload).forEach(([key, value]) => {
+      if (key === 'logo') {
+        if (value instanceof File) {
+          formDataPayload.append('logo', value);
+        }
+      } else if (value !== undefined && value !== null) {
+        formDataPayload.append(key, value.toString());
+      }
+    });
+
+    return apiClient<Group>(`groups/${id}`, {
+      method: 'PATCH',
+      body: formDataPayload,
+    });
+  }
+
   return apiClient<Group>(`groups/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
@@ -200,6 +217,15 @@ export interface GroupStats {
  */
 export const getGroupStats = (): Promise<GroupStats> => {
   return apiClient<GroupStats>('groups/stats/platform', {
+    method: 'GET',
+  });
+};
+
+/**
+ * Get all registered subdomains (SUPERADMIN only).
+ */
+export const getAllSubdomains = (): Promise<string[]> => {
+  return apiClient<string[]>('groups/subdomains/all', {
     method: 'GET',
   });
 };

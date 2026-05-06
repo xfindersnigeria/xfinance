@@ -16,6 +16,7 @@ import {
   Pause,
   Users,
   Trash2,
+  Copy,
 } from "lucide-react";
 import ConfirmationForm from "@/components/local/shared/ConfirmationForm";
 import { CustomModal } from "@/components/local/custom/modal";
@@ -38,6 +39,7 @@ interface GroupRow {
   mrr: string;
   status: string;
   lastActive: string;
+  subdomain: string;
 }
 
 export default function GroupsActions({ row }: { row: GroupRow }) {
@@ -60,6 +62,13 @@ export default function GroupsActions({ row }: { row: GroupRow }) {
   const handleViewBilling = () => {
     setDropdownOpen(false);
     // router.push(`/groups/${row.id}/billing`);
+  };
+
+  const handleCopyUrl = () => {
+    const url = `https://${row.subdomain}.xfinance.ng/auth/login`;
+    navigator.clipboard.writeText(url);
+    toast.success("Login URL copied to clipboard");
+    setDropdownOpen(false);
   };
 
   const handleSuspendClick = () => {
@@ -104,6 +113,14 @@ export default function GroupsActions({ row }: { row: GroupRow }) {
             }}
           >
             <Edit3 className="size-4 mr-2" /> Edit details
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault();
+              handleCopyUrl();
+            }}
+          >
+            <Copy className="size-4 mr-2" /> Copy Login URL
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem

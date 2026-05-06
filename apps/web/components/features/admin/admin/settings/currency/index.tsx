@@ -16,6 +16,8 @@ export default function CurrencySettings() {
   const { data: response, isLoading } = useCurrencies();
   const currencies = (response as any)?.data ?? [];
 
+  // console.log(currencies, "currencies")
+
   return (
     <>
       <CustomTable

@@ -5,7 +5,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
-import { useCreateGroup, useUpdateGroup } from "@/lib/api/hooks/useGroup";
+import { useCreateGroup, useUpdateGroup, useSubdomains } from "@/lib/api/hooks/useGroup";
+import { cn } from "@/lib/utils";
 import {
   transformGroupFormToApiPayload,
   GroupFormData,
@@ -56,7 +57,11 @@ const groupSchema = z.object({
   email: z.string().email("Invalid email address"),
   phone: z.string().min(1, "Phone number is required"),
   website: z.string().url("Invalid URL").optional().or(z.literal("")),
-  // Subscription Settings
+  subdomain: z
+    .string()
+    .regex(/^[a-z0-9-]+$/, "Only lowercase letters, numbers, and hyphens are allowed")
+    .optional()
+    .or(z.literal("")),
   // subscriptionPlan: z.string().optional(),
   // billingCycle: z.string().optional(),
 });
@@ -78,6 +83,7 @@ export function GroupForm({
   const createGroupMutation = useCreateGroup();
 
   const updateGroupMutation = useUpdateGroup();
+  const { data: existingSubdomains = [] } = useSubdomains();
   console.log(group);
   const form = useForm<GroupFormData>({
     resolver: zodResolver(groupSchema),
@@ -95,6 +101,7 @@ export function GroupForm({
       email: group?.email || "",
       phone: group?.phone || "",
       website: group?.website && group.website !== null ? group.website : "",
+      subdomain: (group as any)?.subdomain || "",
       // subscriptionPlan: group?.subscriptionPlan || "",
       // billingCycle: group?.billingCycle || "",
     },
@@ -116,6 +123,7 @@ export function GroupForm({
         email: group?.email || "",
         phone: group?.phone || "",
         website: group?.website || "",
+        subdomain: (group as any)?.subdomain || "",
         // subscriptionPlan: group?.subscriptionPlan || "",
         // billingCycle: group?.billingCycle || "",
       });
@@ -157,6 +165,12 @@ export function GroupForm({
   };
 
   const onSubmit = async (values: GroupFormData) => {
+    // Prevent submission if subdomain is manually entered and already taken
+    if (!isEditMode && values.subdomain && existingSubdomains.includes(values.subdomain)) {
+      toast.error("The chosen subdomain is already in use. Please choose another.");
+      return;
+    }
+
     if (isEditMode && group?.id) {
       // Transform form data to API format for update
       const apiPayload = transformGroupFormToApiPayload(values);
@@ -285,6 +299,47 @@ export function GroupForm({
                         />
                       </FormControl>
                       <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <div className="grid gap-4">
+                <FormField
+                  control={form.control}
+                  name="subdomain"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs">
+                        Subdomain {!isEditMode && <span className="text-gray-400 font-normal">(Optional)</span>}
+                      </FormLabel>
+                      <FormControl>
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center">
+                            <Input
+                              placeholder="my-company"
+                              {...field}
+                              disabled={isEditMode}
+                              className={cn(
+                                "rounded-r-none",
+                                existingSubdomains.includes((field as any).value) && !isEditMode && "border-red-500 focus-visible:ring-red-500"
+                              )}
+                              onChange={(e) => {
+                                const val = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "");
+                                field.onChange(val);
+                              }}
+                            />
+                            <span className="bg-gray-100 border border-l-0 border-input px-3 h-9 flex items-center text-[10px] font-medium text-gray-500 rounded-r-md whitespace-nowrap">
+                              .xfinance.ng
+                            </span>
+                          </div>
+                          {existingSubdomains.includes((field as any).value) && !isEditMode && field.value && (
+                            <p className="text-[10px] text-red-500 font-medium animate-in fade-in slide-in-from-top-1 duration-200">
+                              This subdomain is already taken
+                            </p>
+                          )}
+                        </div>
+                      </FormControl>
+                      <FormMessage className="text-[10px]" />
                     </FormItem>
                   )}
                 />

@@ -13,6 +13,7 @@ import {
   getGroups,
   getGroup,
   getGroupStats,
+  getAllSubdomains,
   GroupFormData,
   GroupStats,
   transformGroupFormToApiPayload,
@@ -23,7 +24,7 @@ import { toast } from "sonner";
 import { MODAL } from "@/lib/data/modal-data";
 
 type CreateGroupPayload = Omit<Group, "id" | "createdAt" | "updatedAt">;
-type UpdateGroupPayload = Partial<CreateGroupPayload> & { id: string };
+type UpdateGroupPayload = Partial<CreateGroupPayload> & { id: string; logo?: File | any };
 
 /**
  * Hook for creating or submitting a group from GroupForm component.
@@ -138,5 +139,17 @@ export const useGroupStats = () => {
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
     refetchOnWindowFocus: false,
+  });
+};
+
+/**
+ * Hook to fetch all registered subdomains
+ * Cache for 30 minutes
+ */
+export const useSubdomains = () => {
+  return useQuery({
+    queryKey: ["groups", "subdomains"],
+    queryFn: getAllSubdomains,
+    staleTime: 30 * 60 * 1000,
   });
 };

@@ -35,7 +35,7 @@ export type Group = {
   id: string;
   name: string;
   legalName: string;
-  logo:  {
+  logo: {
     secureUrl: string;
     publicId: string;
   } | null;
@@ -46,9 +46,10 @@ export type Group = {
   province: string;
   postalCode: string;
   country: string;
-    userCount: string;
+  userCount: string;
   entityCount: string;
   mrr: string;
+  subdomain: string;
 
   email: string;
   phone: string;
