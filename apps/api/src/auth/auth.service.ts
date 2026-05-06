@@ -36,46 +36,64 @@ export class AuthService {
     // ── Subdomain enforcement (SaaS mode only) ──────────────────────────
     if (process.env.DEPLOYMENT_MODE !== 'standalone' && host) {
       const subdomain = this.parseSubdomain(host);
-      if (subdomain) {
-        if (subdomain === 'admin') {
-          // Admin subdomain: credentials are checked after we verify systemRole below.
-          // We look the user up first, then check role.
-          const candidate = await this.prisma.user.findUnique({
-            where: { email },
-            select: { systemRole: true, password: true },
-          });
-          if (!candidate || !candidate.password) {
-            throw new UnauthorizedException('Invalid credentials');
-          }
-          const match = await bcrypt.compare(pass, candidate.password);
-          if (!match) {
-            throw new UnauthorizedException('Invalid credentials');
-          }
-          if (candidate.systemRole !== 'superadmin') {
+      
+      if (!subdomain) {
+        throw new ForbiddenException(
+          'Please access the application via your organisation subdomain (e.g., your-company.xfinance.ng).',
+        );
+      }
+
+      if (subdomain === 'admin') {
+        // Admin subdomain: credentials are checked after we verify systemRole below.
+        const candidate = await this.prisma.user.findUnique({
+          where: { email },
+          select: { systemRole: true, password: true },
+        });
+
+        if (!candidate || !candidate.password) {
+          throw new UnauthorizedException('Invalid credentials');
+        }
+
+        const match = await bcrypt.compare(pass, candidate.password);
+        if (!match) {
+          throw new UnauthorizedException('Invalid credentials');
+        }
+
+        if (candidate.systemRole !== 'superadmin') {
+          throw new ForbiddenException(
+            "The admin portal is restricted to your account. Please use your organisation's subdomain to log in.",
+          );
+        }
+        // Bypass the duplicate checks below for superadmin on admin subdomain
+      } else {
+        // Group subdomain: must exist in DB
+        const group = await this.prisma.group.findUnique({
+          where: { subdomain },
+          select: { id: true },
+        });
+
+        if (!group) {
+          throw new NotFoundException(
+            `No organisation found for subdomain "${subdomain}". Please check the URL and try again.`,
+          );
+        }
+
+        // User must belong to this group and NOT be a superadmin
+        const candidate = await this.prisma.user.findUnique({
+          where: { email },
+          select: { groupId: true, systemRole: true },
+        });
+
+        if (candidate) {
+          if (candidate.systemRole === 'superadmin') {
             throw new ForbiddenException(
-              'The admin portal is restricted to super-admin accounts. Please use your organisation subdomain to log in.',
+              'Super-admin accounts must log in via the admin portal (admin.xfinance.ng).',
             );
           }
-          // Bypass the duplicate checks below for superadmin on admin subdomain
-        } else {
-          // Group subdomain: must exist in DB
-          const group = await this.prisma.group.findUnique({
-            where: { subdomain },
-            select: { id: true },
-          });
-          if (!group) {
-            throw new NotFoundException(
-              `No organisation found for subdomain "${subdomain}". Please check the URL and try again.`,
-            );
-          }
-          // User must belong to this group
-          const candidate = await this.prisma.user.findUnique({
-            where: { email },
-            select: { groupId: true },
-          });
-          if (candidate && candidate.groupId !== group.id) {
+          
+          if (candidate.groupId !== group.id) {
             throw new ForbiddenException(
-              'Your account does not belong to this organisation. Please log in from your own subdomain.',
+              'Your account does not belong to this organisation. Please log in from your own organisation subdomain.',
             );
           }
         }
