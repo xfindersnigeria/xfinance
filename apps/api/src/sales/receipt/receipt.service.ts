@@ -6,6 +6,7 @@ import { GetReceiptsResponseDto } from './dto/get-receipts-response.dto';
 import { ReceiptStatus, PaymentMethod } from 'prisma/generated/enums';
 import { generateRandomInvoiceNumber } from '@/auth/utils/helper';
 import { BullmqService } from '@/bullmq/bullmq.service';
+import { CacheService } from '@/cache/cache.service';
 
 @Injectable()
 export class ReceiptService {
@@ -14,6 +15,7 @@ export class ReceiptService {
   constructor(
     private prisma: PrismaService,
     private bullmqService: BullmqService,
+    private cacheService: CacheService,
   ) {}
 
   async createReceipt(body: CreateReceiptDto, entityId: string, groupId: string) {
@@ -124,6 +126,7 @@ export class ReceiptService {
         }
       }
 
+      await this.cacheService.invalidateEntityDashboardCache(entityId);
       return result;
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
@@ -342,6 +345,7 @@ export class ReceiptService {
 
         return updated;
       });
+      await this.cacheService.invalidateEntityDashboardCache(entityId);
       return updatedReceipt;
     } catch (error) {
       if (error instanceof HttpException) throw error;
@@ -416,6 +420,7 @@ export class ReceiptService {
         }
       }
 
+      await this.cacheService.invalidateEntityDashboardCache(entityId);
       return updatedReceipt;
     } catch (error) {
       if (error instanceof HttpException) throw error;

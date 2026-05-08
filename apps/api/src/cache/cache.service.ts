@@ -258,6 +258,15 @@ export class CacheService {
   }
 
   /**
+   * Invalidate all dashboard caches for an entity.
+   * Called whenever financial data that feeds the dashboard changes
+   * (invoices, payments, receipts, bills, expenses, bank transactions).
+   */
+  async invalidateEntityDashboardCache(entityId: string): Promise<void> {
+    await this.deletePattern(`dashboard:${entityId}:*`);
+  }
+
+  /**
    * Invalidate all cached module data for a group (when subscription changes)
    */
   async invalidateGroupModuleCache(groupId: string): Promise<void> {

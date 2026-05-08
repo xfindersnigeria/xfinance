@@ -9,7 +9,11 @@ export const getAccountTypes = async () =>
 export const getAccountTypeById = async (id: string) =>
   apiClient(`account-type/${id}`, { method: "GET" });
 
-export const createAccountType = async (data: { code: string; name: string; description: string }) =>
+export const createAccountType = async (data: {
+  code: string;
+  name: string;
+  description: string;
+}) =>
   apiClient("account-type", {
     method: "POST",
     body: JSON.stringify(data),
@@ -18,7 +22,7 @@ export const createAccountType = async (data: { code: string; name: string; desc
 
 export const updateAccountType = async (
   id: string,
-  data: Partial<{ code: string; name: string; description: string }>
+  data: Partial<{ code: string; name: string; description: string }>,
 ) =>
   apiClient(`account-type/${id}`, {
     method: "PATCH",
@@ -41,7 +45,12 @@ export const getAccountCategoriesByType = async (typeId: string) =>
 export const getAccountCategoryById = async (id: string) =>
   apiClient(`account-category/${id}`, { method: "GET" });
 
-export const createAccountCategory = async (data: { name: string; typeId: string; description?: string; code?: string }) =>
+export const createAccountCategory = async (data: {
+  name: string;
+  typeId: string;
+  description?: string;
+  code?: string;
+}) =>
   apiClient("account-category", {
     method: "POST",
     body: JSON.stringify(data),
@@ -50,7 +59,7 @@ export const createAccountCategory = async (data: { name: string; typeId: string
 
 export const updateAccountCategory = async (
   id: string,
-  data: Partial<{ name: string; description: string; code: string }>
+  data: Partial<{ name: string; description: string; code: string }>,
 ) =>
   apiClient(`account-category/${id}`, {
     method: "PATCH",
@@ -70,7 +79,12 @@ export const getSubCategoriesByCategory = async (categoryId: string) =>
 export const getSubCategoryById = async (id: string) =>
   apiClient(`account-subcategory/${id}`, { method: "GET" });
 
-export const createSubCategory = async (data: { name: string; categoryId: string; description?: string; code?: string }) =>
+export const createSubCategory = async (data: {
+  name: string;
+  categoryId: string;
+  description?: string;
+  code?: string;
+}) =>
   apiClient("account-subcategory", {
     method: "POST",
     body: JSON.stringify(data),
@@ -79,7 +93,7 @@ export const createSubCategory = async (data: { name: string; categoryId: string
 
 export const updateSubCategory = async (
   id: string,
-  data: Partial<{ name: string; description: string; code: string }>
+  data: Partial<{ name: string; description: string; code: string }>,
 ) =>
   apiClient(`account-subcategory/${id}`, {
     method: "PATCH",
@@ -99,21 +113,24 @@ export const createAccount = async (data: {
   categoryId: string;
   subCategoryId: string;
   description: string;
-  
 }) => {
   return apiClient("account", {
     method: "POST",
     body: JSON.stringify(data),
-    headers: {
-      "Content-Type": "application/json",
-    },
   });
 };
 
-export const getAccounts = async (params?: { search?: string; subCategory?: string; type?: string; page?: number; limit?: number }) => {
+export const getAccounts = async (params?: {
+  search?: string;
+  subCategory?: string;
+  type?: string;
+  page?: number;
+  limit?: number;
+}) => {
   const queryParams = new URLSearchParams();
   if (params?.search) queryParams.append("search", params.search);
-  if (params?.subCategory) queryParams.append("subCategory", params.subCategory);
+  if (params?.subCategory)
+    queryParams.append("subCategory", params.subCategory);
   if (params?.type) queryParams.append("type", params.type);
   if (params?.page) queryParams.append("page", params.page.toString());
   if (params?.limit) queryParams.append("limit", params.limit.toString());
@@ -139,46 +156,42 @@ export const updateAccount = async (
     credit?: number;
     debit?: number;
     date?: string;
-  }
+  },
 ) => {
   return apiClient(`account/${id}`, {
     method: "PATCH",
     body: JSON.stringify(data),
-    headers: {
-      "Content-Type": "application/json",
-    },
   });
 };
 
-export const getOpeningBalances = async (params?: { search?: string; page?: number; limit?: number }) => {
+export const getOpeningBalances = async (params?: {
+  search?: string;
+  page?: number;
+  limit?: number;
+}) => {
   const queryParams = new URLSearchParams();
   if (params?.search) queryParams.append("search", params.search);
   if (params?.page) queryParams.append("page", params.page.toString());
   if (params?.limit) queryParams.append("limit", params.limit.toString());
-  
+
   return apiClient(`account/opening-balances?${queryParams.toString()}`, {
     method: "GET",
   });
 };
 
-export const setOpeningBalances = async (
-  data: {
-    date: string;
-    fiscalYear: string;
-    note?: string;
-    items: Array<{
-      accountId: string;
-      debit?: number;
-      credit?: number;
-    }>;
-  }
-) => {
+export const setOpeningBalances = async (data: {
+  date: string;
+  fiscalYear: string;
+  note?: string;
+  items: Array<{
+    accountId: string;
+    debit?: number;
+    credit?: number;
+  }>;
+}) => {
   return apiClient(`account/opening-balances`, {
     method: "POST",
     body: JSON.stringify(data),
-    headers: {
-      "Content-Type": "application/json",
-    },
   });
 };
 
@@ -199,9 +212,6 @@ export const createBudget = async (data: {
   return apiClient("budget", {
     method: "POST",
     body: JSON.stringify(data),
-    headers: {
-      "Content-Type": "application/json",
-    },
   });
 };
 
@@ -224,9 +234,6 @@ export const createJournal = async (data: {
   return apiClient("journal", {
     method: "POST",
     body: JSON.stringify(data),
-    headers: {
-      "Content-Type": "application/json",
-    },
   });
 };
 
@@ -243,7 +250,11 @@ export const getJournalById = async (id: string) => {
   return apiClient(`journal/${id}`, { method: "GET" });
 };
 
-export const getJournalLines = async (params?: { search?: string; page?: number; limit?: number }) => {
+export const getJournalLines = async (params?: {
+  search?: string;
+  page?: number;
+  limit?: number;
+}) => {
   const queryParams = new URLSearchParams();
   if (params?.search) queryParams.append("search", params.search);
   if (params?.page) queryParams.append("page", params.page.toString());
@@ -266,14 +277,11 @@ export const updateJournal = async (
       credit?: number;
       description?: string;
     }>;
-  }
+  },
 ) => {
   return apiClient(`journal/${id}`, {
     method: "PATCH",
     body: JSON.stringify(data),
-    headers: {
-      "Content-Type": "application/json",
-    },
   });
 };
 
@@ -294,7 +302,15 @@ export const getJournalByReference = async (reference: string) => {
 export const getAccountTransactions = async (params?: {
   accountId?: string;
   bankAccountId?: string;
-  type?: "BANK" | "INVOICE_POSTING" | "PAYMENT_RECEIVED_POSTING" | "OPENING_BALANCE" | "MANUAL_ENTRY" | "JOURNAL_ENTRY" | "EXPENSE_POSTING" | "BILL_POSTING";
+  type?:
+    | "BANK"
+    | "INVOICE_POSTING"
+    | "PAYMENT_RECEIVED_POSTING"
+    | "OPENING_BALANCE"
+    | "MANUAL_ENTRY"
+    | "JOURNAL_ENTRY"
+    | "EXPENSE_POSTING"
+    | "BILL_POSTING";
   search?: string;
   fromDate?: string;
   toDate?: string;
@@ -304,17 +320,21 @@ export const getAccountTransactions = async (params?: {
 }) => {
   const queryParams = new URLSearchParams();
   if (params?.accountId) queryParams.append("accountId", params.accountId);
-  if (params?.bankAccountId) queryParams.append("bankAccountId", params.bankAccountId);
+  if (params?.bankAccountId)
+    queryParams.append("bankAccountId", params.bankAccountId);
   if (params?.type) queryParams.append("type", params.type);
   if (params?.search) queryParams.append("search", params.search);
   if (params?.fromDate) queryParams.append("fromDate", params.fromDate);
   if (params?.toDate) queryParams.append("toDate", params.toDate);
   if (params?.status) queryParams.append("status", params.status);
   if (params?.page) queryParams.append("page", params.page.toString());
-  if (params?.pageSize) queryParams.append("pageSize", params.pageSize.toString());
+  if (params?.pageSize)
+    queryParams.append("pageSize", params.pageSize.toString());
 
   const queryString = queryParams.toString();
-  const url = queryString ? `account-transactions?${queryString}` : "account-transactions";
+  const url = queryString
+    ? `account-transactions?${queryString}`
+    : "account-transactions";
   return apiClient(url, { method: "GET" });
 };
 
@@ -322,26 +342,36 @@ export const getAccountTransactionById = async (id: string) => {
   return apiClient(`account-transactions/${id}`, { method: "GET" });
 };
 
-export const getAccountTransactionsByAccountId = async (accountId: string, params?: { page?: number; pageSize?: number; status?: string; type?: string }) => {
+export const getAccountTransactionsByAccountId = async (
+  accountId: string,
+  params?: { page?: number; pageSize?: number; status?: string; type?: string },
+) => {
   const queryParams = new URLSearchParams();
   if (params?.page) queryParams.append("page", params.page.toString());
-  if (params?.pageSize) queryParams.append("pageSize", params.pageSize.toString());
+  if (params?.pageSize)
+    queryParams.append("pageSize", params.pageSize.toString());
   if (params?.status) queryParams.append("status", params.status);
   if (params?.type) queryParams.append("type", params.type);
 
   const queryString = queryParams.toString();
-  const url = queryString ? `account-transactions/account/${accountId}?${queryString}` : `account-transactions/account/${accountId}`;
+  const url = queryString
+    ? `account-transactions/account/${accountId}?${queryString}`
+    : `account-transactions/account/${accountId}`;
   return apiClient(url, { method: "GET" });
 };
 
-
-
-export const getAccountTransactionsSummary = async (params?: { bankAccountId?: string; type?: string }) => {
+export const getAccountTransactionsSummary = async (params?: {
+  bankAccountId?: string;
+  type?: string;
+}) => {
   const queryParams = new URLSearchParams();
-  if (params?.bankAccountId) queryParams.append("bankAccountId", params.bankAccountId);
+  if (params?.bankAccountId)
+    queryParams.append("bankAccountId", params.bankAccountId);
   if (params?.type) queryParams.append("type", params.type);
 
   const queryString = queryParams.toString();
-  const url = queryString ? `account-transactions/summary/stats?${queryString}` : "account-transactions/summary/stats";
+  const url = queryString
+    ? `account-transactions/summary/stats?${queryString}`
+    : "account-transactions/summary/stats";
   return apiClient(url, { method: "GET" });
 };

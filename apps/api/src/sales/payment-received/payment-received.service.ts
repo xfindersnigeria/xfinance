@@ -7,6 +7,7 @@ import {
 import { InvoiceService } from '../invoice/invoice.service';
 import { BullmqService } from '@/bullmq/bullmq.service';
 import { generateRandomInvoiceNumber } from '@/auth/utils/helper';
+import { CacheService } from '@/cache/cache.service';
 
 @Injectable()
 export class PaymentReceivedService {
@@ -16,6 +17,7 @@ export class PaymentReceivedService {
     private prisma: PrismaService,
     private invoiceService: InvoiceService,
     private bullmqService: BullmqService,
+    private cacheService: CacheService,
   ) {}
 
   private enrichPaymentRecords(payments: any[]) {
@@ -169,6 +171,7 @@ export class PaymentReceivedService {
       // Update invoice status based on total payments
       await this.updateInvoicePaymentStatus(body.invoiceId);
 
+      await this.cacheService.invalidateEntityDashboardCache(entityId);
       return this.enrichPaymentRecords([paymentReceived])[0];
     } catch (error) {
       if (error instanceof HttpException) throw error;
@@ -431,6 +434,7 @@ export class PaymentReceivedService {
         },
       });
 
+      await this.cacheService.invalidateEntityDashboardCache(entityId);
       return this.enrichPaymentRecords([updatedPayment])[0];
     } catch (error) {
       if (error instanceof HttpException) throw error;
@@ -471,6 +475,7 @@ export class PaymentReceivedService {
         where: { id: paymentId },
       });
 
+      await this.cacheService.invalidateEntityDashboardCache(entityId);
       return { success: true };
     } catch (error) {
       if (error instanceof HttpException) throw error;

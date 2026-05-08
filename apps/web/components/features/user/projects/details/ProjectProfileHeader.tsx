@@ -3,10 +3,21 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Edit2, Download, TrendingUp, TrendingDown, DollarSign, Calendar, Users, Clock } from "lucide-react";
+import {
+  ArrowLeft,
+  Edit2,
+  Download,
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  Calendar,
+  Users,
+  Clock,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Project } from "../utils/types";
 import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { formatCompactNumber } from "../utils/util";
 
 interface ProjectProfileHeaderProps {
   project: Project;
@@ -16,7 +27,9 @@ interface ProjectProfileHeaderProps {
  * Static project header shown on all tabs
  * Displays project title, status, timeline, key stats, and action buttons
  */
-export default function ProjectProfileHeader({ project }: ProjectProfileHeaderProps) {
+export default function ProjectProfileHeader({
+  project,
+}: ProjectProfileHeaderProps) {
   const router = useRouter();
   const sym = useEntityCurrencySymbol();
 
@@ -31,10 +44,17 @@ export default function ProjectProfileHeader({ project }: ProjectProfileHeaderPr
   const actualCost = project.actualCost ?? 0;
 
   // Calculate variance
-  const revenueVariance = project.budgetedRevenue ? ((actualRevenue - project.budgetedRevenue) / project.budgetedRevenue) * 100 : 0;
-  const costVariance = project.budgetedCost ? ((actualCost - project.budgetedCost) / project.budgetedCost) * 100 : 0;
-  const budgetProfit = project.budgetedRevenue - project.budgetedCost;
-  const profitVariance = budgetProfit ? (((actualRevenue - actualCost) - budgetProfit) / budgetProfit) * 100 : 0;
+  const revenueVariance = project.budgetedRevenue
+    ? ((actualRevenue - project.budgetedRevenue) / project.budgetedRevenue) *
+      100
+    : 0;
+  const costVariance = project.budgetedCost
+    ? ((actualCost - project.budgetedCost) / project.budgetedCost) * 100
+    : 0;
+  const budgetProfit = project.budgetProfit ?? 0;
+  const profitVariance = budgetProfit
+    ? ((actualRevenue - actualCost - budgetProfit) / budgetProfit) * 100
+    : 0;
 
   return (
     <div className="mb-6">
@@ -67,7 +87,9 @@ export default function ProjectProfileHeader({ project }: ProjectProfileHeaderPr
       <div className="mb-4">
         <div className="flex items-center gap-3 mb-2">
           <h1 className="text-2xl font-bold text-gray-900">{project.name}</h1>
-          <Badge className={`px-3 py-1 rounded-full font-medium ${statusColors[project.status as keyof typeof statusColors]}`}>
+          <Badge
+            className={`px-3 py-1 rounded-full font-medium ${statusColors[project.status as keyof typeof statusColors]}`}
+          >
             {project.status}
           </Badge>
         </div>
@@ -104,15 +126,20 @@ export default function ProjectProfileHeader({ project }: ProjectProfileHeaderPr
             <div>
               <div className="text-xs text-gray-500">Actual</div>
               <div className="text-2xl font-bold text-green-600">
-                {sym}{(actualRevenue / 1000000).toFixed(0)}M
+                {formatCompactNumber(actualRevenue, sym).formatted}
               </div>
             </div>
             <div>
               <div className="text-xs text-gray-500">Budget</div>
-              <div className="text-sm text-gray-700">{sym}{(project.budgetedRevenue / 1000000).toFixed(0)}M</div>
+              <div className="text-sm text-gray-700">
+                {formatCompactNumber(project.budgetedRevenue, sym).formatted}
+              </div>
             </div>
-            <div className={`text-sm font-medium ${revenueVariance < 0 ? "text-red-600" : "text-green-600"}`}>
-              {revenueVariance < 0 ? "-" : "+"}{Math.abs(revenueVariance).toFixed(1)}% variance
+            <div
+              className={`text-sm font-medium ${revenueVariance < 0 ? "text-red-600" : "text-green-600"}`}
+            >
+              {revenueVariance < 0 ? "-" : "+"}
+              {Math.abs(revenueVariance).toFixed(1)}% variance
             </div>
           </div>
         </div>
@@ -125,22 +152,29 @@ export default function ProjectProfileHeader({ project }: ProjectProfileHeaderPr
             </div>
             <div>
               <h3 className="font-medium text-gray-700 leading-tight">Costs</h3>
-              <p className="text-xs text-gray-400 leading-tight">Expense + Supplies</p>
+              <p className="text-xs text-gray-400 leading-tight">
+                Expense + Supplies
+              </p>
             </div>
           </div>
           <div className="space-y-2">
             <div>
               <div className="text-xs text-gray-500">Actual</div>
               <div className="text-2xl font-bold text-red-600">
-                {sym}{(actualCost / 1000000).toFixed(0)}M
+                {formatCompactNumber(actualCost, sym).formatted}
               </div>
             </div>
             <div>
               <div className="text-xs text-gray-500">Budget</div>
-              <div className="text-sm text-gray-700">{sym}{(project.budgetedCost / 1000000).toFixed(0)}M</div>
+              <div className="text-sm text-gray-700">
+                {formatCompactNumber(project.budgetedCost, sym).formatted}
+              </div>
             </div>
-            <div className={`text-sm font-medium ${costVariance > 0 ? "text-red-600" : "text-green-600"}`}>
-              {costVariance > 0 ? "+" : ""}{costVariance.toFixed(1)}% variance
+            <div
+              className={`text-sm font-medium ${costVariance > 0 ? "text-red-600" : "text-green-600"}`}
+            >
+              {costVariance > 0 ? "+" : ""}
+              {costVariance.toFixed(1)}% variance
             </div>
           </div>
         </div>
@@ -157,17 +191,20 @@ export default function ProjectProfileHeader({ project }: ProjectProfileHeaderPr
             <div>
               <div className="text-xs text-gray-500">Actual</div>
               <div className="text-2xl font-bold text-indigo-600">
-                {sym}{((actualRevenue - actualCost) / 1000000).toFixed(0)}M
+                {formatCompactNumber(project.actualProfit ?? 0, sym).formatted}
               </div>
             </div>
             <div>
               <div className="text-xs text-gray-500">Budget</div>
               <div className="text-sm text-gray-700">
-                {sym}{((project.budgetedRevenue - project.budgetedCost) / 1000000).toFixed(0)}M
+                {formatCompactNumber(budgetProfit, sym).formatted}
               </div>
             </div>
-            <div className={`text-sm font-medium ${profitVariance < 0 ? "text-red-600" : "text-green-600"}`}>
-              {profitVariance < 0 ? "-" : "+"}{Math.abs(profitVariance).toFixed(1)}% variance
+            <div
+              className={`text-sm font-medium ${profitVariance < 0 ? "text-red-600" : "text-green-600"}`}
+            >
+              {profitVariance < 0 ? "-" : "+"}
+              {Math.abs(profitVariance).toFixed(1)}% variance
             </div>
           </div>
         </div>

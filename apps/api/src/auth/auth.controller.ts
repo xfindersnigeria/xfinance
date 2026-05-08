@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Delete,
+  Put,
   Body,
   Res,
   Get,
@@ -22,6 +23,7 @@ import { RolesGuard } from './guards/roles.guard';
 import { systemRole } from 'prisma/generated/enums';
 import { LoginDto } from './dto/login.dto';
 import { AuthContextDto } from './dto/context.dto';
+import { UpdateProfileDto, ChangePasswordDto } from './dto/profile.dto';
 import {
   ApiTags,
   ApiOperation,
@@ -168,6 +170,27 @@ export class AuthController {
       success: true,
       message: 'Remove X-Impersonate-Entity header from subsequent requests',
     };
+  }
+
+  @Get('profile')
+  @UseGuards(AuthGuard)
+  @ApiOperation({ summary: 'Get current user profile' })
+  getProfile(@User() user: any) {
+    return this.authService.getProfile(user.id);
+  }
+
+  @Put('profile')
+  @UseGuards(AuthGuard)
+  @ApiOperation({ summary: 'Update current user profile' })
+  updateProfile(@User() user: any, @Body() dto: UpdateProfileDto) {
+    return this.authService.updateProfile(user.id, dto);
+  }
+
+  @Put('password')
+  @UseGuards(AuthGuard)
+  @ApiOperation({ summary: 'Change current user password' })
+  changePassword(@User() user: any, @Body() dto: ChangePasswordDto) {
+    return this.authService.changePassword(user.id, dto);
   }
 
   @Post('logout')

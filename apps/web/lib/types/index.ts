@@ -5,13 +5,15 @@ export type UserPayload = {
   email: string;
   firstName: string | null;
   lastName: string | null;
+  department: string | null;
   systemRole: ENUM_ROLE;
   permissions: string[];
+  requirePasswordChange: boolean;
+  lastLogin: string | null;
   image: {
     secureUrl: string;
     publicId: string;
   } | null;
-  // Add any other user properties you expect
 };
 
 export type GroupImpersonationPayload = {

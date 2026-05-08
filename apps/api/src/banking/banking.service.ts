@@ -10,6 +10,7 @@ import { OpeningBalanceService } from '../accounts/opening-balance/opening-balan
 import { BullmqService } from '../bullmq/bullmq.service';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
 import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
+import { CacheService } from '../cache/cache.service';
 
 @Injectable()
 export class BankingService {
@@ -18,6 +19,7 @@ export class BankingService {
     private readonly accountService: AccountService,
     private readonly openingBalanceService: OpeningBalanceService,
     private readonly bullmqService: BullmqService,
+    private readonly cacheService: CacheService,
   ) {}
 
   async createBankAccount(
@@ -165,6 +167,7 @@ export class BankingService {
     }
 
     // Fetch fresh bankAccount with updated linkedAccount data
+    await this.cacheService.invalidateEntityDashboardCache(effectiveEntityId);
     return await this.prisma.bankAccount.findUnique({
       where: { id: bankAccount.id },
       include: {
@@ -295,6 +298,7 @@ export class BankingService {
       },
     });
 
+    await this.cacheService.invalidateEntityDashboardCache(effectiveEntityId);
     return updatedAccount;
   }
 
@@ -336,6 +340,7 @@ export class BankingService {
       where: { id },
     });
 
+    await this.cacheService.invalidateEntityDashboardCache(effectiveEntityId);
     return { message: 'Bank account deleted successfully' };
   }
 
@@ -403,6 +408,7 @@ export class BankingService {
       }),
     ]);
 
+    await this.cacheService.invalidateEntityDashboardCache(effectiveEntityId);
     return accountTransaction;
   }
 

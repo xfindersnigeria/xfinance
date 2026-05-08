@@ -9,10 +9,14 @@ import {
   GetAccountTransactionsFilterDto,
 } from './dto/account-transaction.dto';
 import { AccountTransactionWhereInput } from 'prisma/generated/models';
+import { CacheService } from '@/cache/cache.service';
 
 @Injectable()
 export class AccountTransactionService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cacheService: CacheService,
+  ) {}
 
   /**
    * Create a new account transaction record
@@ -82,6 +86,7 @@ export class AccountTransactionService {
       },
     });
 
+    await this.cacheService.invalidateEntityDashboardCache(createDto.entityId);
     return transaction;
   }
 

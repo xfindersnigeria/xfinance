@@ -483,7 +483,7 @@ export class BullmqProcessor extends WorkerHost {
 
       await this.emailService.sendEmail({
         to: email,
-        subject: 'Welcome to X-Finance',
+        subject: `Welcome to ${subjectSlug}`,
         html,
       });
 

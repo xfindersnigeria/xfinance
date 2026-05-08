@@ -27,6 +27,7 @@ import {
 import { Plus, Trash2, Loader2 } from "lucide-react";
 import { useCreateJournal } from "@/lib/api/hooks/useAccounts";
 import { Account } from "@/lib/api/hooks/types/accountsTypes";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 // Zod schema for Journal Entry Line
 const journalLineSchema = z.object({
@@ -55,6 +56,7 @@ interface ManualJournalFormProps {
 export default function ManualJournalForm({ accounts = [], onSuccess }: ManualJournalFormProps) {
   const { entity, user } = useSessionStore();
   const createJournal = useCreateJournal();
+  const sym = useEntityCurrencySymbol();
 
   const form = useForm<ManualJournalFormData>({
     resolver: zodResolver(manualJournalSchema) as any,
@@ -327,13 +329,13 @@ export default function ManualJournalForm({ accounts = [], onSuccess }: ManualJo
             <div className="flex justify-between items-center text-gray-700">
               <span className="font-medium">Total Debits:</span>
               <span className="font-semibold text-gray-900">
-                ${totalDebits.toFixed(2)}
+                {sym}{totalDebits.toFixed(2)}
               </span>
             </div>
             <div className="flex justify-between items-center text-gray-700 border-t border-gray-300 pt-3">
               <span className="font-medium">Total Credits:</span>
               <span className="font-semibold text-gray-900">
-                ${totalCredits.toFixed(2)}
+                {sym}{totalCredits.toFixed(2)}
               </span>
             </div>
           </div>

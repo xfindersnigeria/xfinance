@@ -23,8 +23,29 @@ export const getWhoami = (): Promise<WhoamiResponse> => {
 };
 
 export const getProfile = (): Promise<UserPayload> => {
-  return apiClient<UserPayload>("/auth/profile", {
+  return apiClient<UserPayload>("auth/profile", {
     method: "GET",
+  });
+};
+
+export const updateProfile = (data: {
+  firstName?: string;
+  lastName?: string;
+  department?: string;
+}): Promise<UserPayload> => {
+  return apiClient<UserPayload>("auth/profile", {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+};
+
+export const changePassword = (data: {
+  currentPassword: string;
+  newPassword: string;
+}): Promise<{ message: string }> => {
+  return apiClient<{ message: string }>("auth/password", {
+    method: "PUT",
+    body: JSON.stringify(data),
   });
 };
 

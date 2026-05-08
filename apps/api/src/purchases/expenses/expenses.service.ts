@@ -6,6 +6,7 @@ import { GetExpensesQueryDto } from './dto/get-expenses-query.dto';
 import { FileuploadService } from '@/fileupload/fileupload.service';
 import { BullmqService } from '@/bullmq/bullmq.service';
 import { generateRandomInvoiceNumber } from '@/auth/utils/helper';
+import { CacheService } from '@/cache/cache.service';
 
 @Injectable()
 export class ExpensesService {
@@ -15,6 +16,7 @@ export class ExpensesService {
     private prisma: PrismaService,
     private fileuploadService: FileuploadService,
     private bullmqService: BullmqService,
+    private cacheService: CacheService,
   ) {}
 
   async createExpense(
@@ -160,6 +162,7 @@ export class ExpensesService {
         }
       }
 
+      await this.cacheService.invalidateEntityDashboardCache(entityId);
       return expense;
     } catch (error) {
       if (error instanceof HttpException) throw error;
@@ -289,6 +292,7 @@ export class ExpensesService {
         );
       }
 
+      await this.cacheService.invalidateEntityDashboardCache(entityId);
       return updatedExpense;
     } catch (error) {
       if (error instanceof HttpException) throw error;
@@ -431,6 +435,7 @@ export class ExpensesService {
         }
       }
 
+      await this.cacheService.invalidateEntityDashboardCache(entityId);
       return updatedExpense;
     } catch (error) {
       if (error instanceof HttpException) throw error;
@@ -465,6 +470,7 @@ export class ExpensesService {
         where: { id: expenseId },
       });
 
+      await this.cacheService.invalidateEntityDashboardCache(entityId);
       return { message: 'Expense deleted successfully' };
     } catch (error) {
       if (error instanceof HttpException) throw error;
@@ -552,6 +558,7 @@ export class ExpensesService {
         }
       }
 
+      await this.cacheService.invalidateEntityDashboardCache(entityId);
       return updatedExpense;
     } catch (error) {
       if (error instanceof HttpException) throw error;

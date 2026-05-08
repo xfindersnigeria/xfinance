@@ -1,9 +1,10 @@
-import { Injectable, UnauthorizedException, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { MenuService } from '../menu/menu.service';
 import { SubscriptionService } from '../subscription/subscription.service';
 import { CacheService } from '../cache/cache.service';
 import { DEFAULT_CUSTOMIZATION } from '../settings/customization/dto/customization.dto';
+import { UpdateProfileDto, ChangePasswordDto } from './dto/profile.dto';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -34,8 +35,9 @@ export class AuthService {
 
   async login(email: string, pass: string, host?: string) {
     // ── Subdomain enforcement (SaaS mode only) ──────────────────────────
-    if (process.env.DEPLOYMENT_MODE !== 'standalone' && host) {
+    if (process.env.DEPLOYMENT_MODE !== 'standalone' && host && !host.startsWith('localhost')) {
       const subdomain = this.parseSubdomain(host);
+      console.log(host)
       
       if (!subdomain) {
         throw new ForbiddenException(
@@ -221,6 +223,9 @@ export class AuthService {
           lastName: user.lastName,
           image: user.image,
           systemRole: user.systemRole,
+          requirePasswordChange: user.requirePasswordChange,
+          department: user.department,
+          lastLogin: user.lastLogin,
         },
         group: null,
         role: null,
@@ -412,6 +417,9 @@ export class AuthService {
         lastName: userWithDetails.lastName,
         image: userWithDetails.image,
         systemRole: userWithDetails.systemRole,
+        requirePasswordChange: userWithDetails.requirePasswordChange,
+        department: userWithDetails.department,
+        lastLogin: userWithDetails.lastLogin,
       },
       group: groupInfo,
       role: userWithDetails.role ? {
@@ -465,6 +473,81 @@ export class AuthService {
     await this.cacheService.set(cacheKey, response, { ttl: 300 });
 
     return response;
+  }
+
+  async getProfile(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        department: true,
+        image: true,
+        requirePasswordChange: true,
+        lastLogin: true,
+        systemRole: true,
+        createdAt: true,
+      },
+    });
+
+    if (!user) throw new NotFoundException('User not found');
+    return user;
+  }
+
+  async updateProfile(userId: string, dto: UpdateProfileDto) {
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(dto.firstName !== undefined && { firstName: dto.firstName }),
+        ...(dto.lastName !== undefined && { lastName: dto.lastName }),
+        ...(dto.department !== undefined && { department: dto.department }),
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        department: true,
+        image: true,
+        requirePasswordChange: true,
+        lastLogin: true,
+        systemRole: true,
+      },
+    });
+
+    // Bust whoami cache so header + session reflect updated name
+    await this.cacheService.deletePattern(CacheService.keys.pattern.userContext(user.id));
+
+    return user;
+  }
+
+  async changePassword(userId: string, dto: ChangePasswordDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, password: true, groupId: true },
+    });
+
+    if (!user || !user.password) throw new NotFoundException('User not found');
+
+    const valid = await bcrypt.compare(dto.currentPassword, user.password);
+    if (!valid) throw new BadRequestException('Current password is incorrect');
+
+    const hashed = await bcrypt.hash(dto.newPassword, 12);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        password: hashed,
+        requirePasswordChange: false,
+      },
+    });
+
+    // Bust whoami cache so requirePasswordChange reflects false immediately
+    await this.cacheService.deletePattern(CacheService.keys.pattern.userContext(userId));
+
+    return { message: 'Password updated successfully' };
   }
 
 }

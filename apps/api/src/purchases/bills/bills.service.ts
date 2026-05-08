@@ -7,6 +7,7 @@ import { GetBillsQueryDto } from './dto/get-bills-query.dto';
 import { GetBillsResponseDto } from './dto/get-bills-response.dto';
 import { BillStatus } from 'prisma/generated/enums';
 import { generateBillReference, generateJournalReference } from '@/auth/utils/helper';
+import { CacheService } from '@/cache/cache.service';
 
 @Injectable()
 export class BillsService {
@@ -16,6 +17,7 @@ export class BillsService {
     private readonly prisma: PrismaService,
     private readonly fileuploadService: FileuploadService,
     private readonly bullmqService: BullmqService,
+    private readonly cacheService: CacheService,
   ) {}
 
   async createBill(
@@ -158,6 +160,7 @@ const { projectId, milestoneId, ...restBillData } = billData;
       }
     }
 
+    await this.cacheService.invalidateEntityDashboardCache(entityId);
     return bill;
   }
 
@@ -432,6 +435,7 @@ const { projectId, milestoneId, ...restBillData } = billData;
         }
       }
 
+      await this.cacheService.invalidateEntityDashboardCache(entityId);
       return this.getBillById(entityId, billId);
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
@@ -490,6 +494,7 @@ const { projectId, milestoneId, ...restBillData } = billData;
         throw new BadRequestException(`Failed to queue journal posting: ${queueError instanceof Error ? queueError.message : String(queueError)}`);
       }
 
+      await this.cacheService.invalidateEntityDashboardCache(entityId);
       return this.getBillById(entityId, billId);
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
@@ -517,6 +522,7 @@ const { projectId, milestoneId, ...restBillData } = billData;
         where: { id: billId },
       });
 
+      await this.cacheService.invalidateEntityDashboardCache(entityId);
       return { message: 'Bill deleted successfully' };
     } catch (error) {
       if (error instanceof BadRequestException) throw error;

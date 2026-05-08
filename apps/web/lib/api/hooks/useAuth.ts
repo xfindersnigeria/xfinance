@@ -10,6 +10,8 @@ import {
 import {
   loginUser,
   getProfile,
+  updateProfile,
+  changePassword,
   impersonateEntity,
   stopEntityImpersonation,
   impersonateGroup,
@@ -136,6 +138,35 @@ export const useProfile = () => {
     staleTime: 0,
     gcTime: 0,
     refetchOnWindowFocus: true,
+  });
+};
+
+export const useUpdateProfile = (
+  options?: Omit<UseMutationOptions<UserPayload, Error, { firstName?: string; lastName?: string; department?: string }>, "mutationFn">,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: updateProfile,
+    onSuccess: (data, variables, context, mutation) => {
+      queryClient.invalidateQueries({ queryKey: ["profile"] });
+      queryClient.invalidateQueries({ queryKey: ["whoami"] });
+      options?.onSuccess?.(data, variables, context, mutation);
+    },
+    ...options,
+  });
+};
+
+export const useChangePassword = (
+  options?: Omit<UseMutationOptions<{ message: string }, Error, { currentPassword: string; newPassword: string }>, "mutationFn">,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: changePassword,
+    onSuccess: (data, variables, context, mutation) => {
+      queryClient.invalidateQueries({ queryKey: ["whoami"] });
+      options?.onSuccess?.(data, variables, context, mutation);
+    },
+    ...options,
   });
 };
 

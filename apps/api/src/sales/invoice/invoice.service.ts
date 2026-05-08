@@ -24,6 +24,7 @@ import {
 import { BullmqService } from '@/bullmq/bullmq.service';
 import { PdfService } from '@/pdf/pdf.service';
 import { EmailService } from '@/email/email.service';
+import { CacheService } from '@/cache/cache.service';
 
 @Injectable()
 export class InvoiceService {
@@ -34,6 +35,7 @@ export class InvoiceService {
     private bullmqService: BullmqService,
     private pdfService: PdfService,
     private emailService: EmailService,
+    private cacheService: CacheService,
   ) {}
 
   /**
@@ -470,6 +472,7 @@ export class InvoiceService {
         }
       }
 
+      await this.cacheService.invalidateEntityDashboardCache(entityId);
       return result;
     } catch (error) {
       throw new HttpException(
@@ -926,6 +929,7 @@ export class InvoiceService {
         }
       }
 
+      await this.cacheService.invalidateEntityDashboardCache(entityId);
       return updatedInvoice;
     } catch (error) {
       if (
@@ -977,6 +981,7 @@ export class InvoiceService {
       // Log activity: Invoice Cancelled
       await this.logInvoiceCancelled(invoiceId, 'Invoice deleted', performedBy);
 
+      await this.cacheService.invalidateEntityDashboardCache(entityId);
       return { success: true };
     } catch (error) {
       if (error instanceof HttpException) throw error;
@@ -1296,6 +1301,7 @@ export class InvoiceService {
         }
       }
 
+      await this.cacheService.invalidateEntityDashboardCache(entityId);
       return updated;
     } catch (error) {
       if (
@@ -1488,6 +1494,7 @@ export class InvoiceService {
         invoice.groupId,
       );
 
+      await this.cacheService.invalidateEntityDashboardCache(entityId);
       return {
         message: `Invoice sent successfully to ${customerEmail}`,
         statusCode: 200,

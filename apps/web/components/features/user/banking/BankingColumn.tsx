@@ -13,7 +13,7 @@ import { getInitials } from "@/lib/utils";
 
 
 
-export const bankingColumns: Column<any>[] = [
+export const bankingColumns = (sym: string): Column<any>[] => [
   {
     key: "reference",
     title: "Ref",
@@ -57,7 +57,7 @@ export const bankingColumns: Column<any>[] = [
       const sign = isCredit ? "+" : "-";
       return (
         <span className={`font-semibold ${color}`}>
-          {sign}${Math.abs(amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+          {sign}{sym}{Math.abs(amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
         </span>
       );
     },

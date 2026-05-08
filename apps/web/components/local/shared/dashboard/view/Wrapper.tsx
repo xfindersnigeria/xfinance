@@ -9,6 +9,8 @@ import { ENUM_ROLE } from "@/lib/types/enums";
 import { useSessionStore } from "@/lib/store/session";
 
 import Header from "../../Header";
+import PasswordChangePrompt from "../../PasswordChangePrompt";
+import { useState } from "react";
 
 type ActiveContext = {
   realRole?: ENUM_ROLE;
@@ -30,11 +32,15 @@ export default function Wrapper({
   pageTitle?: string;
   role?: ENUM_ROLE;
 }) {
+  const [promptDismissed, setPromptDismissed] = useState(false);
   const user = useSessionStore((state) => state.user);
   const group = useSessionStore((state) => state.group);
   const entity = useSessionStore((state) => state.entity);
   const whoami = useSessionStore((state) => state.whoami);
   const loading = useSessionStore((state) => state.loading);
+
+  const showPasswordPrompt =
+    !promptDismissed && Boolean(whoami?.user?.requirePasswordChange);
 
   // console.log('📦 [Wrapper] Rendered with entityName:', whoami?.context?.currentEntity?.name);
 
@@ -62,6 +68,11 @@ export default function Wrapper({
           {children}
         </div>
       </SidebarInset>
+
+      <PasswordChangePrompt
+        open={showPasswordPrompt}
+        onDismiss={() => setPromptDismissed(true)}
+      />
     </SidebarProvider>
   );
 }

@@ -10,6 +10,8 @@ import {
   Store,
   Copy,
 } from "lucide-react";
+import { useState } from "react";
+import AccountSheet from "./AccountSheet";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,6 +55,7 @@ export default function Header({
   loading?: boolean;
   role: ENUM_ROLE;
 }) {
+  const [accountSheetOpen, setAccountSheetOpen] = useState(false);
   const router = useRouter();
   const whoami = useSessionStore((state) => state.whoami);
   const result = hasProductsMenu(whoami?.menus || []);
@@ -90,118 +93,128 @@ export default function Header({
   };
 
   return (
-    <header className="h-16 flex items-center justify-between bg-white border-b gap-2 shadow-none sticky px-2 top-0 z-10">
-      {/* Left Section */}
-      <div
-        className="flex items-center gap-2"
-        style={{ flexBasis: "40%", maxWidth: "40%" }}
-      >
-        <SidebarTrigger />
-        <CustomBreadcrumb
-          role={role}
-          activeContext={activeContext}
-          loading={loading}
-        />
-      </div>
+    <>
+      <header className="h-16 flex items-center justify-between bg-white border-b gap-2 shadow-none sticky px-2 top-0 z-10">
+        {/* Left Section */}
+        <div
+          className="flex items-center gap-2"
+          style={{ flexBasis: "40%", maxWidth: "40%" }}
+        >
+          <SidebarTrigger />
+          <CustomBreadcrumb
+            role={role}
+            activeContext={activeContext}
+            loading={loading}
+          />
+        </div>
 
-      {/* Right Section */}
-      <div className="flex flex-1 items-center justify-end gap-4">
-        {/* <Button
+        {/* Right Section */}
+        <div className="flex flex-1 items-center justify-end gap-4">
+          {/* <Button
           variant="outline"
           className="hidden items-center gap-2 border-green-200 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800 sm:flex"
         >
           <Circle className="size-3 fill-green-500 text-green-500" />
           <span className="font-semibold">Demo Mode</span>
         </Button> */}
-        {result && (
-          <Button className="hidden items-center gap-2 bg-green-600 font-semibold text-white hover:bg-green-700 sm:flex">
-            <Store className="size-4" />
-            Quick Sale
-          </Button>
-        )}
+          {result && (
+            <Button className="hidden items-center gap-2 bg-green-600 font-semibold text-white hover:bg-green-700 sm:flex">
+              <Store className="size-4" />
+              Quick Sale
+            </Button>
+          )}
 
-        <div className="relative w-full max-w-xs  hidden md:block">
-          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          <Input
-            placeholder="Search..."
-            className="rounded-full bg-gray-100 pl-10"
-          />
-        </div>
-        <div className=" md:hidden">
-          <SearchIcon className="size-4 text-muted-foreground" />
-        </div>
+          <div className="relative w-full max-w-xs  hidden md:block">
+            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <Input
+              placeholder="Search..."
+              className="rounded-full bg-gray-100 pl-10"
+            />
+          </div>
+          <div className=" md:hidden">
+            <SearchIcon className="size-4 text-muted-foreground" />
+          </div>
 
-        <div className="relative">
-          <Bell className="size-4 text-muted-foreground" />
-          <span className="absolute top-0 right-0 block h-2 w-2 rounded-full bg-red-500" />
-        </div>
+          <div className="relative">
+            <Bell className="size-4 text-muted-foreground" />
+            <span className="absolute top-0 right-0 block h-2 w-2 rounded-full bg-red-500" />
+          </div>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <div className="flex cursor-pointer items-center gap-3">
-              <Avatar className="size-6 rounded-full">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <div className="flex cursor-pointer items-center gap-3">
+                <Avatar className="size-6 rounded-full">
+                  {logout.isPending ? (
+                    <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                  ) : user ? (
+                    <AvatarImage
+                      src={
+                        user?.image?.secureUrl
+                          ? user.image.secureUrl
+                          : `https://api.dicebear.com/7.x/initials/png?seed=${encodeURIComponent(
+                              `${user?.firstName} ${user?.lastName}` || "user",
+                            )}`
+                      }
+                      alt={`${user?.firstName} ${user?.lastName}`}
+                    />
+                  ) : null}
+                </Avatar>
+                <div className="hidden md:flex md:flex-col md:items-start">
+                  <span className="font-lato text-sm font-semibold">
+                    {user?.firstName || "Anonymous"}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {contextLabel}
+                  </span>
+                </div>
                 {logout.isPending ? (
-                  <Loader2 className="size-4 animate-spin text-muted-foreground" />
-                ) : user ? (
-                  <AvatarImage
-                    src={
-                      user?.image?.secureUrl
-                        ? user.image.secureUrl
-                        : `https://api.dicebear.com/7.x/initials/png?seed=${encodeURIComponent(
-                          `${user?.firstName} ${user?.lastName}` || "user",
-                        )}`
-                    }
-                    alt={`${user?.firstName} ${user?.lastName}`}
-                  />
-                ) : null}
-              </Avatar>
-              <div className="hidden md:flex md:flex-col md:items-start">
-                <span className="font-lato text-sm font-semibold">
-                  {user?.firstName || "Anonymous"}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {contextLabel}
-                </span>
+                  <Loader2 className="ml-auto hidden text-muted-foreground md:block size-4 animate-spin text-primary" />
+                ) : (
+                  <ChevronDown className="ml-auto hidden size-4 text-muted-foreground md:block" />
+                )}
               </div>
-              {logout.isPending ? (
-                <Loader2 className="ml-auto hidden text-muted-foreground md:block size-4 animate-spin text-primary" />
-              ) : (
-                <ChevronDown className="ml-auto hidden size-4 text-muted-foreground md:block" />
-              )}
-            </div>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-56">
-            <DropdownMenuLabel>My Account</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              {activeContext?.effectiveRole === ENUM_ROLE.ADMIN && (
-                <DropdownMenuItem onClick={() => router.push("/subscription")}>
-                  <CreditCard className="mr-2 size-4" />
-                  <span>Subscription</span>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56">
+              <DropdownMenuLabel>My Account</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                {activeContext?.effectiveRole === ENUM_ROLE.ADMIN && (
+                  <DropdownMenuItem
+                    onClick={() => router.push("/subscription")}
+                  >
+                    <CreditCard className="mr-2 size-4" />
+                    <span>Subscription</span>
+                  </DropdownMenuItem>
+                )}
+                {activeContext?.effectiveRole !== ENUM_ROLE.SUPERADMIN &&
+                  activeContext?.subdomain && (
+                    <DropdownMenuItem
+                      onClick={() => {
+                        const url = `https://${activeContext.subdomain}.xfinance.ng/auth/login`;
+                        navigator.clipboard.writeText(url);
+                        toast.success("Login URL copied to clipboard");
+                      }}
+                    >
+                      <Copy className="mr-2 size-4" />
+                      <span>Copy Login URL</span>
+                    </DropdownMenuItem>
+                  )}
+                <DropdownMenuItem onClick={() => setAccountSheetOpen(true)}>
+                  <Pencil className="mr-2 size-4" />
+                  <span>Profile</span>
                 </DropdownMenuItem>
-              )}
-              {activeContext?.effectiveRole !== ENUM_ROLE.SUPERADMIN && activeContext?.subdomain && (
-                <DropdownMenuItem
-                  onClick={() => {
-                    const url = `https://${activeContext.subdomain}.xfinance.ng/auth/login`;
-                    navigator.clipboard.writeText(url);
-                    toast.success("Login URL copied to clipboard");
-                  }}
-                >
-                  <Copy className="mr-2 size-4" />
-                  <span>Copy Login URL</span>
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuItem>
-                <Pencil className="mr-2 size-4" />
-                <span>Profile</span>
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <Logout onLogout={handleLogout} />
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    </header>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              <Logout onLogout={handleLogout} />
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </header>
+
+      <AccountSheet
+        open={accountSheetOpen}
+        onOpenChange={setAccountSheetOpen}
+      />
+    </>
   );
 }

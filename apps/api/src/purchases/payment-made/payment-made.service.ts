@@ -2,6 +2,7 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { CreatePaymentMade } from './dto/paymet-made';
 import { BullmqService } from '@/bullmq/bullmq.service';
+import { CacheService } from '@/cache/cache.service';
 
 @Injectable()
 export class PaymentMadeService {
@@ -10,6 +11,7 @@ export class PaymentMadeService {
   constructor(
     private prisma: PrismaService,
     private bullmqService: BullmqService,
+    private cacheService: CacheService,
   ) {}
 
   async addPaymentMade(body: CreatePaymentMade, entityId: string, groupId: string) {
@@ -117,6 +119,7 @@ export class PaymentMadeService {
         );
       }
 
+      await this.cacheService.invalidateEntityDashboardCache(entityId);
       return paymentMade;
     } catch (error) {
       if (error instanceof HttpException) throw error;
@@ -331,6 +334,7 @@ export class PaymentMadeService {
         },
       });
 
+      await this.cacheService.invalidateEntityDashboardCache(entityId);
       return updatedPayment;
     } catch (error) {
       if (error instanceof HttpException) throw error;
@@ -373,6 +377,7 @@ export class PaymentMadeService {
         where: { id: paymentMadeId },
       });
 
+      await this.cacheService.invalidateEntityDashboardCache(entityId);
       return { message: 'Payment made deleted successfully' };
     } catch (error) {
       if (error instanceof HttpException) throw error;

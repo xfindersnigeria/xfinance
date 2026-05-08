@@ -5,12 +5,15 @@ import React from "react";
 import BankReconciliationCard from "./BankReconciliationCard";
 import { bankingColumns } from "./BankingColumn";
 import { useAccountTransactions } from "@/lib/api/hooks/useAccounts";
+import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 export function BankingTabs() {
   const { data: transactionsResponse, isLoading } = useAccountTransactions({
     type: "BANK",
     pageSize: 10,
   });
+    const sym = useEntityCurrencySymbol();
+  
 
   const transactions = (transactionsResponse as any)?.data || [];
   console.log(transactionsResponse, "Transactions response"); // Debug log to check the structure of the transactions data
@@ -26,7 +29,7 @@ export function BankingTabs() {
           <CustomTable
             tableTitle="Recent Transactions"
             tableSubtitle="Latest bank activity"
-            columns={bankingColumns}
+            columns={bankingColumns(sym)}
             data={transactions}
             pageSize={10}
             loading={isLoading}
