@@ -22,6 +22,7 @@ export function BudgetingForecastsHeader({ variant = 'budget' }: BudgetingForeca
 
   return (
     <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+     
       <div className="space-y-1">
         <h1 className="text-2xl font-bold tracking-tight">Budgeting &amp; Forecasts</h1>
         <p className="text-sm text-muted-foreground">

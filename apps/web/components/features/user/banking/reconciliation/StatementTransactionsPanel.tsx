@@ -7,10 +7,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { StatementTransaction, AddStatementTransactionForm } from "./types";
 import AddTransactionModal from "./AddTransactionModal";
-import ImportStatementModal from "./ImportStatementModal";
+import ImportStatementModal, { MappedRow } from "./ImportStatementModal";
 import { createId } from "@paralleldrive/cuid2";
-import { useImportStatement } from "@/lib/api/hooks/useBanking";
-import { toast } from "sonner";
 import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 interface StatementTransactionsPanelProps {
@@ -28,14 +26,12 @@ function formatAmount(amount: number, sym: string) {
 }
 
 export default function StatementTransactionsPanel({
-  bankAccountId,
   transactions,
   onChange,
 }: StatementTransactionsPanelProps) {
   const sym = useEntityCurrencySymbol();
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const importMutation = useImportStatement(bankAccountId);
 
   const unmatchedCount = transactions.filter((t) => !t.matched).length;
 
@@ -57,27 +53,17 @@ export default function StatementTransactionsPanel({
     onChange([...transactions, newTx]);
   };
 
-  const handleImport = (file: File) => {
-    importMutation.mutate(file, {
-      onSuccess: (result) => {
-        if (result.count === 0) {
-          toast.warning("No transactions found in file. Check the format and try again.");
-          return;
-        }
-        const imported: StatementTransaction[] = result.data.map((row) => ({
-          id: createId(),
-          date: row.date,
-          description: row.description,
-          reference: row.reference || "",
-          amount: row.amount,
-          category: row.category || undefined,
-          matched: false,
-        }));
-        onChange([...transactions, ...imported]);
-        toast.success(`Imported ${result.count} transaction${result.count !== 1 ? "s" : ""}`);
-        setImportOpen(false);
-      },
-    });
+  const handleImport = (rows: MappedRow[]) => {
+    const imported: StatementTransaction[] = rows.map((row) => ({
+      id: createId(),
+      date: row.date,
+      description: row.description,
+      reference: row.reference || "",
+      amount: row.amount,
+      matched: false,
+    }));
+    onChange([...transactions, ...imported]);
+    setImportOpen(false);
   };
 
   return (
@@ -99,10 +85,9 @@ export default function StatementTransactionsPanel({
             size="sm"
             className="flex-1 gap-1.5 text-xs"
             onClick={() => setImportOpen(true)}
-            disabled={importMutation.isPending}
           >
             <Upload className="w-3.5 h-3.5" />
-            {importMutation.isPending ? "Parsing..." : "Import Statement"}
+            Import Statement
           </Button>
           <Button
             variant="outline"

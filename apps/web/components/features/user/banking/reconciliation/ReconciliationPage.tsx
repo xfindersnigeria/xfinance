@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ReconciliationHeader from "./ReconciliationHeader";
 import ReconciliationSetup from "./ReconciliationSetup";
@@ -108,6 +108,62 @@ export default function ReconciliationPage({ bankAccountId }: ReconciliationPage
       .map((t) => ({ statementTransactionId: t.id, bookTransactionId: t.matchedBookId! })),
   });
 
+  // ─── Auto-match ───────────────────────────────────────────────────────────────
+  const runAutoMatch = useCallback(() => {
+    if (!statementTxs.length || !bookTxs.length) return;
+
+    const wordSet = (s: string) =>
+      new Set(s.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(Boolean));
+
+    const descSimilarity = (a: string, b: string): number => {
+      const sa = wordSet(a);
+      const sb = wordSet(b);
+      if (!sa.size || !sb.size) return 0;
+      let overlap = 0;
+      sa.forEach((w) => { if (sb.has(w)) overlap++; });
+      return overlap / Math.max(sa.size, sb.size);
+    };
+
+    const usedBookIds = new Set(
+      statementTxs.filter((t) => t.matchedBookId).map((t) => t.matchedBookId!),
+    );
+
+    let matchCount = 0;
+    const nextStmt = statementTxs.map((stmt) => {
+      if (stmt.matched && stmt.matchedBookId) return stmt;
+
+      const candidate = bookTxs.find((book) => {
+        if (usedBookIds.has(book.id)) return false;
+        const amountMatch = Math.abs(Math.abs(stmt.amount) - Math.abs(book.amount)) < 0.01;
+        if (!amountMatch) return false;
+        return descSimilarity(stmt.description, book.description) >= 0.25;
+      });
+
+      if (!candidate) return stmt;
+      usedBookIds.add(candidate.id);
+      matchCount++;
+      return { ...stmt, matched: true, matchedBookId: candidate.id };
+    });
+
+    const matchedBookIds = new Set(
+      nextStmt.filter((t) => t.matchedBookId).map((t) => t.matchedBookId!),
+    );
+    const nextBook = bookTxs.map((book) =>
+      matchedBookIds.has(book.id)
+        ? { ...book, matched: true, matchedStatementId: nextStmt.find((s) => s.matchedBookId === book.id)?.id }
+        : book,
+    );
+
+    setStatementTxs(nextStmt);
+    setBookTxs(nextBook);
+
+    if (matchCount > 0) {
+      toast.success(`Auto-matched ${matchCount} transaction${matchCount !== 1 ? "s" : ""}`);
+    } else {
+      toast.info("No new matches found — check amounts and descriptions");
+    }
+  }, [statementTxs, bookTxs]);
+
   // ─── Handlers ─────────────────────────────────────────────────────────────────
   const handleSaveProgress = () => {
     if (!setup.statementEndingDate) {
@@ -165,6 +221,19 @@ export default function ReconciliationPage({ bankAccountId }: ReconciliationPage
       <ReconciliationSummaryCards summary={summary} />
 
       <ReconciliationStatusBanner difference={summary.difference} />
+
+      <div className="flex justify-center">
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-2 text-xs border-primary/30 text-primary hover:bg-primary/5"
+          onClick={runAutoMatch}
+          disabled={!statementTxs.length || !bookTxs.length}
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          Auto Match Transactions
+        </Button>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-[500px]">
         <StatementTransactionsPanel

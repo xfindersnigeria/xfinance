@@ -713,6 +713,8 @@ model Account {
   entity              Entity               @relation(fields: [entityId], references: [id], onDelete: Cascade)
   subCategory         AccountSubCategory   @relation(fields: [subCategoryId], references: [id])
   budget              Budget[]
+  groupBudgets        GroupBudget[]
+  forecasts           Forecast[]
   paymentReceived     PaymentReceived[]
   paymentMade         PaymentMade[]
   bankAccount         BankAccount?         @relation("LinkedBankAccount")
@@ -848,6 +850,45 @@ model Budget {
 
   @@index([entityId])
   @@index([groupId])
+}
+
+model GroupBudget {
+  id         String   @id @default(cuid())
+  name       String
+  amount     Int
+  periodType String
+  period     String
+  fiscalYear String
+  note       String?
+  accountId  String
+  groupId    String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+  account    Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([groupId])
+  @@index([accountId])
+}
+
+model Forecast {
+  id              String   @id @default(cuid())
+  name            String
+  amount          Int
+  periodType      String
+  period          String
+  fiscalYear      String
+  confidenceLevel String   @default("Medium")
+  forecastMethod  String   @default("manual")
+  growthRate      Float?
+  note            String?
+  accountId       String
+  groupId         String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+  account         Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([groupId])
+  @@index([accountId])
 }
 
 model Employee {

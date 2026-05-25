@@ -201,7 +201,7 @@ export const setOpeningBalances = async (data: {
 export const createBudget = async (data: {
   name: string;
   periodType: string;
-  month: string;
+  month?: string;
   fiscalYear: string;
   note?: string;
   lines: Array<{
@@ -213,6 +213,182 @@ export const createBudget = async (data: {
     method: "POST",
     body: JSON.stringify(data),
   });
+};
+
+export const getBudgets = async (params?: {
+  periodType?: string;
+  period?: string;
+  fiscalYear?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}) => {
+  const q = new URLSearchParams();
+  if (params?.periodType) q.append("periodType", params.periodType);
+  if (params?.period) q.append("period", params.period);
+  if (params?.fiscalYear) q.append("fiscalYear", params.fiscalYear);
+  if (params?.search) q.append("search", params.search);
+  if (params?.page) q.append("page", params.page.toString());
+  if (params?.limit) q.append("limit", params.limit.toString());
+  const qs = q.toString();
+  return apiClient(qs ? `budget?${qs}` : "budget", { method: "GET" });
+};
+
+export const getBudgetVsActual = async (params?: {
+  periodType?: string;
+  period?: string;
+  fiscalYear?: string;
+}) => {
+  const q = new URLSearchParams();
+  if (params?.periodType) q.append("periodType", params.periodType);
+  if (params?.period) q.append("period", params.period);
+  if (params?.fiscalYear) q.append("fiscalYear", params.fiscalYear);
+  const qs = q.toString();
+  return apiClient(qs ? `budget/vs-actual?${qs}` : "budget/vs-actual", {
+    method: "GET",
+  });
+};
+
+export const getPreviousPeriodBudget = async (params: {
+  periodType: string;
+  period: string;
+  fiscalYear: string;
+}) => {
+  const q = new URLSearchParams({
+    periodType: params.periodType,
+    period: params.period,
+    fiscalYear: params.fiscalYear,
+  });
+  return apiClient(`budget/previous-period?${q.toString()}`, {
+    method: "GET",
+  });
+};
+
+export const deleteBudget = async (id: string) =>
+  apiClient(`budget/${id}`, { method: "DELETE" });
+
+/**
+ * Group Budget Endpoints
+ */
+export const createGroupBudget = async (data: {
+  name: string;
+  periodType: string;
+  month?: string;
+  fiscalYear: string;
+  note?: string;
+  lines: Array<{ accountId: string; amount: number }>;
+}) => {
+  return apiClient("budget/group", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+};
+
+export const getGroupBudgets = async (params?: {
+  periodType?: string;
+  period?: string;
+  fiscalYear?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}) => {
+  const q = new URLSearchParams();
+  if (params?.periodType) q.append("periodType", params.periodType);
+  if (params?.period) q.append("period", params.period);
+  if (params?.fiscalYear) q.append("fiscalYear", params.fiscalYear);
+  if (params?.search) q.append("search", params.search);
+  if (params?.page) q.append("page", params.page.toString());
+  if (params?.limit) q.append("limit", params.limit.toString());
+  const qs = q.toString();
+  return apiClient(qs ? `budget/group?${qs}` : "budget/group", { method: "GET" });
+};
+
+export const getGroupBudgetVsActual = async (params?: {
+  periodType?: string;
+  period?: string;
+  fiscalYear?: string;
+}) => {
+  const q = new URLSearchParams();
+  if (params?.periodType) q.append("periodType", params.periodType);
+  if (params?.period) q.append("period", params.period);
+  if (params?.fiscalYear) q.append("fiscalYear", params.fiscalYear);
+  const qs = q.toString();
+  return apiClient(
+    qs ? `budget/group/vs-actual?${qs}` : "budget/group/vs-actual",
+    { method: "GET" },
+  );
+};
+
+export const getGroupPreviousPeriodBudget = async (params: {
+  periodType: string;
+  period: string;
+  fiscalYear: string;
+}) => {
+  const q = new URLSearchParams({
+    periodType: params.periodType,
+    period: params.period,
+    fiscalYear: params.fiscalYear,
+  });
+  return apiClient(`budget/group/previous-period?${q.toString()}`, {
+    method: "GET",
+  });
+};
+
+export const deleteGroupBudget = async (id: string) =>
+  apiClient(`budget/group/${id}`, { method: "DELETE" });
+
+/**
+ * Forecast Endpoints
+ */
+export const createForecast = async (data: {
+  name: string;
+  periodType: string;
+  period?: string;
+  fiscalYear: string;
+  confidenceLevel?: string;
+  forecastMethod?: string;
+  note?: string;
+  lines: Array<{ accountId: string; amount: number; growthRate?: number }>;
+}) => {
+  return apiClient("forecast/group", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+};
+
+export const getForecasts = async (params?: {
+  periodType?: string;
+  period?: string;
+  fiscalYear?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}) => {
+  const q = new URLSearchParams();
+  if (params?.periodType) q.append("periodType", params.periodType);
+  if (params?.period) q.append("period", params.period);
+  if (params?.fiscalYear) q.append("fiscalYear", params.fiscalYear);
+  if (params?.search) q.append("search", params.search);
+  if (params?.page) q.append("page", params.page.toString());
+  if (params?.limit) q.append("limit", params.limit.toString());
+  const qs = q.toString();
+  return apiClient(
+    qs ? `forecast/group?${qs}` : "forecast/group",
+    { method: "GET" },
+  );
+};
+
+export const deleteForecast = async (params: {
+  periodType: string;
+  period: string;
+  fiscalYear: string;
+}) => {
+  const q = new URLSearchParams({
+    periodType: params.periodType,
+    period: params.period,
+    fiscalYear: params.fiscalYear,
+  });
+  return apiClient(`forecast/group?${q.toString()}`, { method: "DELETE" });
 };
 
 /**

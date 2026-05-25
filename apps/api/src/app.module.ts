@@ -29,6 +29,7 @@ import { AccountSubCategoryModule } from './accounts/account-subcategory/account
 import { JournalModule } from './accounts/journal/journal.module';
 import { LogModule } from './log/log.module';
 import { BudgetModule } from './accounts/budget/budget.module';
+import { ForecastModule } from './accounts/forecast/forecast.module';
 import { OpeningBalanceModule } from './accounts/opening-balance/opening-balance.module';
 import { AttendanceModule } from './hr-payroll/attendance/attendance.module';
 import { EmployeeModule } from './hr-payroll/employee/employee.module';
@@ -99,6 +100,7 @@ import { ReportsModule } from './reports/reports.module';
     JournalModule,
     LogModule,
     BudgetModule,
+    ForecastModule,
     OpeningBalanceModule,
     AttendanceModule,
     EmployeeModule,

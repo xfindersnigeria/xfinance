@@ -18,6 +18,14 @@ import {
   AccountTransactionsResponse,
   AccountTransactionTypeEnum,
   TransactionPostingStatusEnum,
+  BudgetListResponse,
+  BudgetVsActualResponse,
+  PreviousPeriodBudget,
+  GroupBudgetListResponse,
+  GroupBudgetVsActualResponse,
+  GroupPreviousPeriodBudget,
+  ForecastListResponse,
+  CreateForecastInput,
 } from "./types/accountsTypes";
 import { useModal } from "@/components/providers/ModalProvider";
 import { MODAL } from "@/lib/data/modal-data";
@@ -184,6 +192,238 @@ export const useCreateBudget = (
     onError: (error) => {
       toast.error(
         error instanceof Error ? error.message : "Failed to create budget",
+      );
+    },
+    ...options,
+  });
+};
+
+export const useBudgets = (params?: {
+  periodType?: string;
+  period?: string;
+  fiscalYear?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}) => {
+  return useQuery<BudgetListResponse>({
+    queryKey: [
+      "budgets",
+      "list",
+      params?.periodType,
+      params?.period,
+      params?.fiscalYear,
+      params?.search,
+      params?.page,
+      params?.limit,
+    ],
+    queryFn: () =>
+      accountsService.getBudgets(params) as Promise<BudgetListResponse>,
+    staleTime: 2 * 60 * 1000,
+    refetchOnWindowFocus: true,
+  });
+};
+
+export const useBudgetVsActual = (params?: {
+  periodType?: string;
+  period?: string;
+  fiscalYear?: string;
+}) => {
+  return useQuery<BudgetVsActualResponse>({
+    queryKey: [
+      "budgets",
+      "vsActual",
+      params?.periodType,
+      params?.period,
+      params?.fiscalYear,
+    ],
+    queryFn: () =>
+      accountsService.getBudgetVsActual(params) as Promise<BudgetVsActualResponse>,
+    staleTime: 2 * 60 * 1000,
+    refetchOnWindowFocus: true,
+  });
+};
+
+export const usePreviousPeriodBudget = (
+  params: { periodType: string; period: string; fiscalYear: string },
+  enabled = true,
+) => {
+  return useQuery<PreviousPeriodBudget>({
+    queryKey: [
+      "budgets",
+      "previousPeriod",
+      params.periodType,
+      params.period,
+      params.fiscalYear,
+    ],
+    queryFn: () =>
+      accountsService.getPreviousPeriodBudget(params) as Promise<PreviousPeriodBudget>,
+    enabled: enabled && !!params.periodType && !!params.fiscalYear,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+};
+
+export const useDeleteBudget = (
+  options?: UseMutationOptions<any, Error, string>,
+) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: accountsService.deleteBudget,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["budgets"] });
+      toast.success("Budget line deleted");
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to delete budget line",
+      );
+    },
+    ...options,
+  });
+};
+
+// ────────────────────────────────────────────────
+// Group Budgets
+// ────────────────────────────────────────────────
+
+export const useCreateGroupBudget = (
+  options?: UseMutationOptions<any, Error, any>,
+) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: accountsService.createGroupBudget,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["groupBudgets"] });
+      toast.success("Group budget created successfully");
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to create group budget",
+      );
+    },
+    ...options,
+  });
+};
+
+export const useGroupBudgets = (params?: {
+  periodType?: string;
+  period?: string;
+  fiscalYear?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}) => {
+  return useQuery<GroupBudgetListResponse>({
+    queryKey: ["groupBudgets", "list", params?.periodType, params?.period, params?.fiscalYear, params?.search, params?.page, params?.limit],
+    queryFn: () => accountsService.getGroupBudgets(params) as Promise<GroupBudgetListResponse>,
+    staleTime: 2 * 60 * 1000,
+    refetchOnWindowFocus: true,
+  });
+};
+
+export const useGroupBudgetVsActual = (params?: {
+  periodType?: string;
+  period?: string;
+  fiscalYear?: string;
+}) => {
+  return useQuery<GroupBudgetVsActualResponse>({
+    queryKey: ["groupBudgets", "vsActual", params?.periodType, params?.period, params?.fiscalYear],
+    queryFn: () => accountsService.getGroupBudgetVsActual(params) as Promise<GroupBudgetVsActualResponse>,
+    staleTime: 2 * 60 * 1000,
+    refetchOnWindowFocus: true,
+  });
+};
+
+export const useGroupPreviousPeriodBudget = (
+  params: { periodType: string; period: string; fiscalYear: string },
+  enabled = true,
+) => {
+  return useQuery<GroupPreviousPeriodBudget>({
+    queryKey: ["groupBudgets", "previousPeriod", params.periodType, params.period, params.fiscalYear],
+    queryFn: () => accountsService.getGroupPreviousPeriodBudget(params) as Promise<GroupPreviousPeriodBudget>,
+    enabled: enabled && !!params.periodType && !!params.fiscalYear,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+};
+
+export const useDeleteGroupBudget = (
+  options?: UseMutationOptions<any, Error, string>,
+) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: accountsService.deleteGroupBudget,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["groupBudgets"] });
+      toast.success("Group budget line deleted");
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to delete group budget line",
+      );
+    },
+    ...options,
+  });
+};
+
+// ────────────────────────────────────────────────
+// Forecasts
+// ────────────────────────────────────────────────
+
+export const useCreateForecast = (
+  options?: UseMutationOptions<any, Error, CreateForecastInput>,
+) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: accountsService.createForecast,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["forecasts"] });
+      toast.success("Forecast created successfully");
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to create forecast",
+      );
+    },
+    ...options,
+  });
+};
+
+export const useForecasts = (params?: {
+  periodType?: string;
+  period?: string;
+  fiscalYear?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}) => {
+  return useQuery<ForecastListResponse>({
+    queryKey: ["forecasts", "list", params?.periodType, params?.period, params?.fiscalYear, params?.search, params?.page, params?.limit],
+    queryFn: () => accountsService.getForecasts(params) as Promise<ForecastListResponse>,
+    staleTime: 2 * 60 * 1000,
+    refetchOnWindowFocus: true,
+  });
+};
+
+export const useDeleteForecast = (
+  options?: UseMutationOptions<any, Error, { periodType: string; period: string; fiscalYear: string }>,
+) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: accountsService.deleteForecast,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["forecasts"] });
+      toast.success("Forecast deleted");
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to delete forecast",
       );
     },
     ...options,

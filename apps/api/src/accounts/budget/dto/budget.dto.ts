@@ -4,6 +4,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsArray,
+  IsPositive,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -15,10 +16,10 @@ export class BudgetLineDto {
 
   @ApiProperty({
     example: 250000,
-    description: 'Budget amount for this account',
+    description: 'Budget amount in cents (e.g. 250000 = 2500.00)',
   })
   @IsInt()
-  @IsNotEmpty()
+  @IsPositive()
   amount: number;
 }
 
@@ -41,12 +42,13 @@ export class CreateBulkBudgetDto {
   periodType: string;
 
   @ApiProperty({
-    example: '2025-01',
-    description: 'Month (if applicable)',
+    example: 'November',
+    description: 'Period value: month name, quarter (Q1-Q4), or fiscal year for yearly budgets',
     required: false,
   })
+  @IsOptional()
   @IsString()
-  month: string;
+  month?: string;
 
   @ApiProperty({ example: '2025', description: 'Fiscal year — same for all' })
   @IsString()

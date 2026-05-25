@@ -107,6 +107,114 @@ export interface Budget {
   updatedAt?: string;
 }
 
+// Budget list item (from GET /budget)
+export interface BudgetListItem {
+  id: string;
+  name: string;
+  periodType: string;
+  period: string;
+  fiscalYear: string;
+  note?: string;
+  amount: number;
+  accountId: string;
+  accountCode: string;
+  accountName: string;
+  accountCategory: string;
+  createdAt: string;
+}
+
+export interface BudgetListResponse {
+  data: BudgetListItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+// Budget vs Actual (from GET /budget/vs-actual)
+export interface BudgetVsActualItem {
+  accountId: string;
+  account: string;      // "6000 – Payroll Expenses"
+  accountCode: string;
+  accountName: string;
+  accountCategory: string;
+  budgeted: number;
+  actual: number;
+  variance: number;
+  variancePercentage: number;
+}
+
+export interface BudgetVsActualSummary {
+  totalBudgeted: number;
+  totalActual: number;
+  totalVariance: number;
+}
+
+export interface BudgetVsActualResponse {
+  data: BudgetVsActualItem[];
+  summary: BudgetVsActualSummary;
+  periodType: string;
+  period: string;
+  fiscalYear: string;
+}
+
+// Previous period budget (from GET /budget/previous-period)
+export interface PreviousPeriodLine {
+  accountId: string;
+  accountCode: string;
+  accountName: string;
+  amount: number;
+}
+
+export interface PreviousPeriodBudget {
+  period: string;
+  fiscalYear: string;
+  lines: PreviousPeriodLine[];
+}
+
+// Group Budget types (from GET /budget/group)
+export interface GroupBudgetListItem extends BudgetListItem {}
+export interface GroupBudgetListResponse extends BudgetListResponse {}
+export interface GroupBudgetVsActualResponse extends BudgetVsActualResponse {}
+export interface GroupPreviousPeriodBudget extends PreviousPeriodBudget {}
+
+// Forecast types (from GET /forecast/group)
+export interface ForecastItem {
+  id: string;
+  name: string;
+  periodType: string;
+  period: string;
+  fiscalYear: string;
+  periodLabel: string;
+  confidenceLevel: string;
+  forecastMethod: string;
+  note: string | null;
+  revenue: number;
+  expenses: number;
+  netProfit: number;
+  marginPct: number;
+  createdAt: string;
+}
+
+export interface ForecastListResponse {
+  data: ForecastItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface CreateForecastInput {
+  name: string;
+  periodType: string;
+  period?: string;
+  fiscalYear: string;
+  confidenceLevel?: string;
+  forecastMethod?: string;
+  note?: string;
+  lines: { accountId: string; amount: number; growthRate?: number }[];
+}
+
 // Journal Line Interface
 export interface JournalLine {
   account: string;

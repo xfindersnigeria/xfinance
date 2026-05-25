@@ -78,6 +78,8 @@ export default function BankAccountLedger() {
     };
   }, [accountData?.stats, profile.currentBalance]);
 
+  console.log(accountData, "account data")
+
   if (accountLoading) {
     return (
       <div className="space-y-4 p-4">
@@ -98,6 +100,7 @@ export default function BankAccountLedger() {
 
       {/* Transactions */}
       <BankTransactions
+        bankAccountId={accountId}
         transactions={transactions}
         isLoading={transactionsLoading}
       />

@@ -4,6 +4,7 @@ import React from 'react';
 import { TrendingUp, Target, AlertCircle, Percent } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { useGroupCurrencySymbol, fmtAmountCompact } from '@/lib/api/hooks/useCurrencyFormat';
+import { useGroupBudgetVsActual } from '@/lib/api/hooks/useAccounts';
 
 interface StatCardProps {
   title: string;
@@ -32,33 +33,59 @@ function StatCard({ title, value, subtitle, icon, className = '' }: StatCardProp
 
 export function BudgetStatsCards() {
   const sym = useGroupCurrencySymbol();
+  const currentYear = String(new Date().getFullYear());
+
+  const { data: vsActual, isLoading } = useGroupBudgetVsActual({
+    periodType: 'Yearly',
+    period: currentYear,
+    fiscalYear: currentYear,
+  });
+
+  const summary = vsActual?.summary;
+  const budgeted = summary?.totalBudgeted ?? 0;
+  const actual = summary?.totalActual ?? 0;
+  const variance = summary?.totalVariance ?? 0;
+  const utilization = budgeted > 0 ? ((actual / budgeted) * 100).toFixed(1) : '—';
+
+  if (isLoading) {
+    return (
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Card key={i} className="border border-gray-200 bg-white p-6 animate-pulse">
+            <div className="h-4 w-24 bg-gray-200 rounded mb-3" />
+            <div className="h-8 w-32 bg-gray-200 rounded" />
+          </Card>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
       <StatCard
-        title="Group Budget FY2025"
-        value={fmtAmountCompact(11400000, sym)}
+        title={`Group Budget FY${currentYear}`}
+        value={fmtAmountCompact(budgeted, sym)}
         subtitle="Annual allocation"
         icon={<Target className="h-5 w-5 text-primary" />}
         className="border-indigo-200 bg-indigo-50"
       />
       <StatCard
         title="YTD Actual"
-        value={fmtAmountCompact(11220000, sym)}
+        value={fmtAmountCompact(actual, sym)}
         subtitle="Year-to-date spending"
         icon={<TrendingUp className="h-5 w-5 text-green-600" />}
         className="border-green-200 bg-green-50"
       />
       <StatCard
         title="Variance"
-        value={fmtAmountCompact(180000, sym)}
-        subtitle="Positive variance"
-        icon={<AlertCircle className="h-5 w-5 text-orange-600" />}
-        className="border-orange-200 bg-orange-50"
+        value={`${variance >= 0 ? '+' : ''}${fmtAmountCompact(Math.abs(variance), sym)}`}
+        subtitle={variance >= 0 ? 'Positive variance' : 'Negative variance'}
+        icon={<AlertCircle className={`h-5 w-5 ${variance >= 0 ? 'text-green-600' : 'text-red-600'}`} />}
+        className={variance >= 0 ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}
       />
       <StatCard
         title="Budget Utilization"
-        value="98.4%"
+        value={budgeted > 0 ? `${utilization}%` : '—'}
         subtitle="Of allocated budget"
         icon={<Percent className="h-5 w-5 text-primary" />}
         className="border-indigo-200 bg-indigo-50"
