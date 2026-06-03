@@ -36,6 +36,8 @@ export default function AccountDetails() {
   const { data: fetchedAccount, isLoading: accountLoading } =
     useAccount(accountId);
 
+    console.log("Fetched account data:", fetchedAccount); // Debug log to check the structure of the fetched account data
+
   const { data: transactionsResponse, isLoading: transactionsLoading } =
     useAccountTransactionsByAccountId(accountId, {
       pageSize: 50,
@@ -62,23 +64,27 @@ export default function AccountDetails() {
     };
   }, [accountData]);
 
-  // Derive Stats Data
-  const stats: AccountStats = useMemo(() => {
-    if (!accountData) return mockStats;
+  // Derive Stats Data — sum actual transaction amounts rather than guessing from net balance
+  const stats: AccountStats & { transactionCount: number } = useMemo(() => {
+    if (!accountData) return { ...mockStats, transactionCount: 0 };
 
-    // Calculate debits and credits based on account type balance
-    // For Asset accounts: debits increase the balance
-    // For Liability/Equity/Revenue/Expense accounts: credits increase the balance
-    const totalDebits = Math.max(accountData.balance, 0);
-    const totalCredits = Math.abs(Math.min(accountData.balance, 0));
+    const totalDebits = transactions.reduce(
+      (sum: number, tx: any) => sum + (tx.debitAmount || 0),
+      0,
+    );
+    const totalCredits = transactions.reduce(
+      (sum: number, tx: any) => sum + (tx.creditAmount || 0),
+      0,
+    );
 
     return {
       currentBalance: accountData.balance || 0,
-      totalDebits: totalDebits,
-      totalCredits: totalCredits,
+      totalDebits,
+      totalCredits,
+      transactionCount: transactions.length,
       currency: accountData.currency || "NGN",
     };
-  }, [accountData]);
+  }, [accountData, transactions]);
 
   if (accountLoading) {
     return (
@@ -95,14 +101,12 @@ export default function AccountDetails() {
     );
   }
 
-  console.log(transactions, transactionsResponse, "Transactions for account"); // Debug log to check transactions data
-
   return (
     <div className="space-y-4">
       {/* Profile Header */}
       <AccountProfileHeader profile={profile} onBack={() => router.back()} />
       {/* Stats Cards */}
-      <AccountStatsCard stats={stats} />
+      <AccountStatsCard stats={stats} typeName={profile.typeName} />
       {/* Transactions */}
       <AccountTransactions
         transactions={transactions}

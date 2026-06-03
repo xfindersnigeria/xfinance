@@ -55,6 +55,8 @@ export interface RecentTransaction {
   description: string;
   reference: string;
   type: string;
+  direction: 'in' | 'out';
+  accountName: string;
   debit: number;
   credit: number;
   amount: number;

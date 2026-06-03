@@ -51,10 +51,12 @@ export const bankingColumns = (sym: string): Column<any>[] => [
     title: "Amount",
     className: "text-xs",
     render: (value, row) => {
-      const isCredit = typeof row.creditAmount === 'number' && row.creditAmount > 0;
-      const amount = isCredit ? row.creditAmount : row.debitAmount || 0;
-      const color = isCredit ? "text-green-600" : "text-red-600";
-      const sign = isCredit ? "+" : "-";
+      // Convention (Xero / QuickBooks): money IN to the bank = debitAmount > 0 = shown as green (+)
+      // Money OUT of the bank = creditAmount > 0 = shown as red (-)
+      const isDeposit = typeof row.debitAmount === 'number' && row.debitAmount > 0;
+      const amount = isDeposit ? row.debitAmount : row.creditAmount || 0;
+      const color = isDeposit ? "text-green-600" : "text-red-600";
+      const sign = isDeposit ? "+" : "-";
       return (
         <span className={`font-semibold ${color}`}>
           {sign}{sym}{Math.abs(amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}

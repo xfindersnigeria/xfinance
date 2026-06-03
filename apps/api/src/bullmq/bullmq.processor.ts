@@ -29,6 +29,51 @@ export class BullmqProcessor extends WorkerHost {
     super();
   }
 
+  /**
+   * Fetch account type metadata and linked bank account for a single account.
+   * Used by all journal posting handlers to apply the correct balance direction.
+   *
+   * Convention (matches opening-balance service and manual journal handler):
+   *   Assets / Expenses  → debit increases balance  (isDebitNormal = true)
+   *   Liabilities / Revenue / Equity → credit increases balance (isDebitNormal = false)
+   *
+   * Both formulas give the same result for asset accounts (bank, cash, A/R),
+   * so bank balance tests are unaffected regardless of prior data.
+   */
+  private async resolveAccountMeta(
+    tx: any,
+    accountId: string,
+  ): Promise<{ isDebitNormal: boolean; hasBankAccount: boolean }> {
+    const account = await tx.account.findUnique({
+      where: { id: accountId },
+      select: {
+        subCategory: {
+          select: {
+            category: {
+              select: { type: { select: { name: true } } },
+            },
+          },
+        },
+        bankAccount: { select: { id: true } },
+      },
+    });
+    const typeName: string | undefined =
+      account?.subCategory?.category?.type?.name;
+    return {
+      isDebitNormal: typeName === 'Assets' || typeName === 'Expenses',
+      hasBankAccount: !!account?.bankAccount,
+    };
+  }
+
+  /** Apply the posting-rules balance delta for one journal line. */
+  private balanceDelta(
+    isDebitNormal: boolean,
+    debit: number,
+    credit: number,
+  ): number {
+    return isDebitNormal ? debit - credit : credit - debit;
+  }
+
   async process(job: Job): Promise<any> {
     this.logger.debug(`[Job ${job.id}] Starting job: ${job.name}`);
     if (job.name === 'create-group-user') {
@@ -719,23 +764,22 @@ export class BullmqProcessor extends WorkerHost {
           },
         });
 
-        // Get current account balances and update them
-        const accountBalances = await Promise.all(
-          journalLines.map((line) =>
-            tx.account.findUnique({
-              where: { id: line.accountId },
-              select: { balance: true },
-            }),
-          ),
+        // Resolve account type + bank linking, then apply correct balance direction
+        const accountMeta = await Promise.all(
+          journalLines.map((line) => this.resolveAccountMeta(tx, line.accountId)),
         );
 
         const updatedAccounts = await Promise.all(
-          journalLines.map((line) =>
+          journalLines.map((line, index) =>
             tx.account.update({
               where: { id: line.accountId },
               data: {
                 balance: {
-                  increment: line.debit - line.credit,
+                  increment: this.balanceDelta(
+                    accountMeta[index].isDebitNormal,
+                    line.debit,
+                    line.credit,
+                  ),
                 },
               },
               select: { balance: true },
@@ -743,28 +787,15 @@ export class BullmqProcessor extends WorkerHost {
           ),
         );
 
-        // Fetch account details to check for bank linking
-        const accountsWithBanksInvoice = await Promise.all(
-          journalLines.map((line) =>
-            tx.account.findUnique({
-              where: { id: line.accountId },
-              select: {
-                balance: true,
-                bankAccount: { select: { id: true } },
-              },
-            }),
-          ),
-        );
-
         // Create account transactions for each journal line with running balance
         await Promise.all(
           journalLines.map((line, index) => {
-            const accountWithBank = accountsWithBanksInvoice[index];
+            const accountWithBank = accountMeta[index];
             const txData: any = {
               date: postedAt,
               description: `Invoice ${invoiceData.invoiceNumber} posted to journal`,
               reference: journalRef,
-              type: accountWithBank?.bankAccount ? 'BANK' : 'INVOICE_POSTING',
+              type: accountWithBank?.hasBankAccount ? 'BANK' : 'INVOICE_POSTING',
               status: 'Success',
               accountId: line.accountId,
               debitAmount: line.debit,
@@ -940,53 +971,40 @@ export class BullmqProcessor extends WorkerHost {
           },
         });
 
-        // Get account details including linked bank accounts
-        const accountsWithBanks = await Promise.all(
-          journalLines.map((line) =>
-            tx.account.findUnique({
-              where: { id: line.accountId },
-              select: {
-                balance: true,
-                bankAccount: { select: { id: true } },
-              },
-            }),
-          ),
+        // Resolve account type + bank linking, then apply correct balance direction
+        const accountMeta = await Promise.all(
+          journalLines.map((line) => this.resolveAccountMeta(tx, line.accountId)),
         );
 
-        // Update GL accounts and linked bank accounts
         const updatedAccounts = await Promise.all(
-          journalLines.map((line, index) => {
-            const accountWithBank = accountsWithBanks[index];
-            const promises: any[] = [];
-
-            // Update GL account
-            promises.push(
-              tx.account.update({
-                where: { id: line.accountId },
-                data: {
-                  balance: {
-                    increment: line.debit - line.credit,
-                  },
+          journalLines.map((line, index) =>
+            tx.account.update({
+              where: { id: line.accountId },
+              data: {
+                balance: {
+                  increment: this.balanceDelta(
+                    accountMeta[index].isDebitNormal,
+                    line.debit,
+                    line.credit,
+                  ),
                 },
-                select: { balance: true },
-              }),
-            );
-
-            return Promise.all(promises);
-          }),
+              },
+              select: { balance: true },
+            }),
+          ),
         );
 
         // Create account transactions for each journal line with running balance
         await Promise.all(
           journalLines.map((line, index) => {
-            const accountWithBank = accountsWithBanks[index];
-            const glAccountUpdate = updatedAccounts[index][0];
+            const accountWithBank = accountMeta[index];
+            const glAccountUpdate = updatedAccounts[index];
 
             const txData: any = {
               date: postedAt,
               description: `Payment ${paymentData.paymentNumber} received and posted to journal`,
               reference: journalRef,
-              type: accountWithBank?.bankAccount
+              type: accountWithBank?.hasBankAccount
                 ? 'BANK'
                 : 'PAYMENT_RECEIVED_POSTING',
               status: 'Success',
@@ -1245,23 +1263,22 @@ export class BullmqProcessor extends WorkerHost {
           },
         });
 
-        // Get current account balances and update them
-        const accountBalances = await Promise.all(
-          journalLines.map((line) =>
-            tx.account.findUnique({
-              where: { id: line.accountId },
-              select: { balance: true },
-            }),
-          ),
+        // Resolve account type + bank linking, then apply correct balance direction
+        const accountMeta = await Promise.all(
+          journalLines.map((line) => this.resolveAccountMeta(tx, line.accountId)),
         );
 
         const updatedAccounts = await Promise.all(
-          journalLines.map((line) =>
+          journalLines.map((line, index) =>
             tx.account.update({
               where: { id: line.accountId },
               data: {
                 balance: {
-                  increment: line.debit - line.credit,
+                  increment: this.balanceDelta(
+                    accountMeta[index].isDebitNormal,
+                    line.debit,
+                    line.credit,
+                  ),
                 },
               },
               select: { balance: true },
@@ -1269,28 +1286,15 @@ export class BullmqProcessor extends WorkerHost {
           ),
         );
 
-        // Fetch account details to check for bank linking
-        const accountsWithBanksReceipt = await Promise.all(
-          journalLines.map((line) =>
-            tx.account.findUnique({
-              where: { id: line.accountId },
-              select: {
-                balance: true,
-                bankAccount: { select: { id: true } },
-              },
-            }),
-          ),
-        );
-
         // Create account transactions for each journal line with running balance
         await Promise.all(
           journalLines.map((line, index) => {
-            const accountWithBank = accountsWithBanksReceipt[index];
+            const accountWithBank = accountMeta[index];
             const txData: any = {
               date: postedAt,
               description: `Receipt ${receiptData.receiptNumber} posted to journal`,
               reference: journalRef,
-              type: accountWithBank?.bankAccount ? 'BANK' : 'RECEIPT_POSTING',
+              type: accountWithBank?.hasBankAccount ? 'BANK' : 'RECEIPT_POSTING',
               status: 'Success',
               accountId: line.accountId,
               debitAmount: line.debit,
@@ -1516,14 +1520,22 @@ export class BullmqProcessor extends WorkerHost {
           },
         });
 
-        // Get current account balances and update them
+        // Resolve account type + bank linking, then apply correct balance direction
+        const accountMeta = await Promise.all(
+          journalLines.map((line) => this.resolveAccountMeta(tx, line.accountId)),
+        );
+
         const updatedAccounts = await Promise.all(
-          journalLines.map((line) =>
+          journalLines.map((line, index) =>
             tx.account.update({
               where: { id: line.accountId },
               data: {
                 balance: {
-                  increment: line.debit - line.credit,
+                  increment: this.balanceDelta(
+                    accountMeta[index].isDebitNormal,
+                    line.debit,
+                    line.credit,
+                  ),
                 },
               },
               select: { balance: true },
@@ -1531,28 +1543,15 @@ export class BullmqProcessor extends WorkerHost {
           ),
         );
 
-        // Fetch account details to check for bank linking
-        const accountsWithBanksBill = await Promise.all(
-          journalLines.map((line) =>
-            tx.account.findUnique({
-              where: { id: line.accountId },
-              select: {
-                balance: true,
-                bankAccount: { select: { id: true } },
-              },
-            }),
-          ),
-        );
-
         // Create account transactions for each journal line with running balance
         await Promise.all(
           journalLines.map((line, index) => {
-            const accountWithBank = accountsWithBanksBill[index];
+            const accountWithBank = accountMeta[index];
             const txData: any = {
               date: postedAt,
               description: `Bill ${billData.billNumber} posted to journal`,
               reference: journalRef,
-              type: accountWithBank?.bankAccount ? 'BANK' : 'BILL_POSTING',
+              type: accountWithBank?.hasBankAccount ? 'BANK' : 'BILL_POSTING',
               status: 'Success',
               accountId: line.accountId,
               debitAmount: line.debit,
@@ -1755,14 +1754,22 @@ export class BullmqProcessor extends WorkerHost {
           },
         });
 
-        // Get current account balances and update them
+        // Resolve account type + bank linking, then apply correct balance direction
+        const accountMeta = await Promise.all(
+          journalLines.map((line) => this.resolveAccountMeta(tx, line.accountId)),
+        );
+
         const updatedAccounts = await Promise.all(
-          journalLines.map((line) =>
+          journalLines.map((line, index) =>
             tx.account.update({
               where: { id: line.accountId },
               data: {
                 balance: {
-                  increment: line.debit - line.credit,
+                  increment: this.balanceDelta(
+                    accountMeta[index].isDebitNormal,
+                    line.debit,
+                    line.credit,
+                  ),
                 },
               },
               select: { balance: true },
@@ -1770,28 +1777,15 @@ export class BullmqProcessor extends WorkerHost {
           ),
         );
 
-        // Fetch account details to check for bank linking
-        const accountsWithBanksExpense = await Promise.all(
-          journalLines.map((line) =>
-            tx.account.findUnique({
-              where: { id: line.accountId },
-              select: {
-                balance: true,
-                bankAccount: { select: { id: true } },
-              },
-            }),
-          ),
-        );
-
         // Create account transactions for each journal line with running balance
         await Promise.all(
           journalLines.map((line, index) => {
-            const accountWithBank = accountsWithBanksExpense[index];
+            const accountWithBank = accountMeta[index];
             const txData: any = {
               date: postedAt,
               description: `Expense ${expenseData.reference} posted to journal`,
               reference: journalRef,
-              type: accountWithBank?.bankAccount ? 'BANK' : 'EXPENSE_POSTING',
+              type: accountWithBank?.hasBankAccount ? 'BANK' : 'EXPENSE_POSTING',
               status: 'Success',
               accountId: line.accountId,
               debitAmount: line.debit,
@@ -1977,14 +1971,22 @@ export class BullmqProcessor extends WorkerHost {
           },
         });
 
-        // Get current account balances and update them
+        // Resolve account type + bank linking, then apply correct balance direction
+        const accountMeta = await Promise.all(
+          journalLines.map((line) => this.resolveAccountMeta(tx, line.accountId)),
+        );
+
         const updatedAccounts = await Promise.all(
-          journalLines.map((line) =>
+          journalLines.map((line, index) =>
             tx.account.update({
               where: { id: line.accountId },
               data: {
                 balance: {
-                  increment: line.debit - line.credit,
+                  increment: this.balanceDelta(
+                    accountMeta[index].isDebitNormal,
+                    line.debit,
+                    line.credit,
+                  ),
                 },
               },
               select: { balance: true },
@@ -1992,28 +1994,15 @@ export class BullmqProcessor extends WorkerHost {
           ),
         );
 
-        // Fetch account details to check for bank linking
-        const accountsWithBanksPaymentMade = await Promise.all(
-          journalLines.map((line) =>
-            tx.account.findUnique({
-              where: { id: line.accountId },
-              select: {
-                balance: true,
-                bankAccount: { select: { id: true } },
-              },
-            }),
-          ),
-        );
-
         // Create account transactions for each journal line with running balance
         await Promise.all(
           journalLines.map((line, index) => {
-            const accountWithBank = accountsWithBanksPaymentMade[index];
+            const accountWithBank = accountMeta[index];
             const txData: any = {
               date: postedAt,
               description: `Payment Made ${paymentData.reference} posted to journal`,
               reference: journalRef,
-              type: accountWithBank?.bankAccount
+              type: accountWithBank?.hasBankAccount
                 ? 'BANK'
                 : 'PAYMENT_MADE_POSTING',
               status: 'Success',
@@ -2247,7 +2236,7 @@ export class BullmqProcessor extends WorkerHost {
             // Determine account type (Asset, Liability, Equity, Revenue, Expense)
             const accountType = account.subCategory.category.type.name;
             const isDebitNormal =
-              accountType === 'Asset' || accountType === 'Expense';
+              accountType === 'Assets' || accountType === 'Expenses';
 
             // Calculate balance change based on posting rules
             let balanceChange = 0;

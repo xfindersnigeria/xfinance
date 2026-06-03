@@ -243,8 +243,8 @@ export class BankingService {
     });
 
     const stats = {
-      totalDeposits: transactions.reduce((sum, tx) => sum + tx.creditAmount, 0),
-      totalWithdrawals: transactions.reduce((sum, tx) => sum + tx.debitAmount, 0),
+      totalDeposits: transactions.reduce((sum, tx) => sum + tx.debitAmount, 0),
+      totalWithdrawals: transactions.reduce((sum, tx) => sum + tx.creditAmount, 0),
       pendingCount: transactions.filter((tx) => tx.status === 'Pending').length,
       transactionsCount: transactions.length,
     };

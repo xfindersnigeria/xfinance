@@ -765,6 +765,8 @@ export class AnalyticsService {
         description: tx.description,
         reference: tx.reference || '',
         type: tx.type,
+        direction: tx.debitAmount > 0 ? 'in' : 'out',
+        accountName: tx.account?.name || '',
         debit: tx.debitAmount,
         credit: tx.creditAmount,
         amount: Math.max(tx.debitAmount, tx.creditAmount),

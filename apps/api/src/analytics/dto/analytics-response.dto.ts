@@ -57,6 +57,9 @@ export class RecentTransactionDto {
   description: string;
   reference: string;
   type: string;
+  /** 'in' = money into bank (debit to GL account), 'out' = money out (credit to GL account) */
+  direction: 'in' | 'out';
+  accountName: string;
   debit: number;
   credit: number;
   amount: number;

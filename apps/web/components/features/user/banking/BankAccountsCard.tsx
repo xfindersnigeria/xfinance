@@ -61,11 +61,13 @@ export default function BankAccountsCard() {
               <div className="text-right">
                 <div className="text-2xl font-bold text-foreground">
                   {new Intl.NumberFormat("en-US", {
-                    style: "currency",
-                    currency: acc.currency || "USD",
+                    style: "decimal",
+                    // currency: acc.currency || "USD",
                   }).format(acc.linkedAccount?.balance || 0)}
                 </div>
-                <div className="text-xs text-muted-foreground">{acc.currency}</div>
+                <div className="text-xs text-muted-foreground">
+                  {acc.currency}
+                </div>
               </div>
             </div>
           ))}

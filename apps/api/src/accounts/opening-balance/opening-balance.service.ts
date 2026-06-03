@@ -360,7 +360,7 @@ export class OpeningBalanceService {
           const accType = accountDetail.subCategory?.category?.type?.name;
           let balanceChange = 0;
 
-          if (accType === 'Asset' || accType === 'Expense') {
+          if (accType === 'Assets' || accType === 'Expenses') {
             // Assets/Expenses: Debit increases, Credit decreases
             balanceChange = line.debit - line.credit;
           } else {

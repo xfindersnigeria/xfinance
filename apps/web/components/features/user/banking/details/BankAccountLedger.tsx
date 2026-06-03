@@ -31,6 +31,8 @@ export default function BankAccountLedger() {
   const transactions: AccountTransaction[] =
     (transactionsResponse as any)?.data || [];
   // Derive Profile Data
+
+  console.log(transactions, "transactions data")
   const profile: BankAccountProfile = useMemo(() => {
     if (!accountData) {
       return {
