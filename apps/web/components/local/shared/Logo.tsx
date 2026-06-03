@@ -13,7 +13,7 @@ export default function Logo({
 }) {
   const src = logoUrl || "/images/logo.png";
   return (
-    <div className={`flex ${className ?? ""}`}>
+    <div className={`flex items-center justify-center ${className ?? ""}`}>
       <Image
         src={src}
         alt="Logo"

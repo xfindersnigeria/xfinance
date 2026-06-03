@@ -25,11 +25,14 @@ export function createBudgetColumns(sym: string): Column<any>[] {
       key: "actual",
       title: "Actual",
       className: "text-xs text-right",
-      render: (value) => (
-        <span className="text-gray-900 font-medium">
-          {value ? `${sym}${parseFloat(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `${sym}0.00`}
-        </span>
-      ),
+      render: (value, row) => {
+        console.log("Actual value:", row);
+        return (
+          <span className="text-gray-900 font-medium">
+            {value ? `${sym}${parseFloat(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `${sym}0.00`}
+          </span>
+        );
+      },
     },
     {
       key: "variance",
