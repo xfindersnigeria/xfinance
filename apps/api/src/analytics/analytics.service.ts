@@ -37,7 +37,7 @@ export class AnalyticsService {
   async getDashboardData(
     entityId: string,
     monthlyFilter: DateFilterEnum = DateFilterEnum.THIS_YEAR,
-    cashFlowFilter: DateFilterEnum = DateFilterEnum.LAST_12_MONTHS,
+    cashFlowFilter: DateFilterEnum = DateFilterEnum.THIS_FISCAL_YEAR,
     expensesFilter: DateFilterEnum = DateFilterEnum.THIS_YEAR,
   ): Promise<DashboardResponseDto> {
     try {
@@ -418,54 +418,60 @@ export class AnalyticsService {
    */
   async getCashFlow(
     entityId: string,
-    filter: DateFilterEnum = DateFilterEnum.LAST_12_MONTHS,
+    filter: DateFilterEnum = DateFilterEnum.THIS_FISCAL_YEAR,
   ): Promise<CashFlowDataPointDto[]> {
     try {
       const dateRange = DateFilterHelper.getDateRange(filter);
       const cashFlowData: CashFlowDataPointDto[] = [];
 
-      // Calculate months between start and end date
+      // Only plot months up to today — future months have no data
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+
       let current = new Date(dateRange.startDate);
-      current.setDate(1); // Start from first day of month
+      current.setDate(1);
+
+      let runningBalance = 0;
 
       while (current <= dateRange.endDate) {
         const start = new Date(current);
         start.setHours(0, 0, 0, 0);
+
+        // Stop populating once we've passed today
+        if (start > today) break;
 
         const end = new Date(start);
         end.setMonth(end.getMonth() + 1);
         end.setDate(0);
         end.setHours(23, 59, 59, 999);
 
-        // Don't include months beyond the filter's end date
-        if (start > dateRange.endDate) break;
+        const effectiveEnd = end > dateRange.endDate ? dateRange.endDate : end;
 
         const month = start.toLocaleString('default', { month: 'short' });
         const year = start.getFullYear();
         const monthLabel = `${month} '${year.toString().slice(-2)}`;
 
         // Inflow: Paid invoices + Payment received for Partial/Overdue invoices + Completed receipts
-        const endDateInflow = end > dateRange.endDate ? dateRange.endDate : end;
         const [invoicesInflow, partialPaymentsInflow, overduePaymentsInflow, receiptsInflow] = await Promise.all([
           this.prisma.invoice.aggregate({
             where: {
               entityId,
               status: 'Paid',
-              invoiceDate: { gte: start, lte: endDateInflow },
+              invoiceDate: { gte: start, lte: effectiveEnd },
             },
             _sum: { total: true },
           }),
           this.prisma.paymentReceived.aggregate({
             where: {
               entityId,
-              invoice: { status: 'Partial', invoiceDate: { gte: start, lte: endDateInflow } },
+              invoice: { status: 'Partial', invoiceDate: { gte: start, lte: effectiveEnd } },
             },
             _sum: { amount: true },
           }),
           this.prisma.paymentReceived.aggregate({
             where: {
               entityId,
-              invoice: { status: 'Overdue', invoiceDate: { gte: start, lte: endDateInflow } },
+              invoice: { status: 'Overdue', invoiceDate: { gte: start, lte: effectiveEnd } },
             },
             _sum: { amount: true },
           }),
@@ -473,7 +479,7 @@ export class AnalyticsService {
             where: {
               entityId,
               status: 'Completed',
-              date: { gte: start, lte: endDateInflow },
+              date: { gte: start, lte: effectiveEnd },
             },
             _sum: { total: true },
           }),
@@ -486,20 +492,19 @@ export class AnalyticsService {
           (receiptsInflow._sum.total || 0);
 
         // Outflow: Approved expenses + Bill payments
-        const endDateOutflow = end > dateRange.endDate ? dateRange.endDate : end;
         const [expensesOutflow, billPayments] = await Promise.all([
           this.prisma.expenses.aggregate({
             where: {
               entityId,
               status: 'approved',
-              createdAt: { gte: start, lte: endDateOutflow },
+              createdAt: { gte: start, lte: effectiveEnd },
             },
             _sum: { amount: true },
           }),
           this.prisma.paymentMade.aggregate({
             where: {
               entityId,
-              paymentDate: { gte: start, lte: endDateOutflow },
+              paymentDate: { gte: start, lte: effectiveEnd },
             },
             _sum: { amount: true },
           }),
@@ -509,9 +514,10 @@ export class AnalyticsService {
           (expensesOutflow._sum?.amount || 0) +
           (billPayments._sum?.amount || 0);
 
-        cashFlowData.push({ month: monthLabel, inflow, outflow });
+        runningBalance = Number((runningBalance + inflow - outflow).toFixed(2));
 
-        // Move to next month
+        cashFlowData.push({ month: monthLabel, inflow, outflow, balance: runningBalance });
+
         current.setMonth(current.getMonth() + 1);
       }
 

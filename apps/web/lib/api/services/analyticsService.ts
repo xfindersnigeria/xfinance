@@ -33,6 +33,7 @@ export interface CashFlowData {
   month: string;
   inflow: number;
   outflow: number;
+  balance: number;
 }
 
 export interface TopExpense {

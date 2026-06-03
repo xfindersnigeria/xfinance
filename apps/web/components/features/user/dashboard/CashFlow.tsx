@@ -1,6 +1,6 @@
 "use client";
 
-import { Line, LineChart, CartesianGrid, XAxis, Legend } from "recharts";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis, ReferenceLine } from "recharts";
 import {
   Select,
   SelectContent,
@@ -32,26 +32,21 @@ interface CashFlowProps {
 }
 
 const chartConfig = {
-  inflow: {
-    label: "Cash Inflow",
-    color: "var(--revenue)",
-  },
-  outflow: {
-    label: "Cash Outflow",
-    color: "var(--expense)",
+  balance: {
+    label: "Cash Balance",
+    color: "var(--primary)",
   },
 } satisfies ChartConfig;
 
 export function CashFlow({
   data,
-  filter = "LAST_12_MONTHS",
+  filter = "THIS_FISCAL_YEAR",
   onFilterChange,
   loading,
 }: CashFlowProps) {
   const chartData = data?.map((item) => ({
     month: item.month,
-    inflow: item.inflow,
-    outflow: item.outflow,
+    balance: item.balance,
   })) ?? [];
 
   if (loading) {
@@ -59,7 +54,7 @@ export function CashFlow({
       <Card>
         <CardHeader>
           <CardTitle>Cash Flow</CardTitle>
-          <CardDescription>Inflow vs outflow</CardDescription>
+          <CardDescription>Running cash balance over time</CardDescription>
         </CardHeader>
         <CardContent>
           <Skeleton className="h-96 w-full rounded-lg" />
@@ -73,23 +68,29 @@ export function CashFlow({
       <CardHeader className="flex flex-row items-start justify-between">
         <div>
           <CardTitle>Cash Flow</CardTitle>
-          <CardDescription>Inflow vs outflow</CardDescription>
+          <CardDescription>Running cash balance over time</CardDescription>
         </div>
         <Select value={filter} onValueChange={onFilterChange}>
           <SelectTrigger className="w-45">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="THIS_YEAR">This Year</SelectItem>
             <SelectItem value="THIS_FISCAL_YEAR">This Fiscal Year</SelectItem>
             <SelectItem value="LAST_FISCAL_YEAR">Last Fiscal Year</SelectItem>
+            <SelectItem value="THIS_YEAR">This Calendar Year</SelectItem>
             <SelectItem value="LAST_12_MONTHS">Last 12 Months</SelectItem>
           </SelectContent>
         </Select>
       </CardHeader>
       <CardContent>
         <ChartContainer config={chartConfig}>
-          <LineChart accessibilityLayer data={chartData}>
+          <AreaChart accessibilityLayer data={chartData}>
+            <defs>
+              <linearGradient id="balanceGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.2} />
+                <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
+              </linearGradient>
+            </defs>
             <CartesianGrid vertical={false} />
             <XAxis
               dataKey="month"
@@ -97,26 +98,21 @@ export function CashFlow({
               tickMargin={10}
               axisLine={false}
             />
+            <YAxis tickLine={false} axisLine={false} />
+            <ReferenceLine y={0} stroke="var(--border)" strokeDasharray="4 4" />
             <ChartTooltip
               cursor={false}
-              content={<ChartTooltipContent indicator="dashed" />}
+              content={<ChartTooltipContent indicator="dot" />}
             />
-            <Legend />
-            <Line
-              dataKey="inflow"
-              stroke="var(--revenue)"
+            <Area
+              dataKey="balance"
+              stroke="var(--primary)"
               strokeWidth={2}
+              fill="url(#balanceGradient)"
               dot={false}
-              name="Inflow"
+              name="Cash Balance"
             />
-            <Line
-              dataKey="outflow"
-              stroke="var(--expense)"
-              strokeWidth={2}
-              dot={false}
-              name="Outflow"
-            />
-          </LineChart>
+          </AreaChart>
         </ChartContainer>
       </CardContent>
     </Card>

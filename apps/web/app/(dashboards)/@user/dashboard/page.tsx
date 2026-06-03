@@ -20,7 +20,7 @@ export default function UserDashboard() {
   const { entity } = useSessionStore();
   const [filters, setFilters] = useState({
     monthlyFilter: "THIS_YEAR" as FilterOption,
-    cashFlowFilter: "LAST_12_MONTHS" as FilterOption,
+    cashFlowFilter: "THIS_FISCAL_YEAR" as FilterOption,
     expensesFilter: "THIS_YEAR" as FilterOption,
   });
 

@@ -34,6 +34,7 @@ export class CashFlowDataPointDto {
   month: string;
   inflow: number;
   outflow: number;
+  balance: number;
 }
 
 export class ExpenseCategoryDto {
