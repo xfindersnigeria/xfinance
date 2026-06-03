@@ -17,6 +17,8 @@ export class ReconciliationMatchInputDto {
 }
 
 export class SaveReconciliationDraftDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() id?: string;
+  @ApiPropertyOptional() @IsOptional() @IsDateString() statementStartDate?: string;
   @ApiProperty() @IsDateString() statementEndDate: string;
   @ApiProperty() @IsNumber() statementEndingBalance: number;
 

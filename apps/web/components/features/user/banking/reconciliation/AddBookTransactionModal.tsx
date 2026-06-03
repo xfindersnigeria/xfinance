@@ -59,7 +59,7 @@ export default function AddBookTransactionModal({
       date: "",
       reference: "",
       description: "",
-      transactionType: "credit",
+      transactionType: "debit",
       amount: 0,
       payee: "",
       method: "",
@@ -138,8 +138,8 @@ export default function AddBookTransactionModal({
                     <Select onValueChange={field.onChange} value={field.value}>
                       <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="credit">Credit (Money In)</SelectItem>
-                        <SelectItem value="debit">Debit (Money Out)</SelectItem>
+                        <SelectItem value="debit">Deposit (Money In)</SelectItem>
+                        <SelectItem value="credit">Withdrawal (Money Out)</SelectItem>
                       </SelectContent>
                     </Select>
                   </FormControl>

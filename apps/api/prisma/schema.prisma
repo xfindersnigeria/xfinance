@@ -1,4 +1,3 @@
-
 generator client {
   provider = "prisma-client"
   output   = "./generated"
@@ -64,6 +63,9 @@ model GroupCustomization {
   logoUrl         String?
   loginBgPublicId String?
   loginBgUrl      String?
+  siteName        String?
+  faviconPublicId String?
+  faviconUrl      String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @default(now()) @updatedAt
   group           Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
@@ -122,7 +124,7 @@ model Entity {
   supplyRestockHistory SupplyRestockHistory[]
   storeSupply          StoreSupply[]
   departments          Department[]
-  disabledModuleIds    String[]             @default([])
+  disabledModuleIds    String[]               @default([])
   statutoryDeductions  StatutoryDeduction[]
   otherDeductions      OtherDeduction[]
   productCategories    ProductCategory[]
@@ -137,8 +139,8 @@ model Entity {
 }
 
 model User {
-  id                          String                @id @default(cuid())
-  email                       String                @unique
+  id                          String                 @id @default(cuid())
+  email                       String                 @unique
   firstName                   String?
   lastName                    String?
   department                  String?
@@ -147,28 +149,29 @@ model User {
   provider                    String?
   providerId                  String?
   emailVerified               DateTime?
-  isActive                    Boolean               @default(true)
-  requirePasswordChange       Boolean               @default(true)
+  isActive                    Boolean                @default(true)
+  requirePasswordChange       Boolean                @default(true)
   lastLogin                   DateTime?
-  createdAt                   DateTime              @default(now())
-  updatedAt                   DateTime              @updatedAt
-  systemRole                  systemRole            @default(user)
+  createdAt                   DateTime               @default(now())
+  updatedAt                   DateTime               @updatedAt
+  systemRole                  systemRole             @default(user)
   groupId                     String?
   entityId                    String?
   roleId                      String?
-  adminEntities               String[]              @default([])
+  adminEntities               String[]               @default([])
   auditLogs                   AuditLog[]
-  entity                      Entity?               @relation(fields: [entityId], references: [id])
-  group                       Group?                @relation(fields: [groupId], references: [id])
-  role                        Role?                 @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  entity                      Entity?                @relation(fields: [entityId], references: [id])
+  group                       Group?                 @relation(fields: [groupId], references: [id])
+  role                        Role?                  @relation(fields: [roleId], references: [id], onDelete: Restrict)
   invoiceActivities           InvoiceActivity[]
   explicitPermissions         ExplicitPermission[]
   subscriptionHistories       SubscriptionHistory[]
-  supplyIssueHistoriesIssued  SupplyIssueHistory[]  @relation("IssuedBy")
-  supplyIssueHistoriesUpdated SupplyIssueHistory[]  @relation("UpdatedBy")
+  supplyIssueHistoriesIssued  SupplyIssueHistory[]   @relation("IssuedBy")
+  supplyIssueHistoriesUpdated SupplyIssueHistory[]   @relation("UpdatedBy")
   supplyRestockBy             SupplyRestockHistory[]
-  payrollBatchesCreated       PayrollBatch[]        @relation("PayrollCreatedBy")
-  payrollBatchesApproved      PayrollBatch[]        @relation("PayrollApprovedBy")
+  payrollBatchesCreated       PayrollBatch[]         @relation("PayrollCreatedBy")
+  payrollBatchesApproved      PayrollBatch[]         @relation("PayrollApprovedBy")
+  reconciliationCompletedBy   BankReconciliation[]
 
   @@unique([provider, providerId])
   @@index([email, groupId, isActive])
@@ -189,7 +192,7 @@ model Customer {
   creditLimit  String
   note         String?
   entityId     String
-  groupId      String   // denormalized — extraction handle
+  groupId      String // denormalized — extraction handle
   isActive     Boolean   @default(true)
   country      String?
   createdAt    DateTime  @default(now())
@@ -207,7 +210,7 @@ model Invoice {
   id               String               @id @default(cuid())
   customerId       String
   entityId         String
-  groupId          String              // denormalized — extraction handle
+  groupId          String // denormalized — extraction handle
   invoiceNumber    String               @unique
   invoiceDate      DateTime
   dueDate          DateTime
@@ -242,7 +245,7 @@ model Invoice {
 model InvoiceActivity {
   id           String              @id @default(cuid())
   invoiceId    String
-  groupId      String             // denormalized — extraction handle
+  groupId      String // denormalized — extraction handle
   activityType InvoiceActivityType
   description  String
   performedBy  String?
@@ -281,7 +284,7 @@ model PaymentMade {
   amount           Int
   paymentMethod    PaymentMethod
   entityId         String
-  groupId          String              // denormalized — extraction handle
+  groupId          String // denormalized — extraction handle
   entity           Entity               @relation(fields: [entityId], references: [id])
   accountId        String
   account          Account              @relation(fields: [accountId], references: [id])
@@ -321,7 +324,7 @@ model vendor {
   bankName      String
   accountName   String
   entityId      String
-  groupId       String       // denormalized — extraction handle
+  groupId       String // denormalized — extraction handle
   routingNumber String?
   internalNote  String?
   status        vendorStatus  @default(Active)
@@ -353,10 +356,10 @@ model PaymentReceived {
   postingStatus    JournalPostingStatus @default(Pending)
   journalReference String?
   postedAt         DateTime?
-  projectId      String?
-  milestoneId    String?
+  projectId        String?
+  milestoneId      String?
   entityId         String
-  groupId          String              // denormalized — extraction handle
+  groupId          String // denormalized — extraction handle
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @default(now()) @updatedAt
   project          Project?             @relation(fields: [projectId], references: [id], onDelete: SetNull)
@@ -396,7 +399,7 @@ model Expenses {
   projectId        String?
   milestoneId      String?
   entityId         String
-  groupId          String              // denormalized — extraction handle
+  groupId          String // denormalized — extraction handle
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @default(now()) @updatedAt
   entity           Entity               @relation(fields: [entityId], references: [id], onDelete: Cascade)
@@ -436,7 +439,7 @@ model Bills {
   projectId         String?
   milestoneId       String?
   entityId          String
-  groupId           String              // denormalized — extraction handle
+  groupId           String // denormalized — extraction handle
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @default(now()) @updatedAt
   entity            Entity               @relation(fields: [entityId], references: [id], onDelete: Cascade)
@@ -474,7 +477,7 @@ model Receipt {
   id               String               @id @default(cuid())
   date             DateTime
   entityId         String
-  groupId          String              // denormalized — extraction handle
+  groupId          String // denormalized — extraction handle
   paymentMethod    PaymentMethod
   depositTo        String
   subtotal         Int
@@ -515,29 +518,29 @@ model ReceiptItem {
 }
 
 model StoreItems {
-  id             String              @id @default(cuid())
+  id             String         @id @default(cuid())
   name           String
-  categoryId       String
+  categoryId     String
   sku            String?
-  unitId           String
+  unitId         String
   description    String
   sellingPrice   Int?
   costPrice      Int?
   rate           Int?
-  taxable        Boolean             @default(false)
+  taxable        Boolean        @default(false)
   currentStock   Int?
   lowStock       Int?
-  type           StoreItemsType      @default(product)
-  trackInventory Boolean             @default(false)
-  sellOnline     Boolean             @default(false)
+  type           StoreItemsType @default(product)
+  trackInventory Boolean        @default(false)
+  sellOnline     Boolean        @default(false)
 
-  entityId       String
-  groupId        String             // denormalized — extraction handle
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @default(now()) @updatedAt
-  entity         Entity              @relation(fields: [entityId], references: [id], onDelete: Cascade)
-  unit         ProductUnit              @relation(fields: [unitId], references: [id], onDelete: Cascade)
-  category         ProductCategory              @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  entityId           String
+  groupId            String // denormalized — extraction handle
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @default(now()) @updatedAt
+  entity             Entity                @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  unit               ProductUnit           @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  category           ProductCategory       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   collections        CollectionStoreItem[]
   inventoryMovements InventoryMovement[]
 
@@ -548,7 +551,7 @@ model StoreItems {
 model InventoryMovement {
   id            String     @id @default(cuid())
   itemId        String
-  type          String     // add | remove | set
+  type          String // add | remove | set
   quantity      Int
   previousStock Int
   newStock      Int
@@ -576,7 +579,7 @@ model Items {
   isActive        Boolean       @default(true)
   type            ItemsType     @default(goods)
   entityId        String
-  groupId         String       // denormalized — extraction handle
+  groupId         String // denormalized — extraction handle
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @default(now()) @updatedAt
   entity          Entity        @relation(fields: [entityId], references: [id], onDelete: Cascade)
@@ -590,18 +593,18 @@ model Items {
 }
 
 model Collection {
-  id          String              @id @default(cuid())
+  id          String                @id @default(cuid())
   name        String
   slug        String
   image       Json?
   description String
-  visibility  Boolean             @default(false)
-  featured    Boolean             @default(false)
+  visibility  Boolean               @default(false)
+  featured    Boolean               @default(false)
   entityId    String
-  groupId     String             // denormalized — extraction handle
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @default(now()) @updatedAt
-  entity      Entity              @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  groupId     String // denormalized — extraction handle
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @default(now()) @updatedAt
+  entity      Entity                @relation(fields: [entityId], references: [id], onDelete: Cascade)
   items       CollectionStoreItem[]
 
   @@unique([slug, entityId])
@@ -629,8 +632,8 @@ model Asset {
   serialNumber       String      @unique
   name               String
   type               String
-  departmentId         String?
-  department         Department?  @relation(fields: [departmentId], references: [id])
+  departmentId       String?
+  department         Department? @relation(fields: [departmentId], references: [id])
   assignedId         String
   assigned           Employee    @relation(fields: [assignedId], references: [id])
   description        String
@@ -645,7 +648,7 @@ model Asset {
   activeAsset        Boolean     @default(false)
   status             AssetStatus @default(in_use)
   entityId           String
-  groupId            String     // denormalized — extraction handle
+  groupId            String // denormalized — extraction handle
   createdAt          DateTime    @default(now())
   updatedAt          DateTime    @default(now()) @updatedAt
   entity             Entity      @relation(fields: [entityId], references: [id], onDelete: Cascade)
@@ -687,7 +690,7 @@ model AccountSubCategory {
   name        String
   description String?
   categoryId  String
-  groupId     String         // denormalized — extraction handle
+  groupId     String // denormalized — extraction handle
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @default(now()) @updatedAt
   category    AccountCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
@@ -704,7 +707,7 @@ model Account {
   code                String
   description         String
   entityId            String
-  groupId             String              // denormalized — extraction handle
+  groupId             String // denormalized — extraction handle
   subCategoryId       String
   balance             Int                  @default(0)
   linkedType          String?
@@ -734,76 +737,76 @@ model Account {
 }
 
 model Project {
-  id              String        @id @default(cuid())
-  name            String
-  projectNumber   String
-  customerId      String
-  entityId        String
-  groupId         String       // denormalized — extraction handle
-  status          ProjectStatus @default(In_Progress)
-  description     String
-  startDate       DateTime
-  endDate         DateTime
-  billingType     String
-  currency        String
-  budgetedRevenue Int
-  budgetedCost    Int
-  managerId       String
-  projectCode     String?
-  employee        Employee      @relation(fields: [managerId], references: [id])
-  customer        Customer      @relation(fields: [customerId], references: [id])
-  entity          Entity        @relation(fields: [entityId], references: [id])
-  milestones           Milestone[]
-  teamMember           TeamMember[]
-  invoices             Invoice[]
-  expenses             Expenses[]
-  bills                Bills[]
-  supplyIssueHistory   SupplyIssueHistory[]
-  paymentsReceived     PaymentReceived[]
+  id                 String               @id @default(cuid())
+  name               String
+  projectNumber      String
+  customerId         String
+  entityId           String
+  groupId            String // denormalized — extraction handle
+  status             ProjectStatus        @default(In_Progress)
+  description        String
+  startDate          DateTime
+  endDate            DateTime
+  billingType        String
+  currency           String
+  budgetedRevenue    Int
+  budgetedCost       Int
+  managerId          String
+  projectCode        String?
+  employee           Employee             @relation(fields: [managerId], references: [id])
+  customer           Customer             @relation(fields: [customerId], references: [id])
+  entity             Entity               @relation(fields: [entityId], references: [id])
+  milestones         Milestone[]
+  teamMember         TeamMember[]
+  invoices           Invoice[]
+  expenses           Expenses[]
+  bills              Bills[]
+  supplyIssueHistory SupplyIssueHistory[]
+  paymentsReceived   PaymentReceived[]
 
-  createdAt            DateTime      @default(now())
+  createdAt DateTime @default(now())
 
   @@index([entityId, id])
   @@index([groupId])
 }
 
 model Milestone {
-  id          String          @id @default(cuid())
-  projectId   String
-  entityId    String
-  groupId     String         // denormalized — extraction handle
-  name        String
-  description String
-  budget       Float
-  actualAmount Float           @default(0)
-  dueDate      DateTime
-  status       MilestoneStatus @default(Upcoming)
-  project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  entity      Entity          @relation(fields: [entityId], references: [id])
-  invoices    Invoice[]
-  expenses    Expenses[]
-  bills       Bills[]
+  id               String            @id @default(cuid())
+  projectId        String
+  entityId         String
+  groupId          String // denormalized — extraction handle
+  name             String
+  description      String
+  budget           Float
+  actualAmount     Float             @default(0)
+  dueDate          DateTime
+  status           MilestoneStatus   @default(Upcoming)
+  project          Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  entity           Entity            @relation(fields: [entityId], references: [id])
+  invoices         Invoice[]
+  expenses         Expenses[]
+  bills            Bills[]
   paymentsReceived PaymentReceived[]
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @default(now()) @updatedAt
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @default(now()) @updatedAt
 
   @@index([entityId, projectId])
   @@index([groupId])
 }
 
 model TeamMember {
-  id             String   @id @default(cuid())
-  name           String
-  email          String
-  role           String
-  projectId      String
-  project        Project  @relation(fields: [projectId], references: [id])
-  entityId       String
-  groupId        String  // denormalized — extraction handle
-  entity         Entity   @relation(fields: [entityId], references: [id])
-  monthlyRate    Int
+  id              String   @id @default(cuid())
+  name            String
+  email           String
+  role            String
+  projectId       String
+  project         Project  @relation(fields: [projectId], references: [id])
+  entityId        String
+  groupId         String // denormalized — extraction handle
+  entity          Entity   @relation(fields: [entityId], references: [id])
+  monthlyRate     Int
   estimatedMonths Int
-  createdAt      DateTime @default(now())
+  createdAt       DateTime @default(now())
 
   @@index([groupId])
 }
@@ -822,7 +825,7 @@ model Journal {
   lines       Json
   reference   String
   entityId    String
-  groupId     String       // denormalized — extraction handle
+  groupId     String // denormalized — extraction handle
   status      JournalStatus @default(Active)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @default(now()) @updatedAt
@@ -842,7 +845,7 @@ model Budget {
   note       String?
   accountId  String
   entityId   String
-  groupId    String  // denormalized — extraction handle
+  groupId    String // denormalized — extraction handle
   createdAt  DateTime @default(now())
   updatedAt  DateTime @default(now()) @updatedAt
   account    Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
@@ -919,7 +922,7 @@ model Employee {
   note               String?
   asdraft            Boolean              @default(false)
   entityId           String
-  groupId            String              // denormalized — extraction handle
+  groupId            String // denormalized — extraction handle
   createdAt          DateTime             @default(now())
   status             EmployeeStatus       @default(Active)
   updatedAt          DateTime             @default(now()) @updatedAt
@@ -937,17 +940,17 @@ model Employee {
 }
 
 model Department {
-  id          String           @id @default(cuid())
-  name        String
-  description String?
-  status      DepartmentStatus @default(active)
-  entityId    String
-  groupId     String
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @default(now()) @updatedAt
-  entity      Entity           @relation(fields: [entityId], references: [id], onDelete: Cascade)
-  employees   Employee[]
-  assets      Asset[]
+  id                 String               @id @default(cuid())
+  name               String
+  description        String?
+  status             DepartmentStatus     @default(active)
+  entityId           String
+  groupId            String
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @default(now()) @updatedAt
+  entity             Entity               @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  employees          Employee[]
+  assets             Asset[]
   supplyIssueHistory SupplyIssueHistory[]
 
   @@index([groupId])
@@ -955,7 +958,7 @@ model Department {
 }
 
 model ProductCategory {
-  id          String         @id @default(cuid())
+  id          String          @id @default(cuid())
   name        String
   color       String?
   description String?
@@ -966,13 +969,13 @@ model ProductCategory {
   updatedAt   DateTime        @default(now()) @updatedAt
   entity      Entity          @relation(fields: [entityId], references: [id], onDelete: Cascade)
   storeitems  StoreItems[]
-  
+
   @@index([groupId])
   @@index([entityId])
 }
 
 model ProductUnit {
-  id           String         @id @default(cuid())
+  id           String          @id @default(cuid())
   name         String
   abbreviation String
   type         String
@@ -989,7 +992,7 @@ model ProductUnit {
 }
 
 model ProductBrand {
-  id          String         @id @default(cuid())
+  id          String          @id @default(cuid())
   name        String
   description String?
   status      DeductionStatus @default(active)
@@ -1004,7 +1007,7 @@ model ProductBrand {
 }
 
 model StatutoryDeduction {
-  id          String                  @id @default(cuid())
+  id          String                 @id @default(cuid())
   name        String
   type        StatutoryDeductionType
   rate        Float?
@@ -1012,13 +1015,13 @@ model StatutoryDeduction {
   minAmount   Float?
   description String?
   accountId   String?
-  status      DeductionStatus         @default(active)
+  status      DeductionStatus        @default(active)
   entityId    String
   groupId     String
-  createdAt   DateTime                @default(now())
-  updatedAt   DateTime                @default(now()) @updatedAt
-  account     Account?                @relation(fields: [accountId], references: [id], onDelete: SetNull)
-  entity      Entity                  @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @default(now()) @updatedAt
+  account     Account?               @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  entity      Entity                 @relation(fields: [entityId], references: [id], onDelete: Cascade)
   tiers       TaxTier[]
 
   @@index([groupId])
@@ -1054,26 +1057,26 @@ model OtherDeduction {
 }
 
 model PayrollBatch {
-  id             String         @id @default(cuid())
+  id             String          @id @default(cuid())
   batchName      String
   period         String
   paymentDate    DateTime
   paymentMethod  String
-  status         PayrollStatus  @default(Draft)
-  totalAmount    Float          @default(0)
-  totalEmployees Int            @default(0)
+  status         PayrollStatus   @default(Draft)
+  totalAmount    Float           @default(0)
+  totalEmployees Int             @default(0)
   notes          String?
   entityId       String
   groupId        String
   createdById    String?
   approvedById   String?
   approvedAt     DateTime?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @default(now()) @updatedAt
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @default(now()) @updatedAt
   records        PayrollRecord[]
-  entity         Entity         @relation(fields: [entityId], references: [id], onDelete: Cascade)
-  createdBy      User?          @relation("PayrollCreatedBy",  fields: [createdById],  references: [id], onDelete: SetNull)
-  approvedBy     User?          @relation("PayrollApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  entity         Entity          @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  createdBy      User?           @relation("PayrollCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  approvedBy     User?           @relation("PayrollApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
 
   @@index([entityId])
   @@index([groupId])
@@ -1081,24 +1084,24 @@ model PayrollBatch {
 }
 
 model PayrollRecord {
-  id            String        @id @default(cuid())
-  batchId       String
-  employeeId    String
-  basicSalary   Float
-  allowances    Float         @default(0)
-  bonus         Float         @default(0)
-  overtime      Float         @default(0)
-  statutoryDed  Float         @default(0)
-  otherDed      Float         @default(0)
-  grossPay      Float
-  netPay        Float
-  entityId      String
-  groupId       String
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @default(now()) @updatedAt
-  batch         PayrollBatch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  employee      Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  entity        Entity        @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  id           String       @id @default(cuid())
+  batchId      String
+  employeeId   String
+  basicSalary  Float
+  allowances   Float        @default(0)
+  bonus        Float        @default(0)
+  overtime     Float        @default(0)
+  statutoryDed Float        @default(0)
+  otherDed     Float        @default(0)
+  grossPay     Float
+  netPay       Float
+  entityId     String
+  groupId      String
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @default(now()) @updatedAt
+  batch        PayrollBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  employee     Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  entity       Entity       @relation(fields: [entityId], references: [id], onDelete: Cascade)
 
   @@index([batchId])
   @@index([employeeId])
@@ -1107,27 +1110,27 @@ model PayrollRecord {
 }
 
 model Settings {
-  id                  String    @id @default(cuid())
+  id                  String  @id @default(cuid())
   baseCurrency        String?
-  multiCurrency       Boolean   @default(false)
-  taxCalculation      Boolean   @default(false)
+  multiCurrency       Boolean @default(false)
+  taxCalculation      Boolean @default(false)
   dateFormat          String?
   numberFormat        String?
   invoicePrefix       String?
   paymentTerm         String?
-  lateFees            Boolean   @default(false)
-  paymentReminders    Boolean   @default(false)
+  lateFees            Boolean @default(false)
+  paymentReminders    Boolean @default(false)
   taxRate             Int?
   billPrefix          String?
   purchaseOrderPrefix String?
-  approvalRequired    Boolean   @default(false)
+  approvalRequired    Boolean @default(false)
   approvedThreshold   Int?
-  match               Boolean   @default(false)
-  language            String?   @default("en")
-  timezone            String?   @default("Africa/Lagos")
-  emailNotifications  Boolean   @default(true)
-  twoFactorAuth       Boolean   @default(false)
-  auditLog            Boolean   @default(true)
+  match               Boolean @default(false)
+  language            String? @default("en")
+  timezone            String? @default("Africa/Lagos")
+  emailNotifications  Boolean @default(true)
+  twoFactorAuth       Boolean @default(false)
+  auditLog            Boolean @default(true)
   // Invoice bank details (shown on invoice PDF/view)
   bankName            String?
   bankAccountName     String?
@@ -1136,8 +1139,8 @@ model Settings {
   bankSwiftCode       String?
   invoiceNotes        String?
   entityId            String
-  groupId             String   // denormalized — extraction handle
-  entity              Entity    @relation(fields: [entityId], references: [id])
+  groupId             String // denormalized — extraction handle
+  entity              Entity  @relation(fields: [entityId], references: [id])
 
   @@index([entityId])
   @@index([groupId])
@@ -1147,7 +1150,7 @@ model AttendanceLog {
   id          String       @id @default(cuid())
   date        DateTime
   entityId    String
-  groupId     String      // denormalized — extraction handle
+  groupId     String // denormalized — extraction handle
   status      String       @default("Draft")
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
@@ -1168,7 +1171,7 @@ model Attendance {
   notes           String?
   asdraft         Boolean       @default(false)
   entityId        String
-  groupId         String       // denormalized — extraction handle
+  groupId         String // denormalized — extraction handle
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   attendanceLogId String
@@ -1189,7 +1192,7 @@ model Leave {
   endDate          DateTime
   reason           String
   entityId         String
-  groupId          String     // denormalized — extraction handle
+  groupId          String // denormalized — extraction handle
   status           LeaveStatus @default(Pending)
   contact          String
   emergencyContact String
@@ -1276,7 +1279,7 @@ model ExplicitPermission {
   permissionId String
   entity       Entity     @relation(fields: [entityId], references: [id], onDelete: Cascade)
   entityId     String
-  groupId      String    // denormalized — extraction handle
+  groupId      String // denormalized — extraction handle
   allowed      Boolean
   createdAt    DateTime   @default(now())
 
@@ -1434,30 +1437,30 @@ model AuditLog {
 }
 
 model SupplyIssueHistory {
-  id          String      @id @default(cuid())
-  supplyId    String
-  quantity    Int
-  issuedTo    String
-  type        String
-  purpose     String
-  issuedById  String
-  updatedById String?
-  notes       String?
-  issueDate   DateTime
-  entityId    String
-  groupId     String     // denormalized — extraction handle
-  projectId   String?
+  id           String      @id @default(cuid())
+  supplyId     String
+  quantity     Int
+  issuedTo     String
+  type         String
+  purpose      String
+  issuedById   String
+  updatedById  String?
+  notes        String?
+  issueDate    DateTime
+  entityId     String
+  groupId      String // denormalized — extraction handle
+  projectId    String?
   departmentId String?
-  employeeId  String?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @default(now()) @updatedAt
-  supply      StoreSupply @relation(fields: [supplyId], references: [id], onDelete: Cascade)
-  entity      Entity      @relation(fields: [entityId], references: [id], onDelete: Cascade)
-  project     Project?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  employee    Employee?   @relation(fields: [employeeId], references: [id])
-  department    Department?   @relation(fields: [departmentId], references: [id])
-  issuedBy    User        @relation("IssuedBy", fields: [issuedById], references: [id])
-  updatedBy   User?       @relation("UpdatedBy", fields: [updatedById], references: [id])
+  employeeId   String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @default(now()) @updatedAt
+  supply       StoreSupply @relation(fields: [supplyId], references: [id], onDelete: Cascade)
+  entity       Entity      @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  project      Project?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  employee     Employee?   @relation(fields: [employeeId], references: [id])
+  department   Department? @relation(fields: [departmentId], references: [id])
+  issuedBy     User        @relation("IssuedBy", fields: [issuedById], references: [id])
+  updatedBy    User?       @relation("UpdatedBy", fields: [updatedById], references: [id])
 
   @@index([entityId])
   @@index([supplyId])
@@ -1466,22 +1469,22 @@ model SupplyIssueHistory {
 }
 
 model SupplyRestockHistory {
-  id          String      @id @default(cuid())
-  supplyId    String
-  quantity    Int
-  unitPrice   Float
-  totalCost   Float
-  supplier    String
+  id            String      @id @default(cuid())
+  supplyId      String
+  quantity      Int
+  unitPrice     Float
+  totalCost     Float
+  supplier      String
   restockedById String
-  notes       String?
-  restockDate DateTime
-  entityId    String
-  groupId     String     // denormalized — extraction handle
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @default(now()) @updatedAt
-  supply      StoreSupply @relation(fields: [supplyId], references: [id], onDelete: Cascade)
-  entity      Entity      @relation(fields: [entityId], references: [id], onDelete: Cascade)
-  restockedBy User        @relation(fields: [restockedById], references: [id])
+  notes         String?
+  restockDate   DateTime
+  entityId      String
+  groupId       String // denormalized — extraction handle
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @default(now()) @updatedAt
+  supply        StoreSupply @relation(fields: [supplyId], references: [id], onDelete: Cascade)
+  entity        Entity      @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  restockedBy   User        @relation(fields: [restockedById], references: [id])
 
   @@index([entityId])
   @@index([supplyId])
@@ -1489,7 +1492,7 @@ model SupplyRestockHistory {
 }
 
 model StoreSupply {
-  id                   String               @id @default(cuid())
+  id                   String                 @id @default(cuid())
   name                 String
   category             String
   sku                  String?
@@ -1500,10 +1503,10 @@ model StoreSupply {
   location             String?
   supplier             String?
   entityId             String
-  groupId              String              // denormalized — extraction handle
-  createdAt            DateTime             @default(now())
-  updatedAt            DateTime             @default(now()) @updatedAt
-  entity               Entity               @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  groupId              String // denormalized — extraction handle
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @default(now()) @updatedAt
+  entity               Entity                 @relation(fields: [entityId], references: [id], onDelete: Cascade)
   supplyIssueHistory   SupplyIssueHistory[]
   supplyRestockHistory SupplyRestockHistory[]
 
@@ -1512,21 +1515,21 @@ model StoreSupply {
 }
 
 model BankAccount {
-  id              String            @id @default(cuid())
+  id              String               @id @default(cuid())
   accountName     String
   bankName        String
   accountType     String
   currency        String
   accountNumber   String
   routingNumber   String?
-  status          BankAccountStatus @default(active)
-  linkedAccountId String            @unique
+  status          BankAccountStatus    @default(active)
+  linkedAccountId String               @unique
   entityId        String
-  groupId         String           // denormalized — extraction handle
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @default(now()) @updatedAt
-  entity          Entity            @relation("BankAccounts", fields: [entityId], references: [id], onDelete: Cascade)
-  linkedAccount   Account           @relation("LinkedBankAccount", fields: [linkedAccountId], references: [id])
+  groupId         String // denormalized — extraction handle
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @default(now()) @updatedAt
+  entity          Entity               @relation("BankAccounts", fields: [entityId], references: [id], onDelete: Cascade)
+  linkedAccount   Account              @relation("LinkedBankAccount", fields: [linkedAccountId], references: [id])
   reconciliations BankReconciliation[]
 
   @@unique([entityId, accountNumber])
@@ -1536,28 +1539,28 @@ model BankAccount {
 }
 
 model AccountTransaction {
-  id                String                   @id @default(cuid())
-  date              DateTime
-  description       String
-  reference         String?
-  type              AccountTransactionType
-  status            TransactionPostingStatus @default(Pending)
-  accountId         String
-  debitAmount       Int                      @default(0)
-  creditAmount      Int                      @default(0)
-  runningBalance    Int?
-  payee             String?
-  method            String?
-  entityId          String
-  groupId           String                  // denormalized — extraction handle
-  relatedEntityId   String?
-  relatedEntityType String?
-  metadata                    Json?
-  clearedInReconciliationId   String?
-  createdAt                   DateTime                 @default(now())
-  updatedAt                   DateTime                 @default(now()) @updatedAt
-  account                     Account                  @relation("AccountTransactions", fields: [accountId], references: [id], onDelete: Restrict)
-  entity                      Entity                   @relation("EntityAccountTransactions", fields: [entityId], references: [id], onDelete: Cascade)
+  id                        String                   @id @default(cuid())
+  date                      DateTime
+  description               String
+  reference                 String?
+  type                      AccountTransactionType
+  status                    TransactionPostingStatus @default(Pending)
+  accountId                 String
+  debitAmount               Int                      @default(0)
+  creditAmount              Int                      @default(0)
+  runningBalance            Int?
+  payee                     String?
+  method                    String?
+  entityId                  String
+  groupId                   String // denormalized — extraction handle
+  relatedEntityId           String?
+  relatedEntityType         String?
+  metadata                  Json?
+  clearedInReconciliationId String?
+  createdAt                 DateTime                 @default(now())
+  updatedAt                 DateTime                 @default(now()) @updatedAt
+  account                   Account                  @relation("AccountTransactions", fields: [accountId], references: [id], onDelete: Restrict)
+  entity                    Entity                   @relation("EntityAccountTransactions", fields: [entityId], references: [id], onDelete: Cascade)
 
   @@index([entityId, accountId, date])
   @@index([date, type])
@@ -1572,6 +1575,7 @@ model BankReconciliation {
   bankAccountId          String
   entityId               String
   groupId                String
+  statementStartDate     DateTime?
   statementEndDate       DateTime
   statementEndingBalance Float
   status                 BankReconciliationStatus @default(DRAFT)
@@ -1582,9 +1586,10 @@ model BankReconciliation {
   createdAt              DateTime                 @default(now())
   updatedAt              DateTime                 @default(now()) @updatedAt
 
-  bankAccount            BankAccount              @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
-  statementTransactions  BankStatementTransaction[]
-  matches                BankReconciliationMatch[]
+  bankAccount               BankAccount                @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  reconciliationCompletedBy User?                      @relation(fields: [completedBy], references: [id], onDelete: Cascade)
+  statementTransactions     BankStatementTransaction[]
+  matches                   BankReconciliationMatch[]
 
   @@index([entityId])
   @@index([bankAccountId])
@@ -1593,7 +1598,7 @@ model BankReconciliation {
 }
 
 model BankStatementTransaction {
-  id               String             @id @default(cuid())
+  id               String   @id @default(cuid())
   reconciliationId String
   entityId         String
   groupId          String
@@ -1602,11 +1607,11 @@ model BankStatementTransaction {
   reference        String?
   amount           Float
   category         String?
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @default(now()) @updatedAt
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @default(now()) @updatedAt
 
-  reconciliation   BankReconciliation @relation(fields: [reconciliationId], references: [id], onDelete: Cascade)
-  match            BankReconciliationMatch?
+  reconciliation BankReconciliation       @relation(fields: [reconciliationId], references: [id], onDelete: Cascade)
+  match          BankReconciliationMatch?
 
   @@index([reconciliationId])
   @@index([entityId])
@@ -1614,16 +1619,16 @@ model BankStatementTransaction {
 }
 
 model BankReconciliationMatch {
-  id                     String                   @id @default(cuid())
+  id                     String   @id @default(cuid())
   reconciliationId       String
-  statementTransactionId String                   @unique
+  statementTransactionId String   @unique
   bookTransactionId      String
   entityId               String
   groupId                String
-  createdAt              DateTime                 @default(now())
+  createdAt              DateTime @default(now())
 
-  reconciliation         BankReconciliation       @relation(fields: [reconciliationId], references: [id], onDelete: Cascade)
-  statementTransaction   BankStatementTransaction @relation(fields: [statementTransactionId], references: [id], onDelete: Cascade)
+  reconciliation       BankReconciliation       @relation(fields: [reconciliationId], references: [id], onDelete: Cascade)
+  statementTransaction BankStatementTransaction @relation(fields: [statementTransactionId], references: [id], onDelete: Cascade)
 
   @@index([reconciliationId])
   @@index([bookTransactionId])
@@ -1634,7 +1639,7 @@ model BankReconciliationMatch {
 model OpeningBalance {
   id          String               @id @default(cuid())
   entityId    String
-  groupId     String              // denormalized — extraction handle
+  groupId     String // denormalized — extraction handle
   fiscalYear  String?
   date        DateTime
   totalCredit Int                  @default(0)

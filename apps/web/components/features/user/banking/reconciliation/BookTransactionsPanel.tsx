@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, Plus } from "lucide-react";
+import { CheckCircle2, Plus, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -16,6 +16,8 @@ interface BookTransactionsPanelProps {
   bankAccountId: string;
   transactions: BookTransaction[];
   onChange: (transactions: BookTransaction[]) => void;
+  readOnly?: boolean;
+  isLoading?: boolean;
 }
 
 function formatAmount(amount: number, sym: string) {
@@ -30,6 +32,8 @@ export default function BookTransactionsPanel({
   bankAccountId,
   transactions,
   onChange,
+  readOnly = false,
+  isLoading = false,
 }: BookTransactionsPanelProps) {
   const sym = useEntityCurrencySymbol();
   const [addOpen, setAddOpen] = useState(false);
@@ -41,7 +45,7 @@ export default function BookTransactionsPanel({
         body: JSON.stringify(data),
       }),
     onSuccess: (created) => {
-      const amount = (created.creditAmount ?? 0) - (created.debitAmount ?? 0);
+      const amount = (created.debitAmount ?? 0) - (created.creditAmount ?? 0);
       const newTx: BookTransaction = {
         id: created.id,
         date: (created.date as string).split("T")[0],
@@ -87,23 +91,27 @@ export default function BookTransactionsPanel({
               {unmatchedCount} unmatched item{unmatchedCount !== 1 ? "s" : ""}
             </p>
           </div>
-          <Badge variant="outline" className="text-xs text-purple-700 border-purple-200 bg-purple-50">
-            {transactions.length} items
-          </Badge>
+          <div className="flex items-center gap-2">
+            {isLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-400" />}
+            <Badge variant="outline" className="text-xs text-purple-700 border-purple-200 bg-purple-50">
+              {transactions.length} items
+            </Badge>
+          </div>
         </div>
 
-        {/* Add button */}
-        <div className="px-4 py-3 border-b border-gray-100">
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full gap-1.5 text-xs"
-            onClick={() => setAddOpen(true)}
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Add Transaction to Books
-          </Button>
-        </div>
+        {!readOnly && (
+          <div className="px-4 py-3 border-b border-gray-100">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full gap-1.5 text-xs"
+              onClick={() => setAddOpen(true)}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Add Transaction to Books
+            </Button>
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
           {transactions.map((tx) => (
@@ -115,7 +123,8 @@ export default function BookTransactionsPanel({
             >
               <Checkbox
                 checked={tx.matched}
-                onCheckedChange={() => toggleMatched(tx.id)}
+                onCheckedChange={readOnly ? undefined : () => toggleMatched(tx.id)}
+                disabled={readOnly}
                 className="mt-0.5"
               />
               <div className="flex-1 min-w-0">
@@ -129,23 +138,39 @@ export default function BookTransactionsPanel({
                   </Badge>
                 )}
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className={`text-sm font-semibold ${tx.amount >= 0 ? "text-green-700" : "text-red-700"}`}>
-                  {formatAmount(tx.amount, sym)}
-                </span>
-                {tx.matched ? (
-                  <CheckCircle2 className="w-4 h-4 text-green-500" />
-                ) : (
-                  <div className="w-4 h-4 rounded-full border-2 border-gray-300" />
-                )}
+              <div className="flex flex-col items-end gap-0.5 shrink-0">
+                <div className="flex items-center gap-1.5">
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                    tx.amount >= 0
+                      ? "bg-green-100 text-green-700"
+                      : "bg-red-100 text-red-700"
+                  }`}>
+                    {tx.amount >= 0 ? "CR" : "DR"}
+                  </span>
+                  <span className={`text-sm font-semibold ${tx.amount >= 0 ? "text-green-700" : "text-red-700"}`}>
+                    {formatAmount(tx.amount, sym)}
+                  </span>
+                  {tx.matched ? (
+                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                  ) : (
+                    <div className="w-4 h-4 rounded-full border-2 border-gray-300" />
+                  )}
+                </div>
               </div>
-            </div>
+              </div>
+       
           ))}
 
           {transactions.length === 0 && (
             <div className="flex flex-col items-center justify-center py-12 text-gray-400">
-              <p className="text-sm">No book transactions found</p>
-              <p className="text-xs mt-1">Transactions posted to this account will appear here</p>
+              {isLoading ? (
+                <Loader2 className="w-6 h-6 animate-spin mb-2" />
+              ) : (
+                <>
+                  <p className="text-sm">No book transactions found</p>
+                  <p className="text-xs mt-1">Set a statement date range to load transactions</p>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -158,12 +183,14 @@ export default function BookTransactionsPanel({
         </div>
       </div>
 
-      <AddBookTransactionModal
-        open={addOpen}
-        onOpenChange={setAddOpen}
-        onAdd={handleAdd}
-        loading={addMutation.isPending}
-      />
+      {!readOnly && (
+        <AddBookTransactionModal
+          open={addOpen}
+          onOpenChange={setAddOpen}
+          onAdd={handleAdd}
+          loading={addMutation.isPending}
+        />
+      )}
     </>
   );
 }

@@ -312,7 +312,7 @@ function buildRows(
 
   for (const item of items) {
     const indentPx = depth * 24 + 16;
-    const cmpVal = isBudgetMode ? item.budget : item.comparison;
+    const cmpVal = isBudgetMode ? (item.budget ?? 0) : item.comparison;
 
     switch (item.type) {
       case "section": {

@@ -138,16 +138,8 @@ export function AppSidebar({ role, user, ...props }: AppSidebarProps) {
 
   return (
     <Sidebar collapsible="icon" {...props}>
-      <div className="w-full flex items-center justify-center px-2 py-1 bg-white">
-        {" "}
-        <SidebarMenuButton
-          size="lg"
-          className="data-[state=open]:bg-transparent hover:bg-transparent hover:text-white "
-        >
-          <div>
-            <Logo logoUrl={logoUrl} />{" "}
-          </div>
-        </SidebarMenuButton>
+      <div className="w-full flex items-center justify-start px-3 py-3 bg-white min-h-[56px]">
+        <Logo logoUrl={logoUrl} />
       </div>
       {/* <Separator className="" /> */}
       <SidebarHeader className="bg-white">

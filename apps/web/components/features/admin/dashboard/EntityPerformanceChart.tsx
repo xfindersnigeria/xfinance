@@ -27,11 +27,11 @@ interface EntityPerformanceChartProps {
 const chartConfig = {
   revenue: {
     label: "Revenue",
-    color: "var(--chart-3)",
+    color: "var(--revenue)",
   },
   expenses: {
     label: "Expenses",
-    color: "var(--chart-1)",
+    color: "var(--expense)",
   },
 } satisfies ChartConfig;
 
@@ -79,8 +79,8 @@ export default function EntityPerformanceChart({ data, loading }: EntityPerforma
             <YAxis tickLine={false} axisLine={false} />
             <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
             <ChartLegend content={<ChartLegendContent />} />
-            <Bar dataKey="revenue" fill="var(--chart-3)" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="expenses" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="revenue" fill="var(--revenue)" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="expenses" fill="var(--expense)" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ChartContainer>
       </CardContent>

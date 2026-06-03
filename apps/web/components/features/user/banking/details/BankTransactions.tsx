@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { createId } from "@paralleldrive/cuid2";
 import { CustomTable } from "@/components/local/custom/custom-table";
 import { CustomTabs, Tab } from "@/components/local/custom/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -18,14 +19,16 @@ import {
 } from "lucide-react";
 import { useDebounce } from "use-debounce";
 import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
-import { useReconciliationHistory } from "@/lib/api/hooks/useBanking";
-import type { ReconciliationHistoryItem } from "@/lib/api/services/bankingService";
+import { useListReconciliations } from "@/lib/api/hooks/useBanking";
+import type { ReconciliationListItem } from "@/lib/api/services/bankingService";
 
 interface BankTransactionsProps {
   bankAccountId: string;
   transactions: any[];
   isLoading: boolean;
 }
+
+const PAGE_SIZE = 20;
 
 export default function BankTransactions({
   bankAccountId,
@@ -36,16 +39,26 @@ export default function BankTransactions({
   const router = useRouter();
   const [searchTerm, setSearchTerm] = React.useState("");
   const [debouncedSearchTerm] = useDebounce(searchTerm, 300);
+  const [reconPage, setReconPage] = useState(1);
 
-  const { data: reconciliationHistory, isLoading: reconcLoading } =
-    useReconciliationHistory(bankAccountId);
+  const { data: reconciliationData, isLoading: reconcLoading } =
+    useListReconciliations(bankAccountId, reconPage, PAGE_SIZE);
 
-  const reconciliations: ReconciliationHistoryItem[] = useMemo(
-    () => (Array.isArray(reconciliationHistory) ? reconciliationHistory : []),
-    [reconciliationHistory],
+  const reconciliations: ReconciliationListItem[] = useMemo(
+    () => reconciliationData?.data ?? [],
+    [reconciliationData],
   );
 
-  // ── Transaction columns ────────────────────────────────────────────────────
+  const handleNewReconciliation = () => {
+    const newId = createId();
+    router.push(`/banking/${bankAccountId}/reconcile/${newId}`);
+  };
+
+  const handleViewReconciliation = (reconcileId: string) => {
+    router.push(`/banking/${bankAccountId}/reconcile/${reconcileId}`);
+  };
+
+  // ── Transaction columns ──────────────────────────────────────────────────
 
   const txColumns = [
     {
@@ -66,10 +79,14 @@ export default function BankTransactions({
         const Icon = isDeposit ? ArrowDownRight : ArrowUpRight;
         return (
           <div className="flex items-center gap-2">
-            <Icon className={`w-4 h-4 ${isDeposit ? "text-green-600" : "text-red-600"}`} />
+            <Icon
+              className={`w-4 h-4 ${isDeposit ? "text-green-600" : "text-red-600"}`}
+            />
             <Badge
               className={`${
-                isDeposit ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                isDeposit
+                  ? "bg-green-100 text-green-700"
+                  : "bg-red-100 text-red-700"
               } text-xs font-medium px-2 py-1`}
             >
               {isDeposit ? "Deposit" : "Withdrawal"}
@@ -92,21 +109,27 @@ export default function BankTransactions({
       key: "payee",
       title: "Payee",
       render: (value: unknown) => (
-        <span className="text-xs text-gray-600">{(value as string) || "-"}</span>
+        <span className="text-xs text-gray-600">
+          {(value as string) || "-"}
+        </span>
       ),
     },
     {
       key: "method",
       title: "Method",
       render: (value: unknown) => (
-        <span className="text-xs text-gray-500">{(value as string) || "-"}</span>
+        <span className="text-xs text-gray-500">
+          {(value as string) || "-"}
+        </span>
       ),
     },
     {
       key: "reference",
       title: "Reference",
       render: (value: unknown) => (
-        <span className="text-xs font-mono text-gray-600">{value as string}</span>
+        <span className="text-xs font-mono text-gray-600">
+          {value as string}
+        </span>
       ),
     },
     {
@@ -118,8 +141,11 @@ export default function BankTransactions({
         const amount = debitAmount > 0 ? debitAmount : creditAmount;
         const isDeposit = debitAmount > 0;
         return (
-          <span className={`text-xs font-semibold ${isDeposit ? "text-green-700" : "text-red-700"}`}>
-            {isDeposit ? "+" : "-"}{sym}
+          <span
+            className={`text-xs font-semibold ${isDeposit ? "text-green-700" : "text-red-700"}`}
+          >
+            {isDeposit ? "+" : "-"}
+            {sym}
             {amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </span>
         );
@@ -131,7 +157,9 @@ export default function BankTransactions({
       render: (value: unknown) => (
         <span className="text-xs font-semibold text-gray-900">
           {sym}
-          {(value as number).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+          {(value as number).toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+          })}
         </span>
       ),
     },
@@ -147,7 +175,9 @@ export default function BankTransactions({
           Failed: "bg-red-100 text-red-700",
         };
         return (
-          <Badge className={`${cls[status] ?? "bg-gray-100 text-gray-700"} text-xs font-medium px-2 py-1`}>
+          <Badge
+            className={`${cls[status] ?? "bg-gray-100 text-gray-700"} text-xs font-medium px-2 py-1`}
+          >
             {status}
           </Badge>
         );
@@ -155,24 +185,33 @@ export default function BankTransactions({
     },
   ];
 
-  // ── Reconciliation columns ─────────────────────────────────────────────────
+  // ── Reconciliation columns ───────────────────────────────────────────────
 
   const reconcColumns = [
     {
-      key: "statementEndDate",
-      title: "Statement Date",
-      render: (value: unknown) => (
-        <span className="text-sm font-medium">
-          {format(new Date(value as string), "dd MMM yyyy")}
-        </span>
-      ),
+      key: "statementStartDate",
+      title: "Period",
+      render: (value: unknown, row?: any) => {
+        const endDate = (row as ReconciliationListItem)?.statementEndDate;
+        const startDate = value as string | null;
+        return (
+          <span className="text-sm font-medium">
+            {startDate
+              ? `${format(new Date(startDate), "dd MMM")} – ${format(new Date(endDate), "dd MMM yyyy")}`
+              : format(new Date(endDate), "dd MMM yyyy")}
+          </span>
+        );
+      },
     },
     {
       key: "statementEndingBalance",
       title: "Ending Balance",
       render: (value: unknown) => (
         <span className="text-sm font-semibold text-gray-800">
-          {sym}{(value as number).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+          {sym}
+          {(value as number).toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+          })}
         </span>
       ),
     },
@@ -180,7 +219,8 @@ export default function BankTransactions({
       key: "matchedCount",
       title: "Matched",
       render: (value: unknown, row?: any) => {
-        const total = (row as ReconciliationHistoryItem)?.statementTransactionCount ?? 0;
+        const total =
+          (row as ReconciliationListItem)?.statementTransactionCount ?? 0;
         const matched = (value as number) ?? 0;
         const pct = total > 0 ? Math.round((matched / total) * 100) : 0;
         return (
@@ -200,11 +240,11 @@ export default function BankTransactions({
       },
     },
     {
-      key: "completedAt",
+      key: "status",
       title: "Status",
       render: (value: unknown) => {
-        const completed = !!value;
-        return completed ? (
+        const status = value as string;
+        return status === "COMPLETED" ? (
           <Badge className="bg-green-100 text-green-700 gap-1 text-xs">
             <CheckCircle2 className="w-3 h-3" />
             Completed
@@ -220,25 +260,28 @@ export default function BankTransactions({
     {
       key: "completedBy",
       title: "Completed By",
-      render: (value: unknown) => (
-        <span className="text-xs text-gray-500">{(value as string) || "—"}</span>
-      ),
+      render: (value: unknown, row: any) => {
+        console.log("Completed By:", row);
+        return (
+          <span className="text-xs text-gray-500">
+            {(value as string) || "—-"}
+          </span>
+        );
+      },
     },
     {
       key: "id",
       title: "Actions",
-      render: (_value: unknown) => (
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 gap-1.5 text-xs text-gray-600 hover:text-primary"
-            onClick={() => router.push(`/banking/${bankAccountId}/reconcile`)}
-          >
-            <Eye className="w-3.5 h-3.5" />
-            View
-          </Button>
-        </div>
+      render: (value: unknown) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 gap-1.5 text-xs text-gray-600 hover:text-primary"
+          onClick={() => handleViewReconciliation(value as string)}
+        >
+          <Eye className="w-3.5 h-3.5" />
+          View
+        </Button>
       ),
     },
   ];
@@ -248,12 +291,15 @@ export default function BankTransactions({
       size="sm"
       variant="outline"
       className="gap-1.5 text-xs"
-      onClick={() => router.push(`/banking/${bankAccountId}/reconcile`)}
+      onClick={handleNewReconciliation}
     >
       <RotateCcw className="w-3.5 h-3.5" />
       New Reconciliation
     </Button>
   );
+
+  const totalRecon = reconciliationData?.pagination?.total ?? 0;
+  const totalPages = reconciliationData?.pagination?.totalPages ?? 1;
 
   const tabs: Tab[] = [
     {
@@ -278,22 +324,47 @@ export default function BankTransactions({
     },
     {
       value: "reconciliations",
-      title: `Reconciliations (${reconciliations.length})`,
+      title: `Reconciliations (${totalRecon})`,
       content: (
-        <CustomTable
-          data={reconciliations}
-          columns={reconcColumns as any}
-          tableTitle="Bank Reconciliations"
-          searchPlaceholder="Search reconciliations..."
-          loading={reconcLoading}
-          headerActions={reconcHeaderActions}
-          display={{
-            searchComponent: false,
-            statusComponent: false,
-            filterComponent: false,
-            methodsComponent: false,
-          }}
-        />
+        <div className="space-y-3">
+          <CustomTable
+            data={reconciliations}
+            columns={reconcColumns as any}
+            tableTitle="Bank Reconciliations"
+            searchPlaceholder="Search reconciliations..."
+            loading={reconcLoading}
+            headerActions={reconcHeaderActions}
+            display={{
+              searchComponent: false,
+              statusComponent: false,
+              filterComponent: false,
+              methodsComponent: false,
+            }}
+          />
+          {totalPages > 1 && (
+            <div className="flex items-center justify-end gap-2 px-1">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={reconPage <= 1}
+                onClick={() => setReconPage((p) => p - 1)}
+              >
+                Previous
+              </Button>
+              <span className="text-xs text-gray-500">
+                Page {reconPage} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={reconPage >= totalPages}
+                onClick={() => setReconPage((p) => p + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          )}
+        </div>
       ),
     },
   ];

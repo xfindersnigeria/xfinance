@@ -34,11 +34,12 @@ export class CustomizationController {
     FileFieldsInterceptor([
       { name: 'logo', maxCount: 1 },
       { name: 'loginBg', maxCount: 1 },
+      { name: 'favicon', maxCount: 1 },
     ]),
   )
   async updateCustomization(
     @Body() dto: UpdateCustomizationDto,
-    @UploadedFiles() files: { logo?: Express.Multer.File[]; loginBg?: Express.Multer.File[] },
+    @UploadedFiles() files: { logo?: Express.Multer.File[]; loginBg?: Express.Multer.File[]; favicon?: Express.Multer.File[] },
     @Req() req: Request,
   ) {
     const groupId = getEffectiveGroupId(req);
@@ -48,6 +49,7 @@ export class CustomizationController {
       dto,
       files?.logo?.[0],
       files?.loginBg?.[0],
+      files?.favicon?.[0],
     );
   }
 }

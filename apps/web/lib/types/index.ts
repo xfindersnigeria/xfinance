@@ -132,6 +132,8 @@ export type GroupCustomizationType = {
   primaryColor: string;
   logoUrl: string | null;
   loginBgUrl: string | null;
+  siteName: string | null;
+  faviconUrl: string | null;
 };
 
 // Complete whoami response structure

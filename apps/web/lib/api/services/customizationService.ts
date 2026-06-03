@@ -8,20 +8,26 @@ export interface CustomizationRecord {
   logoUrl: string | null;
   loginBgPublicId: string | null;
   loginBgUrl: string | null;
+  siteName: string | null;
+  faviconPublicId: string | null;
+  faviconUrl: string | null;
 }
 
 export const getCustomization = async (): Promise<CustomizationRecord> =>
   apiClient<CustomizationRecord>("settings/customization", { method: "GET" });
 
 export const updateCustomization = async (
-  data: { primaryColor?: string },
+  data: { primaryColor?: string; siteName?: string },
   logoFile?: File,
   loginBgFile?: File,
+  faviconFile?: File,
 ): Promise<CustomizationRecord> => {
   const form = new FormData();
   if (data.primaryColor) form.append("primaryColor", data.primaryColor);
+  if (data.siteName !== undefined) form.append("siteName", data.siteName);
   if (logoFile) form.append("logo", logoFile);
   if (loginBgFile) form.append("loginBg", loginBgFile);
+  if (faviconFile) form.append("favicon", faviconFile);
 
   return apiClient<CustomizationRecord>("settings/customization", {
     method: "PATCH",
@@ -29,12 +35,14 @@ export const updateCustomization = async (
   });
 };
 
-/** Server-side only — called from the login page server component. */
+/** Server-side only — called from layouts and the login page server component. */
 export async function getPublicCustomizationServer(host: string): Promise<GroupCustomization> {
   const DEFAULT: GroupCustomization = {
     primaryColor: "#4152B6",
     logoUrl: "/images/logo.png",
     loginBgUrl: "/images/auth.jpg",
+    siteName: null,
+    faviconUrl: null,
   };
   try {
     const apiUrl = process.env.API_URL || "http://localhost:3000";
@@ -44,11 +52,13 @@ export async function getPublicCustomizationServer(host: string): Promise<GroupC
     });
     if (!res.ok) return DEFAULT;
     const json = await res.json();
-    const d = json.data;
+    const d = json.data ?? json;
     return {
       primaryColor: d?.primaryColor || DEFAULT.primaryColor,
       logoUrl: d?.logoUrl || DEFAULT.logoUrl,
       loginBgUrl: d?.loginBgUrl || DEFAULT.loginBgUrl,
+      siteName: d?.siteName ?? null,
+      faviconUrl: d?.faviconUrl ?? null,
     };
   } catch {
     return DEFAULT;

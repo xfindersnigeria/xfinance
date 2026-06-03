@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2, Sparkles } from "lucide-react";
+import { useDebounce } from "use-debounce";
 import { Button } from "@/components/ui/button";
 import ReconciliationHeader from "./ReconciliationHeader";
 import ReconciliationSetup from "./ReconciliationSetup";
@@ -17,82 +18,133 @@ import {
   BookTransaction,
 } from "./types";
 import {
-  useActiveReconciliation,
+  useReconciliationById,
+  useBookTransactions,
   useSaveReconciliationDraft,
   useCompleteReconciliation,
+  useBankAccount,
 } from "@/lib/api/hooks/useBanking";
-import { useBankAccount } from "@/lib/api/hooks/useBanking";
 import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 interface ReconciliationPageProps {
   bankAccountId: string;
+  reconcileId: string;
 }
 
-export default function ReconciliationPage({ bankAccountId }: ReconciliationPageProps) {
+export default function ReconciliationPage({ bankAccountId, reconcileId }: ReconciliationPageProps) {
   const router = useRouter();
   const sym = useEntityCurrencySymbol();
   const { data: bankAccount } = useBankAccount(bankAccountId);
-  const { data: activeData, isLoading } = useActiveReconciliation(bankAccountId);
-  const saveDraft = useSaveReconciliationDraft(bankAccountId);
-  const complete = useCompleteReconciliation(bankAccountId);
+  const { data: reconData, isLoading: reconLoading } = useReconciliationById(bankAccountId, reconcileId);
+  const saveDraft = useSaveReconciliationDraft(bankAccountId, reconcileId);
+  const complete = useCompleteReconciliation(bankAccountId, reconcileId);
 
   const today = new Date().toISOString().split("T")[0];
 
   const [setup, setSetup] = useState<ReconciliationSetupValues>({
-    statementEndingDate: today,
+    statementStartDate: "",
+    statementEndingDate: "",
     statementEndingBalance: 0,
     accountName: "",
   });
   const [statementTxs, setStatementTxs] = useState<StatementTransaction[]>([]);
   const [bookTxs, setBookTxs] = useState<BookTransaction[]>([]);
-  const [initialized, setInitialized] = useState(false);
+  const [reconInitialized, setReconInitialized] = useState(false);
 
-  // Populate state once data arrives
+  // Debounce dates by 500ms so typing doesn't hammer the API
+  const [debouncedStartDate] = useDebounce(setup.statementStartDate, 500);
+  const [debouncedEndDate] = useDebounce(setup.statementEndingDate, 500);
+
+  const isCompleted = reconData?.reconciliation?.status === "COMPLETED";
+
+  // ─── Load reconciliation metadata + statement transactions once ─────────────
   useEffect(() => {
-    if (!activeData || initialized) return;
-    setInitialized(true);
+    if (!reconData || reconInitialized) return;
+    setReconInitialized(true);
 
-    if (activeData.reconciliation) {
+    if (reconData.reconciliation) {
+      // Existing record — restore saved dates (overrides the today default)
       setSetup((prev) => ({
         ...prev,
-        statementEndingDate: activeData.reconciliation!.statementEndDate,
-        statementEndingBalance: activeData.reconciliation!.statementEndingBalance,
+        statementStartDate: reconData.reconciliation!.statementStartDate ?? "",
+        statementEndingDate: reconData.reconciliation!.statementEndDate,
+        statementEndingBalance: reconData.reconciliation!.statementEndingBalance,
       }));
     }
-    if (activeData.statementTransactions.length > 0) {
-      setStatementTxs(activeData.statementTransactions.map((t) => ({ ...t, category: t.category ?? undefined, matchedBookId: t.matchedBookId ?? undefined })));
-    }
-    if (activeData.bookTransactions.length > 0) {
-      setBookTxs(activeData.bookTransactions.map((t) => ({ ...t, category: t.category ?? undefined, matchedStatementId: t.matchedStatementId ?? undefined })));
-    }
-  }, [activeData, initialized]);
+    // New reconciliation: today default already set in useState — no override needed
 
-  // Keep account name in sync with bank account data
+    if (reconData.statementTransactions.length > 0) {
+      setStatementTxs(
+        reconData.statementTransactions.map((t) => ({
+          ...t,
+          category: t.category ?? undefined,
+          matchedBookId: t.matchedBookId ?? undefined,
+        })),
+      );
+    }
+  }, [reconData, reconInitialized]);
+
   useEffect(() => {
     if (bankAccount) {
       setSetup((prev) => ({ ...prev, accountName: (bankAccount as any).accountName ?? "" }));
     }
   }, [bankAccount]);
 
-  // ─── Summary ─────────────────────────────────────────────────────────────────
-  // statementBalance = what the bank says (user-entered, fixed)
-  // bookBalance = sum of checked book transactions (changes as user checks)
-  // difference = statementBalance - bookBalance → goal: 0
+  // ─── Book transactions — fetched independently, refreshed on date change ────
+  const { data: bookTxData, isFetching: bookTxsFetching } = useBookTransactions(
+    bankAccountId,
+    {
+      startDate: debouncedStartDate || undefined,
+      endDate: debouncedEndDate || undefined,
+      reconcileId,
+    },
+  );
+
+  // Merge fresh book transactions with current match state from statement side
+  useEffect(() => {
+    if (!bookTxData) return;
+
+    // Build a map of currently matched book IDs from local statement state
+    const matchedByStatementTx = new Map<string, string>();
+    statementTxs.forEach((s) => {
+      if (s.matched && s.matchedBookId) matchedByStatementTx.set(s.matchedBookId, s.id);
+    });
+
+    setBookTxs(
+      bookTxData.data.map((t) => ({
+        id: t.id,
+        date: t.date,
+        description: t.description,
+        reference: t.reference,
+        amount: t.amount,
+        category: t.category ?? undefined,
+        // Preserve match state: either from server (existing draft) or from current session
+        matched: t.matched || matchedByStatementTx.has(t.id),
+        matchedStatementId:
+          t.matchedStatementId ?? matchedByStatementTx.get(t.id) ?? undefined,
+      })),
+    );
+  }, [bookTxData]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── Summary ───────────────────────────────────────────────────────────────
+  const glBalance = bookTxData?.glBalance ?? reconData?.glBalance ?? 0;
+
   const summary = useMemo(() => {
     const statementBalance = setup.statementEndingBalance;
-    const bookBalance = bookTxs
+    const clearedBalance = bookTxs
       .filter((t) => t.matched)
       .reduce((sum, t) => sum + t.amount, 0);
-    const difference = statementBalance - bookBalance;
+    const difference = statementBalance - clearedBalance;
     const matchedCount =
       statementTxs.filter((t) => t.matched).length +
       bookTxs.filter((t) => t.matched).length;
     const totalItems = statementTxs.length + bookTxs.length;
-    return { statementBalance, bookBalance, difference, matchedCount, totalItems };
-  }, [setup.statementEndingBalance, statementTxs, bookTxs]);
+    return { statementBalance, bookBalance: clearedBalance, difference, matchedCount, totalItems, glBalance };
+  }, [setup.statementEndingBalance, statementTxs, bookTxs, glBalance]);
 
-  // ─── Build payload ────────────────────────────────────────────────────────────
+  // ─── Build payload ─────────────────────────────────────────────────────────
   const buildPayload = () => ({
+    statementStartDate: setup.statementStartDate || undefined,
     statementEndDate: setup.statementEndingDate,
     statementEndingBalance: setup.statementEndingBalance,
     statementTransactions: statementTxs.map((t) => ({
@@ -108,22 +160,11 @@ export default function ReconciliationPage({ bankAccountId }: ReconciliationPage
       .map((t) => ({ statementTransactionId: t.id, bookTransactionId: t.matchedBookId! })),
   });
 
-  // ─── Auto-match ───────────────────────────────────────────────────────────────
+  // ─── Auto-match: amount + reference ───────────────────────────────────────
   const runAutoMatch = useCallback(() => {
     if (!statementTxs.length || !bookTxs.length) return;
 
-    const wordSet = (s: string) =>
-      new Set(s.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(Boolean));
-
-    const descSimilarity = (a: string, b: string): number => {
-      const sa = wordSet(a);
-      const sb = wordSet(b);
-      if (!sa.size || !sb.size) return 0;
-      let overlap = 0;
-      sa.forEach((w) => { if (sb.has(w)) overlap++; });
-      return overlap / Math.max(sa.size, sb.size);
-    };
-
+    const normalizeRef = (s: string) => s.trim().toLowerCase().replace(/\s+/g, "");
     const usedBookIds = new Set(
       statementTxs.filter((t) => t.matchedBookId).map((t) => t.matchedBookId!),
     );
@@ -131,14 +172,15 @@ export default function ReconciliationPage({ bankAccountId }: ReconciliationPage
     let matchCount = 0;
     const nextStmt = statementTxs.map((stmt) => {
       if (stmt.matched && stmt.matchedBookId) return stmt;
-
+      const stmtRef = normalizeRef(stmt.reference);
       const candidate = bookTxs.find((book) => {
         if (usedBookIds.has(book.id)) return false;
         const amountMatch = Math.abs(Math.abs(stmt.amount) - Math.abs(book.amount)) < 0.01;
         if (!amountMatch) return false;
-        return descSimilarity(stmt.description, book.description) >= 0.25;
+        const bookRef = normalizeRef(book.reference);
+        if (stmtRef && bookRef) return stmtRef === bookRef;
+        return true;
       });
-
       if (!candidate) return stmt;
       usedBookIds.add(candidate.id);
       matchCount++;
@@ -160,21 +202,17 @@ export default function ReconciliationPage({ bankAccountId }: ReconciliationPage
     if (matchCount > 0) {
       toast.success(`Auto-matched ${matchCount} transaction${matchCount !== 1 ? "s" : ""}`);
     } else {
-      toast.info("No new matches found — check amounts and descriptions");
+      toast.info("No new matches found — ensure amounts and references match");
     }
   }, [statementTxs, bookTxs]);
 
-  // ─── Handlers ─────────────────────────────────────────────────────────────────
+  // ─── Handlers ──────────────────────────────────────────────────────────────
   const handleSaveProgress = () => {
     if (!setup.statementEndingDate) {
       toast.error("Please set the statement ending date first");
       return;
     }
     saveDraft.mutate(buildPayload());
-  };
-
-  const handleExport = () => {
-    toast.info("Export coming soon", { description: "PDF/Excel export will be available shortly." });
   };
 
   const handleComplete = () => {
@@ -193,7 +231,7 @@ export default function ReconciliationPage({ bankAccountId }: ReconciliationPage
     });
   };
 
-  if (isLoading) {
+  if (reconLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="flex flex-col items-center gap-3">
@@ -208,68 +246,77 @@ export default function ReconciliationPage({ bankAccountId }: ReconciliationPage
     <div className="space-y-5 p-4">
       <ReconciliationHeader
         accountName={setup.accountName}
+        status={reconData?.reconciliation?.status ?? null}
         onSaveProgress={handleSaveProgress}
-        onExport={handleExport}
+        onExport={() => toast.info("Export coming soon")}
       />
 
       <ReconciliationSetup
         values={setup}
         onChange={setSetup}
         accountName={setup.accountName}
+        readOnly={isCompleted}
       />
 
-      <ReconciliationSummaryCards summary={summary} />
+      <ReconciliationSummaryCards summary={summary} sym={sym} />
 
       <ReconciliationStatusBanner difference={summary.difference} />
 
-      <div className="flex justify-center">
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-2 text-xs border-primary/30 text-primary hover:bg-primary/5"
-          onClick={runAutoMatch}
-          disabled={!statementTxs.length || !bookTxs.length}
-        >
-          <Sparkles className="w-3.5 h-3.5" />
-          Auto Match Transactions
-        </Button>
-      </div>
+      {!isCompleted && (
+        <div className="flex justify-center">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 text-xs border-primary/30 text-primary hover:bg-primary/5"
+            onClick={runAutoMatch}
+            disabled={!statementTxs.length || !bookTxs.length}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Auto Match Transactions
+          </Button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-[500px]">
         <StatementTransactionsPanel
           bankAccountId={bankAccountId}
           transactions={statementTxs}
           onChange={setStatementTxs}
+          readOnly={isCompleted}
         />
         <BookTransactionsPanel
           bankAccountId={bankAccountId}
           transactions={bookTxs}
           onChange={setBookTxs}
+          readOnly={isCompleted}
+          isLoading={bookTxsFetching}
         />
       </div>
 
       <div className="flex items-center justify-between pt-2 pb-4">
         <Button variant="outline" onClick={() => router.back()}>
-          Cancel
+          Back
         </Button>
-        <div className="flex gap-3">
-          <Button
-            variant="outline"
-            onClick={handleSaveProgress}
-            disabled={saveDraft.isPending}
-          >
-            {saveDraft.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
-            Save as Draft
-          </Button>
-          <Button
-            className="bg-primary text-white gap-2"
-            onClick={handleComplete}
-            disabled={complete.isPending}
-          >
-            {complete.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
-            Complete Reconciliation
-          </Button>
-        </div>
+        {!isCompleted && (
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              onClick={handleSaveProgress}
+              disabled={saveDraft.isPending}
+            >
+              {saveDraft.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
+              Save as Draft
+            </Button>
+            <Button
+              className="bg-primary text-white gap-2"
+              onClick={handleComplete}
+              disabled={complete.isPending}
+            >
+              {complete.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
+              Complete Reconciliation
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

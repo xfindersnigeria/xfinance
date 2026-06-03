@@ -15,6 +15,7 @@ interface StatementTransactionsPanelProps {
   bankAccountId: string;
   transactions: StatementTransaction[];
   onChange: (transactions: StatementTransaction[]) => void;
+  readOnly?: boolean;
 }
 
 function formatAmount(amount: number, sym: string) {
@@ -28,6 +29,7 @@ function formatAmount(amount: number, sym: string) {
 export default function StatementTransactionsPanel({
   transactions,
   onChange,
+  readOnly = false,
 }: StatementTransactionsPanelProps) {
   const sym = useEntityCurrencySymbol();
   const [addOpen, setAddOpen] = useState(false);
@@ -59,7 +61,8 @@ export default function StatementTransactionsPanel({
       date: row.date,
       description: row.description,
       reference: row.reference || "",
-      amount: row.amount,
+      // credits are positive (money in), debits are negative (money out)
+      amount: row.type === "debit" ? -Math.abs(row.amount ?? 0) : Math.abs(row.amount ?? 0),
       matched: false,
     }));
     onChange([...transactions, ...imported]);
@@ -79,26 +82,19 @@ export default function StatementTransactionsPanel({
           <Badge variant="outline" className="text-xs">{transactions.length} items</Badge>
         </div>
 
-        <div className="flex gap-2 px-4 py-3 border-b border-gray-100">
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1 gap-1.5 text-xs"
-            onClick={() => setImportOpen(true)}
-          >
-            <Upload className="w-3.5 h-3.5" />
-            Import Statement
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1 gap-1.5 text-xs"
-            onClick={() => setAddOpen(true)}
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Add Transaction
-          </Button>
-        </div>
+        {!readOnly && (
+          <div className="flex gap-2 px-4 py-3 border-b border-gray-100">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 gap-1.5 text-xs"
+              onClick={() => setImportOpen(true)}
+            >
+              <Upload className="w-3.5 h-3.5" />
+              Import Statement
+            </Button>
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
           {transactions.map((tx) => (
@@ -110,7 +106,8 @@ export default function StatementTransactionsPanel({
             >
               <Checkbox
                 checked={tx.matched}
-                onCheckedChange={() => toggleMatched(tx.id)}
+                onCheckedChange={readOnly ? undefined : () => toggleMatched(tx.id)}
+                disabled={readOnly}
                 className="mt-0.5"
               />
               <div className="flex-1 min-w-0">
@@ -124,15 +121,24 @@ export default function StatementTransactionsPanel({
                   </Badge>
                 )}
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className={`text-sm font-semibold ${tx.amount >= 0 ? "text-green-700" : "text-red-700"}`}>
-                  {formatAmount(tx.amount, sym)}
-                </span>
-                {tx.matched ? (
-                  <CheckCircle2 className="w-4 h-4 text-green-500" />
-                ) : (
-                  <div className="w-4 h-4 rounded-full border-2 border-gray-300" />
-                )}
+              <div className="flex flex-col items-end gap-0.5 shrink-0">
+                <div className="flex items-center gap-1.5">
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                    tx.amount >= 0
+                      ? "bg-green-100 text-green-700"
+                      : "bg-red-100 text-red-700"
+                  }`}>
+                    {tx.amount >= 0 ? "CR" : "DR"}
+                  </span>
+                  <span className={`text-sm font-semibold ${tx.amount >= 0 ? "text-green-700" : "text-red-700"}`}>
+                    {formatAmount(tx.amount, sym)}
+                  </span>
+                  {tx.matched ? (
+                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                  ) : (
+                    <div className="w-4 h-4 rounded-full border-2 border-gray-300" />
+                  )}
+                </div>
               </div>
             </div>
           ))}

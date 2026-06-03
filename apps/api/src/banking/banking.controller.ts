@@ -192,17 +192,37 @@ export class BankingController {
 
   // ─── Reconciliation ────────────────────────────────────────────────────────
 
-  @Get('/accounts/:id/reconciliations')
-  @ApiOperation({ summary: 'List completed reconciliations for a bank account' })
+  @Get('/accounts/:id/book-transactions')
+  @ApiOperation({ summary: 'Fetch uncleared book transactions for a date range (re-fetched on date change)' })
   @ApiParam({ name: 'id', type: 'string' })
   @ApiResponse({ status: 200 })
-  async getReconciliationHistory(@Param('id') id: string, @Req() req: any) {
+  async getBookTransactions(
+    @Param('id') id: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('reconcileId') reconcileId?: string,
+    @Req() req?: any,
+  ) {
     const entityId = getEffectiveEntityId(req) as string;
-    return this.bankingService.getReconciliationHistory(id, entityId);
+    return this.bankingService.getBookTransactions(id, entityId, startDate, endDate, reconcileId);
+  }
+
+  @Get('/accounts/:id/reconciliations')
+  @ApiOperation({ summary: 'List all reconciliations (draft + completed) for a bank account, paginated' })
+  @ApiParam({ name: 'id', type: 'string' })
+  @ApiResponse({ status: 200 })
+  async listReconciliations(
+    @Param('id') id: string,
+    @Query('page') page = 1,
+    @Query('pageSize') pageSize = 20,
+    @Req() req: any,
+  ) {
+    const entityId = getEffectiveEntityId(req) as string;
+    return this.bankingService.listReconciliations(id, entityId, +page, +pageSize);
   }
 
   @Get('/accounts/:id/reconciliations/active')
-  @ApiOperation({ summary: 'Get active draft reconciliation (or null) with statement txs, book txs, and matches' })
+  @ApiOperation({ summary: 'Returns draftId of the most recent DRAFT reconciliation, or null' })
   @ApiParam({ name: 'id', type: 'string' })
   @ApiResponse({ status: 200 })
   async getActiveReconciliation(@Param('id') id: string, @Req() req: any) {
@@ -210,34 +230,52 @@ export class BankingController {
     return this.bankingService.getActiveReconciliation(id, entityId);
   }
 
-  @Put('/accounts/:id/reconciliations/draft')
-  @ApiOperation({ summary: 'Save (upsert) reconciliation draft — sends full state each time' })
+  @Get('/accounts/:id/reconciliations/:reconcileId')
+  @ApiOperation({ summary: 'Load a specific reconciliation by ID (returns empty state if not yet created)' })
   @ApiParam({ name: 'id', type: 'string' })
+  @ApiParam({ name: 'reconcileId', type: 'string' })
+  @ApiResponse({ status: 200 })
+  async getReconciliationById(
+    @Param('id') id: string,
+    @Param('reconcileId') reconcileId: string,
+    @Req() req: any,
+  ) {
+    const entityId = getEffectiveEntityId(req) as string;
+    return this.bankingService.getReconciliationById(id, reconcileId, entityId);
+  }
+
+  @Put('/accounts/:id/reconciliations/:reconcileId')
+  @ApiOperation({ summary: 'Save (upsert) reconciliation draft by ID — sends full state each time' })
+  @ApiParam({ name: 'id', type: 'string' })
+  @ApiParam({ name: 'reconcileId', type: 'string' })
   @ApiResponse({ status: 200 })
   async saveDraft(
     @Param('id') id: string,
+    @Param('reconcileId') reconcileId: string,
     @Body() dto: SaveReconciliationDraftDto,
     @Req() req: any,
   ) {
     const entityId = getEffectiveEntityId(req) as string;
     const groupId = getEffectiveGroupId(req) as string;
     const userId = req.user?.id as string;
-    return this.bankingService.saveDraft(id, entityId, groupId, userId, dto);
+    return this.bankingService.saveDraft(id, reconcileId, entityId, groupId, userId, dto);
   }
 
-  @Post('/accounts/:id/reconciliations/complete')
-  @ApiOperation({ summary: 'Complete (finalise) the reconciliation — locks it and marks book transactions as cleared' })
+  @Post('/accounts/:id/reconciliations/:reconcileId/complete')
+  @ApiOperation({ summary: 'Complete (finalise) a reconciliation by ID — locks it and marks book transactions as cleared' })
   @ApiParam({ name: 'id', type: 'string' })
+  @ApiParam({ name: 'reconcileId', type: 'string' })
   @ApiResponse({ status: 201 })
   async completeReconciliation(
     @Param('id') id: string,
+    @Param('reconcileId') reconcileId: string,
     @Body() dto: CompleteReconciliationDto,
     @Req() req: any,
   ) {
     const entityId = getEffectiveEntityId(req) as string;
     const groupId = getEffectiveGroupId(req) as string;
     const userId = req.user?.id as string;
-    return this.bankingService.completeReconciliation(id, entityId, groupId, userId, dto);
+    return this.bankingService.completeReconciliation(id, reconcileId, entityId, groupId, userId, dto);
   }
 
   @Post('/accounts/:id/reconciliations/import')
@@ -253,7 +291,6 @@ export class BankingController {
     if (!file) throw new BadRequestException('No file uploaded');
     const entityId = getEffectiveEntityId(req) as string;
     await this.bankingService.validateBankAccountAccess(id, entityId);
-    const transactions = this.bankingService.parseImportedCSV(file.buffer);
-    return { data: transactions, count: transactions.length };
+    return { message: 'Use client-side import' };
   }
 }

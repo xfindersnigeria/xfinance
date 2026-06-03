@@ -2,22 +2,24 @@ import Image from "next/image";
 
 export default function Logo({
   white = false,
-  classNames = "w-10 h-10",
   logoUrl,
+  className,
 }: {
   white?: boolean;
-  classNames?: string;
   logoUrl?: string;
+  className?: string;
+  /** @deprecated use className */
+  classNames?: string;
 }) {
   const src = logoUrl || "/images/logo.png";
   return (
-    <div className={`${classNames} mx-auto`}>
+    <div className={`flex ${className ?? ""}`}>
       <Image
         src={src}
-        alt="XPortal Logo"
-        width={180}
-        height={180}
-        className={`${classNames} object-contain`}
+        alt="Logo"
+        width={300}
+        height={60}
+        className="h-10  w-auto max-w-[300px] object-contain"
         priority
       />
     </div>

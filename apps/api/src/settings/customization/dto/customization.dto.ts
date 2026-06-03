@@ -5,16 +5,24 @@ export class UpdateCustomizationDto {
   @IsString()
   @Matches(/^#[0-9A-Fa-f]{6}$/, { message: 'primaryColor must be a valid hex color (e.g. #4152B6)' })
   primaryColor?: string;
+
+  @IsOptional()
+  @IsString()
+  siteName?: string;
 }
 
 export class CustomizationResponseDto {
   primaryColor: string;
   logoUrl: string | null;
   loginBgUrl: string | null;
+  siteName: string | null;
+  faviconUrl: string | null;
 }
 
 export const DEFAULT_CUSTOMIZATION: CustomizationResponseDto = {
   primaryColor: '#4152B6',
   logoUrl: null,
   loginBgUrl: null,
+  siteName: null,
+  faviconUrl: null,
 };

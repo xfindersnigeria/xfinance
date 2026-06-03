@@ -27,7 +27,9 @@
       "Bash(echo \"EXIT:$?\")",
       "Bash(dir /s /b \"C:\\\\Users\\\\Edeh JayCee\\\\Desktop\\\\projects\\\\xfinance\\\\xfinance\\\\apps\\\\web\\\\src\\\\app\")",
       "PowerShell(Get-ChildItem \"C:\\\\Users\\\\Edeh JayCee\\\\Desktop\\\\projects\\\\xfinance\\\\xfinance\\\\apps\\\\web\\\\lib\\\\api\" -Recurse | Where-Object { $_.Name -match \"auth\" } | Select-Object FullName)",
-      "PowerShell(New-Item *)"
+      "PowerShell(New-Item *)",
+      "Bash(npm install *)",
+      "Bash(npm run *)"
     ]
   }
 }

@@ -19,20 +19,16 @@ export function useUpdateCustomization() {
       data,
       logoFile,
       loginBgFile,
+      faviconFile,
     }: {
-      data: { primaryColor?: string };
+      data: { primaryColor?: string; siteName?: string };
       logoFile?: File;
       loginBgFile?: File;
-    }) => updateCustomization(data, logoFile, loginBgFile),
+      faviconFile?: File;
+    }) => updateCustomization(data, logoFile, loginBgFile, faviconFile),
     onSuccess: (record, variables) => {
-      // Update query cache immediately — no refetch race condition
       queryClient.setQueryData(['customization'], record);
 
-      // Use getState() so we always spread the LIVE whoami (no stale-closure risk).
-      // Use variables.data.primaryColor as the color source — it's exactly what the
-      // user submitted, bypassing any server-side null/default fallback in the record.
-      // URLs (logoUrl, loginBgUrl) must come from the server because Cloudinary
-      // generates them; local file object URLs are not permanent.
       const liveWhoami = useSessionStore.getState().whoami;
       if (liveWhoami) {
         setWhoami({
@@ -41,6 +37,8 @@ export function useUpdateCustomization() {
             primaryColor: variables.data.primaryColor ?? record.primaryColor ?? '#4152B6',
             logoUrl: record.logoUrl ?? liveWhoami.customization?.logoUrl ?? null,
             loginBgUrl: record.loginBgUrl ?? liveWhoami.customization?.loginBgUrl ?? null,
+            siteName: record.siteName ?? liveWhoami.customization?.siteName ?? null,
+            faviconUrl: record.faviconUrl ?? liveWhoami.customization?.faviconUrl ?? null,
           },
         });
       }

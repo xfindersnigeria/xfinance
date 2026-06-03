@@ -476,153 +476,262 @@ export class BankingService {
   async validateBankAccountAccess(bankAccountId: string, entityId: string) {
     const account = await this.prisma.bankAccount.findUnique({
       where: { id: bankAccountId },
+      include: { linkedAccount: { select: { id: true, balance: true } } },
     });
     if (!account) throw new NotFoundException('Bank account not found');
     if (account.entityId !== entityId) throw new ForbiddenException('Access denied');
     return account;
   }
 
-  async getActiveReconciliation(bankAccountId: string, entityId: string) {
-    const bankAccount = await this.validateBankAccountAccess(bankAccountId, entityId);
-
-    const draft = await this.prisma.bankReconciliation.findFirst({
-      where: { bankAccountId, entityId, status: 'DRAFT' },
-      include: {
-        statementTransactions: { orderBy: { date: 'asc' } },
-        matches: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    // Load book transactions: all uncleared BANK transactions for this GL account
-    const bookTransactions = await this.prisma.accountTransaction.findMany({
-      where: {
-        accountId: bankAccount.linkedAccountId,
-        entityId,
-        status: 'Success',
-        clearedInReconciliationId: null,
-      },
-      orderBy: { date: 'desc' },
-    });
-
-    const bookTxs = bookTransactions.map((tx) => ({
+  private buildBookTxs(transactions: any[], matches: { bookTransactionId: string; statementTransactionId: string }[]) {
+    return transactions.map((tx) => ({
       id: tx.id,
       date: tx.date.toISOString().split('T')[0],
       description: tx.description,
       reference: tx.reference ?? '',
-      amount: tx.creditAmount - tx.debitAmount,
+      // debitAmount > 0 = money IN (DR bank account in books = deposit/received)
+      // creditAmount > 0 = money OUT (CR bank account in books = withdrawal/paid)
+      amount: tx.debitAmount - tx.creditAmount,
       category: null as string | null,
-      matched: draft ? draft.matches.some((m) => m.bookTransactionId === tx.id) : false,
-      matchedStatementId: draft?.matches.find((m) => m.bookTransactionId === tx.id)?.statementTransactionId ?? null,
+      matched: matches.some((m) => m.bookTransactionId === tx.id),
+      matchedStatementId: matches.find((m) => m.bookTransactionId === tx.id)?.statementTransactionId ?? null,
     }));
+  }
 
-    if (!draft) {
+  async listReconciliations(bankAccountId: string, entityId: string, page = 1, pageSize = 20) {
+    await this.validateBankAccountAccess(bankAccountId, entityId);
+    const skip = (page - 1) * pageSize;
+
+    const [records, total] = await Promise.all([
+      this.prisma.bankReconciliation.findMany({
+        where: { bankAccountId, entityId },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: pageSize,
+        select: {
+          id: true,
+          statementStartDate: true,
+          statementEndDate: true,
+          statementEndingBalance: true,
+          status: true,
+          completedAt: true,
+          reconciliationCompletedBy: { select: { firstName: true, lastName: true } },
+          notes: true,
+          _count: { select: { statementTransactions: true, matches: true } },
+        },
+      }),
+      this.prisma.bankReconciliation.count({ where: { bankAccountId, entityId } }),
+    ]);
+
+    return {
+      data: records.map((r) => ({
+        id: r.id,
+        statementStartDate: r.statementStartDate ? r.statementStartDate.toISOString().split('T')[0] : null,
+        statementEndDate: r.statementEndDate.toISOString().split('T')[0],
+        statementEndingBalance: r.statementEndingBalance,
+        status: r.status,
+        completedAt: r.completedAt,
+        completedBy: r.reconciliationCompletedBy ? `${r.reconciliationCompletedBy.firstName} ${r.reconciliationCompletedBy.lastName}` : null,
+        notes: r.notes,
+        statementTransactionCount: r._count.statementTransactions,
+        matchedCount: r._count.matches,
+      })),
+      pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+    };
+  }
+
+  async getReconciliationById(bankAccountId: string, reconcileId: string, entityId: string) {
+    const bankAccount = await this.validateBankAccountAccess(bankAccountId, entityId);
+
+    const recon = await this.prisma.bankReconciliation.findUnique({
+      where: { id: reconcileId },
+      include: {
+        statementTransactions: { orderBy: { date: 'asc' } },
+        matches: true,
+      },
+    });
+
+    if (!recon) {
+      // No record yet — return empty state so the frontend treats it as a new form
+      const bookTxs = await this.prisma.accountTransaction.findMany({
+        where: { accountId: bankAccount.linkedAccountId, entityId, status: 'Success', clearedInReconciliationId: null },
+        orderBy: { date: 'desc' },
+      });
       return {
         reconciliation: null,
         statementTransactions: [],
-        bookTransactions: bookTxs,
+        bookTransactions: this.buildBookTxs(bookTxs, []),
         matches: [],
+        glBalance: bankAccount.linkedAccount?.balance ?? 0,
       };
     }
 
+    if (recon.bankAccountId !== bankAccountId || recon.entityId !== entityId) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    // Load book transactions filtered to statement date range (if start date present)
+    const dateFilter: any = { accountId: bankAccount.linkedAccountId, entityId, status: 'Success' };
+    if (recon.status === 'DRAFT') {
+      // For drafts: show uncleared + already matched in this reconciliation
+      const matchedBookIds = recon.matches.map((m) => m.bookTransactionId);
+      dateFilter.OR = [
+        { clearedInReconciliationId: null },
+        { id: { in: matchedBookIds } },
+      ];
+    } else {
+      // For completed: show only the matched transactions
+      const matchedBookIds = recon.matches.map((m) => m.bookTransactionId);
+      dateFilter.id = { in: matchedBookIds };
+    }
+
+    if (recon.statementStartDate) {
+      dateFilter.date = { gte: recon.statementStartDate, lte: recon.statementEndDate };
+    } else if (recon.status === 'DRAFT') {
+      dateFilter.date = { lte: recon.statementEndDate };
+    }
+
+    const bookTransactions = await this.prisma.accountTransaction.findMany({
+      where: dateFilter,
+      orderBy: { date: 'desc' },
+    });
+
+    const matchList = recon.matches.map((m) => ({ bookTransactionId: m.bookTransactionId, statementTransactionId: m.statementTransactionId }));
+
     return {
       reconciliation: {
-        id: draft.id,
-        statementEndDate: draft.statementEndDate.toISOString().split('T')[0],
-        statementEndingBalance: draft.statementEndingBalance,
-        status: draft.status,
-        notes: draft.notes,
+        id: recon.id,
+        statementStartDate: recon.statementStartDate ? recon.statementStartDate.toISOString().split('T')[0] : null,
+        statementEndDate: recon.statementEndDate.toISOString().split('T')[0],
+        statementEndingBalance: recon.statementEndingBalance,
+        status: recon.status,
+        notes: recon.notes,
       },
-      statementTransactions: draft.statementTransactions.map((st) => ({
+      statementTransactions: recon.statementTransactions.map((st) => ({
         id: st.id,
         date: st.date.toISOString().split('T')[0],
         description: st.description,
         reference: st.reference ?? '',
         amount: st.amount,
         category: st.category,
-        matched: draft.matches.some((m) => m.statementTransactionId === st.id),
-        matchedBookId: draft.matches.find((m) => m.statementTransactionId === st.id)?.bookTransactionId ?? null,
+        matched: matchList.some((m) => m.statementTransactionId === st.id),
+        matchedBookId: matchList.find((m) => m.statementTransactionId === st.id)?.bookTransactionId ?? null,
       })),
-      bookTransactions: bookTxs,
-      matches: draft.matches.map((m) => ({
-        statementTransactionId: m.statementTransactionId,
-        bookTransactionId: m.bookTransactionId,
-      })),
+      bookTransactions: this.buildBookTxs(bookTransactions, matchList),
+      matches: matchList,
+      glBalance: bankAccount.linkedAccount?.balance ?? 0,
     };
+  }
+
+  private async upsertReconciliationInTransaction(
+    tx: any,
+    {
+      reconcileId,
+      bankAccountId,
+      entityId,
+      groupId,
+      userId,
+      dto,
+      complete,
+    }: {
+      reconcileId: string;
+      bankAccountId: string;
+      entityId: string;
+      groupId: string;
+      userId: string;
+      dto: { id?: string; statementStartDate?: string; statementEndDate: string; statementEndingBalance: number; statementTransactions: any[]; matches: any[]; notes?: string };
+      complete: boolean;
+    },
+  ) {
+    const existing = await tx.bankReconciliation.findUnique({ where: { id: reconcileId } });
+
+    if (existing && existing.status === 'COMPLETED' && !complete) {
+      throw new ForbiddenException('Cannot modify a completed reconciliation');
+    }
+
+    const sharedData = {
+      statementStartDate: dto.statementStartDate ? new Date(dto.statementStartDate) : null,
+      statementEndDate: new Date(dto.statementEndDate),
+      statementEndingBalance: dto.statementEndingBalance,
+    };
+
+    let recon: any;
+    if (existing) {
+      await tx.bankStatementTransaction.deleteMany({ where: { reconciliationId: reconcileId } });
+      recon = await tx.bankReconciliation.update({
+        where: { id: reconcileId },
+        data: {
+          ...sharedData,
+          ...(complete ? { status: 'COMPLETED', notes: dto.notes || null, completedBy: userId, completedAt: new Date() } : {}),
+        },
+      });
+    } else {
+      recon = await tx.bankReconciliation.create({
+        data: {
+          id: reconcileId,
+          bankAccountId,
+          entityId,
+          groupId,
+          ...sharedData,
+          status: complete ? 'COMPLETED' : 'DRAFT',
+          notes: dto.notes || null,
+          createdBy: userId,
+          ...(complete ? { completedBy: userId, completedAt: new Date() } : {}),
+        },
+      });
+    }
+
+    if (dto.statementTransactions.length > 0) {
+      await tx.bankStatementTransaction.createMany({
+        data: dto.statementTransactions.map((st) => ({
+          id: st.id,
+          reconciliationId: recon.id,
+          entityId,
+          groupId,
+          date: new Date(st.date),
+          description: st.description,
+          reference: st.reference || null,
+          amount: st.amount,
+          category: st.category || null,
+        })),
+      });
+    }
+
+    if (dto.matches.length > 0) {
+      await tx.bankReconciliationMatch.createMany({
+        data: dto.matches.map((m) => ({
+          reconciliationId: recon.id,
+          statementTransactionId: m.statementTransactionId,
+          bookTransactionId: m.bookTransactionId,
+          entityId,
+          groupId,
+        })),
+      });
+    }
+
+    return recon;
   }
 
   async saveDraft(
     bankAccountId: string,
+    reconcileId: string,
     entityId: string,
     groupId: string,
     userId: string,
-    dto: { statementEndDate: string; statementEndingBalance: number; statementTransactions: any[]; matches: any[] },
+    dto: { id?: string; statementStartDate?: string; statementEndDate: string; statementEndingBalance: number; statementTransactions: any[]; matches: any[] },
   ) {
     await this.validateBankAccountAccess(bankAccountId, entityId);
 
-    const existingDraft = await this.prisma.bankReconciliation.findFirst({
-      where: { bankAccountId, entityId, status: 'DRAFT' },
-    });
-
     const reconciliation = await this.prisma.$transaction(async (tx) => {
-      let recon: any;
-
-      if (existingDraft) {
-        // Delete old statement txs and matches (cascade deletes matches too)
-        await tx.bankStatementTransaction.deleteMany({ where: { reconciliationId: existingDraft.id } });
-
-        recon = await tx.bankReconciliation.update({
-          where: { id: existingDraft.id },
-          data: {
-            statementEndDate: new Date(dto.statementEndDate),
-            statementEndingBalance: dto.statementEndingBalance,
-          },
-        });
-      } else {
-        recon = await tx.bankReconciliation.create({
-          data: {
-            bankAccountId,
-            entityId,
-            groupId,
-            statementEndDate: new Date(dto.statementEndDate),
-            statementEndingBalance: dto.statementEndingBalance,
-            status: 'DRAFT',
-            createdBy: userId,
-          },
-        });
-      }
-
-      // Re-create statement transactions
-      if (dto.statementTransactions.length > 0) {
-        await tx.bankStatementTransaction.createMany({
-          data: dto.statementTransactions.map((st) => ({
-            id: st.id,
-            reconciliationId: recon.id,
-            entityId,
-            groupId,
-            date: new Date(st.date),
-            description: st.description,
-            reference: st.reference || null,
-            amount: st.amount,
-            category: st.category || null,
-          })),
-        });
-      }
-
-      // Re-create matches
-      if (dto.matches.length > 0) {
-        await tx.bankReconciliationMatch.createMany({
-          data: dto.matches.map((m) => ({
-            reconciliationId: recon.id,
-            statementTransactionId: m.statementTransactionId,
-            bookTransactionId: m.bookTransactionId,
-            entityId,
-            groupId,
-          })),
-        });
-      }
-
-      return recon;
+      return this.upsertReconciliationInTransaction(tx, {
+        reconcileId,
+        bankAccountId,
+        entityId,
+        groupId,
+        userId,
+        dto,
+        complete: false,
+      });
     });
 
     return { message: 'Draft saved', reconciliationId: reconciliation.id };
@@ -630,78 +739,26 @@ export class BankingService {
 
   async completeReconciliation(
     bankAccountId: string,
+    reconcileId: string,
     entityId: string,
     groupId: string,
     userId: string,
-    dto: { statementEndDate: string; statementEndingBalance: number; statementTransactions: any[]; matches: any[]; notes?: string },
+    dto: { id?: string; statementStartDate?: string; statementEndDate: string; statementEndingBalance: number; statementTransactions: any[]; matches: any[]; notes?: string },
   ) {
     await this.validateBankAccountAccess(bankAccountId, entityId);
 
-    const existingDraft = await this.prisma.bankReconciliation.findFirst({
-      where: { bankAccountId, entityId, status: 'DRAFT' },
-    });
-
     await this.prisma.$transaction(async (tx) => {
-      let recon: any;
-
-      if (existingDraft) {
-        await tx.bankStatementTransaction.deleteMany({ where: { reconciliationId: existingDraft.id } });
-        recon = await tx.bankReconciliation.update({
-          where: { id: existingDraft.id },
-          data: {
-            statementEndDate: new Date(dto.statementEndDate),
-            statementEndingBalance: dto.statementEndingBalance,
-            status: 'COMPLETED',
-            notes: dto.notes || null,
-            completedBy: userId,
-            completedAt: new Date(),
-          },
-        });
-      } else {
-        recon = await tx.bankReconciliation.create({
-          data: {
-            bankAccountId,
-            entityId,
-            groupId,
-            statementEndDate: new Date(dto.statementEndDate),
-            statementEndingBalance: dto.statementEndingBalance,
-            status: 'COMPLETED',
-            notes: dto.notes || null,
-            createdBy: userId,
-            completedBy: userId,
-            completedAt: new Date(),
-          },
-        });
-      }
-
-      if (dto.statementTransactions.length > 0) {
-        await tx.bankStatementTransaction.createMany({
-          data: dto.statementTransactions.map((st) => ({
-            id: st.id,
-            reconciliationId: recon.id,
-            entityId,
-            groupId,
-            date: new Date(st.date),
-            description: st.description,
-            reference: st.reference || null,
-            amount: st.amount,
-            category: st.category || null,
-          })),
-        });
-      }
+      const recon = await this.upsertReconciliationInTransaction(tx, {
+        reconcileId,
+        bankAccountId,
+        entityId,
+        groupId,
+        userId,
+        dto,
+        complete: true,
+      });
 
       if (dto.matches.length > 0) {
-        await tx.bankReconciliationMatch.createMany({
-          data: dto.matches.map((m) => ({
-            reconciliationId: recon.id,
-            statementTransactionId: m.statementTransactionId,
-            bookTransactionId: m.bookTransactionId,
-            entityId,
-            groupId,
-          })),
-        });
-
-        // Mark matched book transactions as cleared
         await tx.accountTransaction.updateMany({
           where: { id: { in: dto.matches.map((m) => m.bookTransactionId) } },
           data: { clearedInReconciliationId: recon.id },
@@ -712,81 +769,74 @@ export class BankingService {
     return { message: 'Reconciliation completed' };
   }
 
-  async getReconciliationHistory(bankAccountId: string, entityId: string) {
-    await this.validateBankAccountAccess(bankAccountId, entityId);
+  async getBookTransactions(
+    bankAccountId: string,
+    entityId: string,
+    startDate?: string,
+    endDate?: string,
+    reconcileId?: string,
+  ) {
+    const bankAccount = await this.validateBankAccountAccess(bankAccountId, entityId);
 
-    const records = await this.prisma.bankReconciliation.findMany({
-      where: { bankAccountId, entityId, status: 'COMPLETED' },
-      orderBy: { statementEndDate: 'desc' },
-      select: {
-        id: true,
-        statementEndDate: true,
-        statementEndingBalance: true,
-        completedAt: true,
-        completedBy: true,
-        notes: true,
-        _count: { select: { statementTransactions: true, matches: true } },
-      },
+    // Collect book IDs already matched in this reconciliation session so they
+    // stay visible even if they fall outside the new date range.
+    let alreadyMatchedIds: string[] = [];
+    if (reconcileId) {
+      const matches = await this.prisma.bankReconciliationMatch.findMany({
+        where: { reconciliationId: reconcileId },
+        select: { bookTransactionId: true },
+      });
+      alreadyMatchedIds = matches.map((m) => m.bookTransactionId);
+    }
+
+    const dateFilter: any = {};
+    if (startDate && endDate) {
+      dateFilter.date = { gte: new Date(startDate), lte: new Date(endDate) };
+    } else if (endDate) {
+      dateFilter.date = { lte: new Date(endDate) };
+    }
+
+    const where: any = {
+      accountId: bankAccount.linkedAccountId,
+      entityId,
+      status: 'Success',
+    };
+
+    // Include uncleared transactions in range OR already-matched ones for this reconciliation
+    if (alreadyMatchedIds.length > 0) {
+      where.OR = [
+        { clearedInReconciliationId: null, ...dateFilter },
+        { id: { in: alreadyMatchedIds } },
+      ];
+    } else {
+      where.clearedInReconciliationId = null;
+      if (dateFilter.date) where.date = dateFilter.date;
+    }
+
+    const txs = await this.prisma.accountTransaction.findMany({
+      where,
+      orderBy: { date: 'desc' },
     });
 
-    return records.map((r) => ({
-      id: r.id,
-      statementEndDate: r.statementEndDate.toISOString().split('T')[0],
-      statementEndingBalance: r.statementEndingBalance,
-      completedAt: r.completedAt,
-      completedBy: r.completedBy,
-      notes: r.notes,
-      statementTransactionCount: r._count.statementTransactions,
-      matchedCount: r._count.matches,
-    }));
+    return {
+      data: this.buildBookTxs(txs, alreadyMatchedIds.map((id) => ({ bookTransactionId: id, statementTransactionId: '' }))),
+      glBalance: bankAccount.linkedAccount?.balance ?? 0,
+    };
   }
 
-  parseImportedCSV(fileBuffer: Buffer): { date: string; description: string; reference: string; amount: number; category: string }[] {
-    const content = fileBuffer.toString('utf-8').trim();
-    const lines = content.split(/\r?\n/).filter((l) => l.trim());
-    if (lines.length < 2) return [];
+  // Kept for legacy compatibility — returns first DRAFT or null
+  async getActiveReconciliation(bankAccountId: string, entityId: string) {
+    const bankAccount = await this.validateBankAccountAccess(bankAccountId, entityId);
+    const draft = await this.prisma.bankReconciliation.findFirst({
+      where: { bankAccountId, entityId, status: 'DRAFT' },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+    return { draftId: draft?.id ?? null };
+  }
 
-    // Detect header row and column indices
-    const headers = lines[0].toLowerCase().split(',').map((h) => h.trim().replace(/"/g, ''));
-    const dateIdx = headers.findIndex((h) => h.includes('date'));
-    const descIdx = headers.findIndex((h) => h.includes('desc') || h.includes('narr') || h.includes('detail'));
-    const refIdx = headers.findIndex((h) => h.includes('ref') || h.includes('cheque') || h.includes('check'));
-    const amtIdx = headers.findIndex((h) => h.includes('amount') || h.includes('amt'));
-    const catIdx = headers.findIndex((h) => h.includes('cat') || h.includes('type'));
-    const debitIdx = headers.findIndex((h) => h === 'debit' || h === 'withdrawal');
-    const creditIdx = headers.findIndex((h) => h === 'credit' || h === 'deposit');
-
-    if (dateIdx === -1 || descIdx === -1) return [];
-
-    return lines.slice(1).map((line) => {
-      const cols = line.split(',').map((c) => c.trim().replace(/^"|"$/g, ''));
-      const dateRaw = cols[dateIdx] || '';
-      const desc = cols[descIdx] || '';
-      const ref = refIdx >= 0 ? (cols[refIdx] || '') : '';
-      const cat = catIdx >= 0 ? (cols[catIdx] || '') : '';
-
-      let amount = 0;
-      if (amtIdx >= 0) {
-        const raw = cols[amtIdx].replace(/[₦,$, ]/g, '');
-        amount = parseFloat(raw) || 0;
-      } else if (debitIdx >= 0 || creditIdx >= 0) {
-        const credit = creditIdx >= 0 ? parseFloat((cols[creditIdx] || '0').replace(/[₦,$, ]/g, '')) || 0 : 0;
-        const debit = debitIdx >= 0 ? parseFloat((cols[debitIdx] || '0').replace(/[₦,$, ]/g, '')) || 0 : 0;
-        amount = credit - debit;
-      }
-
-      // Parse date: support YYYY-MM-DD, DD/MM/YYYY, MM/DD/YYYY
-      let parsedDate = dateRaw;
-      if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateRaw)) {
-        const [d, m, y] = dateRaw.split('/');
-        parsedDate = `${y}-${m}-${d}`;
-      } else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateRaw)) {
-        const [m, d, y] = dateRaw.split('/');
-        parsedDate = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-      }
-
-      return { date: parsedDate, description: desc, reference: ref, amount, category: cat };
-    }).filter((r) => r.description);
+  async getReconciliationHistory(bankAccountId: string, entityId: string) {
+    return this.listReconciliations(bankAccountId, entityId, 1, 100);
   }
 
   private async generateAccountCode(

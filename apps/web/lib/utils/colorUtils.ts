@@ -19,12 +19,16 @@ export interface GroupCustomization {
   primaryColor: string;
   logoUrl: string | null;
   loginBgUrl: string | null;
+  siteName: string | null;
+  faviconUrl: string | null;
 }
 
 export const DEFAULT_CUSTOMIZATION: GroupCustomization = {
   primaryColor: DEFAULT_PRIMARY,
   logoUrl: "/images/logo.png",
   loginBgUrl: "/images/auth.jpg",
+  siteName: null,
+  faviconUrl: null,
 };
 
 /**

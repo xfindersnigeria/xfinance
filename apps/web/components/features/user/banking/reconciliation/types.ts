@@ -23,6 +23,7 @@ export interface BookTransaction {
 }
 
 export interface ReconciliationSetupValues {
+  statementStartDate: string;
   statementEndingDate: string;
   statementEndingBalance: number;
   accountName: string;
@@ -34,6 +35,7 @@ export interface ReconciliationSummary {
   difference: number;
   matchedCount: number;
   totalItems: number;
+  glBalance: number;
 }
 
 export interface AddStatementTransactionForm {
