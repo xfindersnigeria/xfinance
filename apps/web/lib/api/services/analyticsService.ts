@@ -185,6 +185,7 @@ export interface EntityPerformance {
   entityId: string;
   entityName: string;
   revenue: number;
+  expenses: number;
 }
 
 export interface GroupDashboardData {

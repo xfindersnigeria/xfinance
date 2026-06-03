@@ -11,6 +11,8 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
   type ChartConfig,
 } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
@@ -27,12 +29,17 @@ const chartConfig = {
     label: "Revenue",
     color: "var(--chart-3)",
   },
+  expenses: {
+    label: "Expenses",
+    color: "var(--chart-1)",
+  },
 } satisfies ChartConfig;
 
 export default function EntityPerformanceChart({ data, loading }: EntityPerformanceChartProps) {
   const chartData = data?.map((item) => ({
     entity: item.entityName,
     revenue: item.revenue,
+    expenses: item.expenses ?? 0,
   })) ?? [];
 
   if (loading) {
@@ -40,7 +47,7 @@ export default function EntityPerformanceChart({ data, loading }: EntityPerforma
       <Card>
         <CardHeader>
           <CardTitle>Entity Performance</CardTitle>
-          <CardDescription>Revenue by entity</CardDescription>
+          <CardDescription>Revenue vs expenses by entity</CardDescription>
         </CardHeader>
         <CardContent>
           <Skeleton className="h-64 w-full rounded-lg" />
@@ -53,11 +60,11 @@ export default function EntityPerformanceChart({ data, loading }: EntityPerforma
     <Card>
       <CardHeader>
         <CardTitle>Entity Performance</CardTitle>
-        <CardDescription>Revenue by entity</CardDescription>
+        <CardDescription>Revenue vs expenses by entity</CardDescription>
       </CardHeader>
-      <CardContent>
-        <ChartContainer config={chartConfig}>
-          <BarChart accessibilityLayer data={chartData}>
+      <CardContent className="p-2">
+        <ChartContainer  config={chartConfig}>
+          <BarChart accessibilityLayer data={chartData} barCategoryGap="30%">
             <CartesianGrid vertical={false} />
             <XAxis
               dataKey="entity"
@@ -71,7 +78,9 @@ export default function EntityPerformanceChart({ data, loading }: EntityPerforma
             />
             <YAxis tickLine={false} axisLine={false} />
             <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-            <Bar dataKey="revenue" fill="var(--chart-3)" radius={4} />
+            <ChartLegend content={<ChartLegendContent />} />
+            <Bar dataKey="revenue" fill="var(--chart-3)" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="expenses" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ChartContainer>
       </CardContent>

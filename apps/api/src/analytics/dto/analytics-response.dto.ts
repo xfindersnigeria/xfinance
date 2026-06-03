@@ -106,6 +106,7 @@ export class EntityPerformanceDto {
   entityId: string;
   entityName: string;
   revenue: number;
+  expenses: number;
 }
 
 export class GroupDashboardResponseDto {

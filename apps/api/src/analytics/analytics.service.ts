@@ -1031,14 +1031,22 @@ export class AnalyticsService {
 
       const results = await Promise.all(
         entities.map(async (entity) => {
-          const [paidInv, partialPay, overduePay, receipts] = await Promise.all([
+          const [paidInv, partialPay, overduePay, receipts, expensesAgg, billPayments] = await Promise.all([
             this.prisma.invoice.aggregate({ where: { entityId: entity.id, status: 'Paid', invoiceDate: { gte: dateRange.startDate, lte: dateRange.endDate } }, _sum: { total: true } }),
             this.prisma.paymentReceived.aggregate({ where: { entityId: entity.id, invoice: { status: 'Partial', invoiceDate: { gte: dateRange.startDate, lte: dateRange.endDate } } }, _sum: { amount: true } }),
             this.prisma.paymentReceived.aggregate({ where: { entityId: entity.id, invoice: { status: 'Overdue', invoiceDate: { gte: dateRange.startDate, lte: dateRange.endDate } } }, _sum: { amount: true } }),
             this.prisma.receipt.aggregate({ where: { entityId: entity.id, status: 'Completed', date: { gte: dateRange.startDate, lte: dateRange.endDate } }, _sum: { total: true } }),
+            this.prisma.expenses.aggregate({ where: { entityId: entity.id, status: 'approved', createdAt: { gte: dateRange.startDate, lte: dateRange.endDate } }, _sum: { amount: true } }),
+            this.prisma.paymentMade.aggregate({ where: { entityId: entity.id, paymentDate: { gte: dateRange.startDate, lte: dateRange.endDate } }, _sum: { amount: true } }),
           ]);
           const revenue = (paidInv._sum.total || 0) + (partialPay._sum.amount || 0) + (overduePay._sum.amount || 0) + (receipts._sum.total || 0);
-          return { entityId: entity.id, entityName: entity.name, revenue: Number(revenue.toFixed(2)) };
+          const expenses = (expensesAgg._sum?.amount || 0) + (billPayments._sum?.amount || 0);
+          return {
+            entityId: entity.id,
+            entityName: entity.name,
+            revenue: Number(revenue.toFixed(2)),
+            expenses: Number(expenses.toFixed(2)),
+          };
         }),
       );
 

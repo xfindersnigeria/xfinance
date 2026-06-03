@@ -1,18 +1,13 @@
 
 
-currently on group dashboard entity performance chat is for only revenue, do this -enitity performance should now also show forn expenses not just revenue so the bar chart should be a comparison of reveneue to expenses for all entities in that group
-C:\Users\Edeh JayCee\Desktop\projects\xfinance\xfinance\apps\web\components\features\admin\dashboard\EntityPerformanceChart.tsx
-C:\Users\Edeh JayCee\Desktop\projects\xfinance\xfinance\apps\api\src\analytics\analytics.service.ts
-
 credit and debit should b black not red or green app wide
 
 recent transaction on bank is differnt form transaction per bank....per bank is correct and also total withdrawals is total deposit, on dashboard same transaction is similar to on bank shoudl align with per bank
 
-cash flow on dashboard track balance not inflow and outflow
-
-system does not reload when we switch entities until page load why?
-
-
+cash flow on entity dashboard should show and track balance not inflow vs outflow
+C:\Users\Edeh JayCee\Desktop\projects\xfinance\xfinance\apps\api\src\analytics\analytics.service.ts
+C:\Users\Edeh JayCee\Desktop\projects\xfinance\xfinance\apps\web\components\features\user\dashboard\CashFlow.tsx
+lets know what needs to change and if we have what is needed for this before any chnages
 
 edit project opens project details page and misbahaves
 
