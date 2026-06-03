@@ -1,5 +1,8 @@
 
 
+currently on group dashboard entity performance chat is for only revenue, do this -enitity performance should now also show forn expenses not just revenue so the bar chart should be a comparison of reveneue to expenses for all entities in that group
+C:\Users\Edeh JayCee\Desktop\projects\xfinance\xfinance\apps\web\components\features\admin\dashboard\EntityPerformanceChart.tsx
+C:\Users\Edeh JayCee\Desktop\projects\xfinance\xfinance\apps\api\src\analytics\analytics.service.ts
 
 credit and debit should b black not red or green app wide
 
@@ -13,4 +16,4 @@ system does not reload when we switch entities until page load why?
 
 edit project opens project details page and misbahaves
 
-reconcilation should now import xlsx too, if it canot parse a file reject instead of fail, check to use amount and ref for auto mathcing ref from banking entry should be used for journal posting for wase, remove add transaction on left, for budget laod all yb default, for dashboard we want to showw total income alongside mtd and also add expeenses to revenu in group graph creating budget should now reflact in report on create check that, ask for relationship between group[ and entity budget]
+reconcilation should now import xlsx too, if it canot parse a file reject instead of fail, check to use amount and ref for auto mathcing ref from banking entry should be used for journal posting for wase, remove add transaction on left, for budget laod all yb default, for dashboard we want to showw total income alongside mtd and creating budget should now reflact in report on create check that, ask for relationship between group[ and entity budget]

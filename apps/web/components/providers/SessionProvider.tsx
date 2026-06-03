@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSessionStore } from '@/lib/store/session';
 import { useWhoami } from '@/lib/api/hooks/useAuth';
@@ -36,13 +36,25 @@ export default function SessionProvider({
   // Initialize WebSocket for realtime updates (only when user is authenticated)
   const { isConnected, subscriptionExpired, onSubscriptionExpiredLogout } = useRealtimeSync();
 
-  // Prefer fresh server-provided whoami when available.
+  // Track whether we've already seeded the store from initialWhoami.
+  // router.refresh() re-delivers a new initialWhoami prop but we must NOT let
+  // that overwrite client-side store updates (e.g. entity switches) that have
+  // already happened via refreshWhoami(). Only the very first delivery counts.
+  const initializedFromServer = useRef(false);
+
   useEffect(() => {
     if (initialWhoami) {
-      setWhoami(initialWhoami);
+      if (!initializedFromServer.current) {
+        // First delivery — seed the store from the server-fetched whoami.
+        initializedFromServer.current = true;
+        setWhoami(initialWhoami);
+      }
+      // Subsequent deliveries (router.refresh()) are intentionally ignored so
+      // that late-arriving server responses cannot overwrite client-side updates.
       return;
     }
 
+    // No server-provided whoami — use the client-side useWhoami hook result.
     if (whoami) {
       setWhoami(whoami);
     }
