@@ -74,39 +74,17 @@ export default function LoginForm({
     <div className="flex h-screen p-4 gap-10 bg-[#f2f5fc]">
       {/* Left section (Illustration) */}
       <div className="hidden md:flex flex-col bg-background rounded-2xl h-full w-1/2 relative overflow-hidden border">
-        {/* Background image wrapper */}
-        <div className="flex justify-center h-full items-center relative">
-          <Image
-            src={loginBgSrc} // ✅ Use this when tenant uploads image
-            alt="Login illustration"
-            fill
-            priority
-            className="object-cover"
-          />
-
-          {/* Overlay for better text readability */}
-          <div className="absolute inset-0 bg-black/30 " />
-
-          {/* Optional branding content */}
-          <div className="absolute z-10 bottom-10 left-6 right-6 text-white">
-            <h2 className="text-xl font-semibold mb-2">
-              {/* You can inject company name dynamically */}
-              Welcome back 👋
-            </h2>
-            <p className="text-sm opacity-90">
-              Manage your business, finances, and operations in one place.
-            </p>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <p className="absolute bottom-4 text-xs text-white/80 left-6 z-10">
-          © {new Date().getFullYear()} XFinance. All rights reserved.
-        </p>
+        <Image
+          src={loginBgSrc}
+          alt="Login illustration"
+          fill
+          priority
+          className="object-cover"
+        />
       </div>
 
       {/* Right section (Form) */}
-      <div className="h-full max-w-md w-full md:w-1/2  mx-auto p-4 justify-center flex flex-col">
+      <div className="h-full max-w-md w-full md:w-1/2 mx-auto p-4 justify-center flex flex-col">
         <Logo logoUrl={logoSrc} classNames="w-[142px] h-[48px]" />
         <h2 className="text-2xl md:text-3xl font-bold text-[#4A4A4A] text-center mt-6 mb-4 font-lato">
           Welcome Back!
@@ -203,7 +181,7 @@ export default function LoginForm({
                   </FormItem>
                 )}
               /> */}
-              <Link href="#" className="text-sm text-primary hover:underline">
+              <Link href="/auth/forgot-password" className="text-sm text-primary hover:underline">
                 Forgot password?
               </Link>
             </div>
@@ -228,6 +206,10 @@ export default function LoginForm({
             </Button>
           </form>
         </Form>
+
+        <p className="text-xs text-muted-foreground text-center mt-8">
+          &copy; {new Date().getFullYear()} XFinance. All rights reserved.
+        </p>
       </div>
     </div>
   );

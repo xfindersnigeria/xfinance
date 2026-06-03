@@ -9,11 +9,14 @@ import { CacheService } from '@/cache/cache.service';
 import { SubscriptionService } from '@/subscription/subscription.service';
 import { MenuService } from '@/menu/menu.service';
 import { PubsubService } from '@/cache/pubsub.service';
+import { EmailService } from '@/email/email.service';
+
+
 
 
 @Module({
   imports: [PrismaModule, InvoiceModule, BullmqModule],
-  providers: [PaymentReceivedService, AuthService, MenuService, SubscriptionService, CacheService, PubsubService],
+  providers: [PaymentReceivedService, AuthService, MenuService, SubscriptionService, CacheService, PubsubService, EmailService],
   controllers: [PaymentReceivedController],
 })
 export class PaymentReceivedModule {}

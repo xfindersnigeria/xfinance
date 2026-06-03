@@ -8,10 +8,11 @@ import { CacheModule } from '../cache/cache.module';
 import { AuthGuard } from './guards/auth.guard';
 import { PermissionsGuard } from './guards/permissions.guard';
 import { RolesGuard } from './guards/roles.guard';
+import { EmailService } from '../email/email.service';
 
 @Module({
   imports: [PrismaModule, MenuModule, SubscriptionModule, CacheModule],
-  providers: [AuthService, AuthGuard, RolesGuard, PermissionsGuard],
+  providers: [AuthService, AuthGuard, RolesGuard, PermissionsGuard, EmailService],
   controllers: [AuthController],
   exports: [AuthService, MenuModule, SubscriptionModule, CacheModule],
 })

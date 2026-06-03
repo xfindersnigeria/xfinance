@@ -18,6 +18,8 @@ import {
   stopGroupImpersonation,
   logout,
   getWhoami,
+  forgotPassword,
+  resetPassword,
 } from "../services/authService";
 
 // --- Group Impersonation Hooks ---
@@ -189,6 +191,27 @@ export const useStopEntityImpersonation = (
 ) => {
   return useMutation({
     mutationFn: stopEntityImpersonation,
+    ...options,
+  });
+};
+
+export const useForgotPassword = (
+  options?: Omit<UseMutationOptions<{ message: string }, Error, { email: string }>, "mutationFn">,
+) => {
+  return useMutation({
+    mutationFn: forgotPassword,
+    ...options,
+  });
+};
+
+export const useResetPassword = (
+  options?: Omit<
+    UseMutationOptions<{ message: string }, Error, { email: string; otp: string; newPassword: string }>,
+    "mutationFn"
+  >,
+) => {
+  return useMutation({
+    mutationFn: resetPassword,
     ...options,
   });
 };

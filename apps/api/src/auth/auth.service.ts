@@ -3,9 +3,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MenuService } from '../menu/menu.service';
 import { SubscriptionService } from '../subscription/subscription.service';
 import { CacheService } from '../cache/cache.service';
+import { EmailService } from '../email/email.service';
 import { DEFAULT_CUSTOMIZATION } from '../settings/customization/dto/customization.dto';
 import { UpdateProfileDto, ChangePasswordDto } from './dto/profile.dto';
 import * as bcrypt from 'bcrypt';
+import * as path from 'path';
 
 @Injectable()
 export class AuthService {
@@ -14,6 +16,7 @@ export class AuthService {
     private menuService: MenuService,
     private subscriptionService: SubscriptionService,
     private cacheService: CacheService,
+    private emailService: EmailService,
   ) {}
 
   /**
@@ -548,6 +551,115 @@ export class AuthService {
     await this.cacheService.deletePattern(CacheService.keys.pattern.userContext(userId));
 
     return { message: 'Password updated successfully' };
+  }
+
+  async forgotPassword(email: string) {
+    // Always return generic message to prevent user enumeration
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true, firstName: true, email: true, groupId: true },
+    });
+
+    if (!user) {
+      return { message: 'If an account with that email exists, an OTP has been sent.' };
+    }
+
+    // Invalidate any existing unused OTPs for this email
+    await this.prisma.passwordResetOtp.updateMany({
+      where: { email, used: false },
+      data: { used: true },
+    });
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpHash = await bcrypt.hash(otp, 10);
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    await this.prisma.passwordResetOtp.create({
+      data: { email, otpHash, expiresAt },
+    });
+
+    // Fetch group branding for email
+    let logoUrl = 'https://xfinance.ng/images/logo.png';
+    let slug = 'XFinance';
+    if (user.groupId) {
+      const customization = await this.prisma.groupCustomization.findUnique({
+        where: { groupId: user.groupId },
+        select: { logoUrl: true },
+      });
+      const group = await this.prisma.group.findUnique({
+        where: { id: user.groupId },
+        select: { name: true },
+      });
+      if (customization?.logoUrl) logoUrl = customization.logoUrl;
+      if (group?.name) slug = group.name;
+    }
+
+    const contentHtml = this.emailService.renderHtmlTemplate(
+      path.resolve(__dirname, '../email/templates/password-reset-otp.html'),
+      { name: user.firstName || user.email, otp },
+    );
+
+    const html = this.emailService.wrapWithBaseTemplate(
+      contentHtml,
+      'Password Reset OTP',
+      slug,
+      logoUrl,
+      { year: new Date().getFullYear() },
+    );
+
+    await this.emailService.sendEmail({
+      to: email,
+      subject: 'Your Password Reset OTP',
+      html,
+    });
+
+    return { message: 'If an account with that email exists, an OTP has been sent.' };
+  }
+
+  async resetPassword(email: string, otp: string, newPassword: string) {
+    const record = await this.prisma.passwordResetOtp.findFirst({
+      where: {
+        email,
+        used: false,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!record) {
+      throw new BadRequestException('Invalid or expired OTP. Please request a new one.');
+    }
+
+    const valid = await bcrypt.compare(otp, record.otpHash);
+    if (!valid) {
+      throw new BadRequestException('Invalid OTP. Please check the code and try again.');
+    }
+
+    // Mark OTP as used
+    await this.prisma.passwordResetOtp.update({
+      where: { id: record.id },
+      data: { used: true },
+    });
+
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+
+    if (!user) throw new NotFoundException('User not found');
+
+    const hashed = await bcrypt.hash(newPassword, 12);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { password: hashed, requirePasswordChange: false },
+    });
+
+    // Bust whoami cache
+    await this.cacheService.deletePattern(CacheService.keys.pattern.userContext(user.id));
+
+    return { message: 'Password has been reset successfully. You can now log in.' };
   }
 
 }

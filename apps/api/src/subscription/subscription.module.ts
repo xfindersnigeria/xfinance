@@ -9,6 +9,9 @@ import { AuthService } from '@/auth/auth.service';
 import { MenuService } from '@/menu/menu.service';
 import { CacheService } from '@/cache/cache.service';
 import { PubsubService } from '@/cache/pubsub.service';
+import { EmailService } from '@/email/email.service';
+
+
 
 @Module({
   imports: [PrismaModule, BullmqModule],
@@ -19,6 +22,7 @@ import { PubsubService } from '@/cache/pubsub.service';
     MenuService,
     CacheService,
     PubsubService,
+    EmailService,
   ],
   controllers: [SubscriptionController],
   exports: [SubscriptionService],

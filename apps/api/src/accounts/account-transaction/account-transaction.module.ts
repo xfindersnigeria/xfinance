@@ -7,6 +7,9 @@ import { CacheService } from '@/cache/cache.service';
 import { SubscriptionService } from '@/subscription/subscription.service';
 import { MenuService } from '@/menu/menu.service';
 import { PubsubService } from '@/cache/pubsub.service';
+import { EmailService } from '@/email/email.service';
+
+
 
 
 import { BullmqModule } from '@/bullmq/bullmq.module';
@@ -14,7 +17,7 @@ import { BullmqModule } from '@/bullmq/bullmq.module';
 @Module({
   imports: [PrismaModule, BullmqModule],
   controllers: [AccountTransactionController],
-  providers: [AccountTransactionService, AuthService, MenuService, SubscriptionService, CacheService, PubsubService],
+  providers: [AccountTransactionService, AuthService, MenuService, SubscriptionService, CacheService, PubsubService, EmailService],
   exports: [AccountTransactionService],
 })
 export class AccountTransactionModule {}

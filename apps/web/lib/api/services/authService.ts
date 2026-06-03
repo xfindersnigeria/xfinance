@@ -82,6 +82,24 @@ export const stopEntityImpersonation = (): Promise<{ success: boolean; message: 
   });
 };
 
+export const forgotPassword = (data: { email: string }): Promise<{ message: string }> => {
+  return apiClient<{ message: string }>("auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+};
+
+export const resetPassword = (data: {
+  email: string;
+  otp: string;
+  newPassword: string;
+}): Promise<{ message: string }> => {
+  return apiClient<{ message: string }>("auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+};
+
 // Logout endpoint
 export const logout = (): Promise<void> => {
   return apiClient<void>("auth/logout", {

@@ -4,13 +4,16 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { CacheService } from '@/cache/cache.service';
 import { SubscriptionService } from '@/subscription/subscription.service'
 import { PubsubService } from '@/cache/pubsub.service';
+import { EmailService } from '@/email/email.service';
+
+
 import { BullmqModule } from '@/bullmq/bullmq.module';
 import { SubscriptionModule } from '@/subscription/subscription.module';
 
 
 @Module({
   imports: [PrismaModule, BullmqModule, forwardRef(() => SubscriptionModule)],
-  providers: [MenuService, CacheService, PubsubService],
+  providers: [MenuService, CacheService, PubsubService, EmailService],
   exports: [MenuService],
 })
 export class MenuModule {}

@@ -12,10 +12,13 @@ import { CacheService } from '@/cache/cache.service';
 import { SubscriptionService } from '@/subscription/subscription.service';
 import { MenuService } from '@/menu/menu.service';
 import { PubsubService } from '@/cache/pubsub.service';
+import { EmailService } from '@/email/email.service';
+
+
 
 @Module({
   imports:[PrismaModule, BullmqModule],
-  providers: [ProjectsService,  AuthService, BankingService, AccountService, OpeningBalanceService, PdfService, MenuService, SubscriptionService, CacheService, PubsubService],
+  providers: [ProjectsService,  AuthService, BankingService, AccountService, OpeningBalanceService, PdfService, MenuService, SubscriptionService, CacheService, PubsubService, EmailService],
   controllers: [ProjectsController]
 })
 export class ProjectsModule {}

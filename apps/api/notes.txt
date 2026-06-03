@@ -1,21 +1,16 @@
 
-use this to lacte where to enable subcategories
-// start for sub
 
 
-3968.9 Executing gtk+3.0-3.24.51-r0.trigger
-3969.0 70 errors; 373.7 MiB in 136 packages
-------
-Dockerfile:27
---------------------
-  26 |     # Chromium and the libs it needs on Alpine
-  27 | >>> RUN apk add --no-cache \
-  28 | >>>     chromium \
-  29 | >>>     nss \
-  30 | >>>     freetype \
-  31 | >>>     harfbuzz \
-  32 | >>>     ca-certificates \
-  33 | >>>     ttf-freefont
-  34 |
---------------------
-ERROR: failed to build: failed to solve: process "/bin/sh -c apk add --no-cache     chromium     nss     freetype     harfbuzz     ca-certificates     ttf-freefont" did not complete successfully: exit code: 70
+credit and debit should b black not red or green app wide
+
+recent transaction on bank is differnt form transaction per bank....per bank is correct and also total withdrawals is total deposit, on dashboard same transaction is similar to on bank shoudl align with per bank
+
+cash flow on dashboard track balance not inflow and outflow
+
+system does not reload when we switch entities until page load why?
+
+
+
+edit project opens project details page and misbahaves
+
+reconcilation should now import xlsx too, if it canot parse a file reject instead of fail, check to use amount and ref for auto mathcing ref from banking entry should be used for journal posting for wase, remove add transaction on left, for budget laod all yb default, for dashboard we want to showw total income alongside mtd and also add expeenses to revenu in group graph creating budget should now reflact in report on create check that, ask for relationship between group[ and entity budget]

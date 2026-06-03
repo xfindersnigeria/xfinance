@@ -14,6 +14,9 @@ import { FileuploadService } from '@/fileupload/fileupload.service';
 import { CacheService } from '@/cache/cache.service';
 import { CacheInvalidationService } from '@/cache/cache-invalidation.service';
 import { PubsubService } from '@/cache/pubsub.service';
+import { EmailService } from '@/email/email.service';
+
+
 import { createId } from '@paralleldrive/cuid2';
 import { SubscriptionService } from '@/subscription/subscription.service';
 

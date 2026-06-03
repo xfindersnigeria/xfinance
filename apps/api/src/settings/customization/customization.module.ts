@@ -5,6 +5,9 @@ import { PrismaModule } from '@/prisma/prisma.module';
 import { FileuploadModule } from '@/fileupload/fileupload.module';
 import { CacheService } from '@/cache/cache.service';
 import { PubsubService } from '@/cache/pubsub.service';
+import { EmailService } from '@/email/email.service';
+
+
 import { AuthService } from '@/auth/auth.service';
 import { MenuService } from '@/menu/menu.service';
 import { SubscriptionService } from '@/subscription/subscription.service';
@@ -19,6 +22,7 @@ import { BullmqModule } from '@/bullmq/bullmq.module';
     AuthService,
     MenuService,
     SubscriptionService,
+    EmailService,
   ],
   controllers: [CustomizationController, PublicCustomizationController],
   exports: [CustomizationService],

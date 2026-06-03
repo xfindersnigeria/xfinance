@@ -24,6 +24,7 @@ import { systemRole } from 'prisma/generated/enums';
 import { LoginDto } from './dto/login.dto';
 import { AuthContextDto } from './dto/context.dto';
 import { UpdateProfileDto, ChangePasswordDto } from './dto/profile.dto';
+import { ForgotPasswordDto, ResetPasswordDto } from './dto/forgot-password.dto';
 import {
   ApiTags,
   ApiOperation,
@@ -191,6 +192,20 @@ export class AuthController {
   @ApiOperation({ summary: 'Change current user password' })
   changePassword(@User() user: any, @Body() dto: ChangePasswordDto) {
     return this.authService.changePassword(user.id, dto);
+  }
+
+  @Post('forgot-password')
+  @ApiOperation({ summary: 'Request a password reset OTP' })
+  @ApiResponse({ status: 200, description: 'OTP sent if account exists' })
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto.email);
+  }
+
+  @Post('reset-password')
+  @ApiOperation({ summary: 'Reset password using OTP' })
+  @ApiResponse({ status: 200, description: 'Password reset successfully' })
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto.email, dto.otp, dto.newPassword);
   }
 
   @Post('logout')

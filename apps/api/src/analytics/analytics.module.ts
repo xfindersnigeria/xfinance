@@ -8,12 +8,13 @@ import { SubscriptionService } from '@/subscription/subscription.service';
 import { CacheService } from '@/cache/cache.service';
 import { CacheInvalidationService } from '@/cache/cache-invalidation.service';
 import { PubsubService } from '@/cache/pubsub.service';
+import { EmailService } from '@/email/email.service';
 import { BullmqModule } from '@/bullmq/bullmq.module';
 
 @Module({
   imports: [BullmqModule],
   controllers: [AnalyticsController],
-  providers: [AnalyticsService, PrismaService, AuthService, MenuService, SubscriptionService, CacheService, CacheInvalidationService, PubsubService],
+  providers: [AnalyticsService, PrismaService, AuthService, MenuService, SubscriptionService, CacheService, CacheInvalidationService, PubsubService, EmailService],
   exports: [AnalyticsService],
 })
 export class AnalyticsModule {}
