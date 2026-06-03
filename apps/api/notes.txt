@@ -4,14 +4,36 @@ credit and debit should b black not red or green app wide
 
 recent transaction on bank is differnt form transaction per bank....per bank is correct and also total withdrawals is total deposit, on dashboard same transaction is similar to on bank shoudl align with per bank
 
-fixed: cahflow graph done
+
 
 
 edit project opens project details page , so it seems it doesnt propagrte well it triggers the project details page, on open then the modal opens, we expect edit to open modal and view toopen details nto intertwined
 C:\Users\Edeh JayCee\Desktop\projects\xfinance\xfinance\apps\web\components\features\user\projects
 
 
+
+
+reconcilation should now import xlsx too, if it canot parse a file reject instead of fail, check to use amount and ref for auto mathcing ref from banking entry should be used for journal posting for ease, 
+remove add transaction on left, 
+also for mapping collect credit and debit fields and normalise to amount as negative or postiive
+
+defualt laoder should be a neutral color
+
+for budget laod all by default, 
+creating budget should now reflact in report on create check that
+
+
+
+
+
+
+
+for dashboard we want to showw total income alongside mtd , 
+
+
+
+
+ask for relationship between group[ and entity budget]
+
+
 Dashboard should be decentralised for group and entity so chnaging filter on any chart refteches only that chart not the entoire dashboard, this will mean redis cache resetting anf get who ami decentrilization -
-
-
-reconcilation should now import xlsx too, if it canot parse a file reject instead of fail, check to use amount and ref for auto mathcing ref from banking entry should be used for journal posting for wase, remove add transaction on left, for budget laod all yb default, for dashboard we want to showw total income alongside mtd and creating budget should now reflact in report on create check that, ask for relationship between group[ and entity budget]

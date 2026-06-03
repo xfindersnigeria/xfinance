@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -28,6 +29,7 @@ interface ProjectsActionsProps {
  */
 export default function ProjectsActions({ row }: ProjectsActionsProps) {
   const { isOpen, openModal, closeModal } = useModal();
+  const router = useRouter();
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   const handleDeleteClick = () => {
@@ -42,8 +44,7 @@ export default function ProjectsActions({ row }: ProjectsActionsProps) {
 
   const handleViewClick = () => {
     setDropdownOpen(false);
-    // TODO: Navigate to project details page or open view modal
-    console.log("View project:", row.id);
+    router.push(`/projects/${row.projectNumber}`);
   };
 
   const handleConfirm = (confirmed: boolean) => {
@@ -55,7 +56,8 @@ export default function ProjectsActions({ row }: ProjectsActionsProps) {
   };
 
   return (
-    <>
+    // Stop all clicks inside the actions cell from bubbling to the row click handler
+    <div onClick={(e) => e.stopPropagation()}>
       {/* Dropdown Menu */}
       <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
         <DropdownMenuTrigger asChild>
@@ -111,6 +113,6 @@ export default function ProjectsActions({ row }: ProjectsActionsProps) {
           onResult={handleConfirm}
         />
       </CustomModal>
-    </>
+    </div>
   );
 }
