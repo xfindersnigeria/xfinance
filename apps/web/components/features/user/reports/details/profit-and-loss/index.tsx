@@ -103,18 +103,26 @@ function sectionToItems(
       type: "section" as PLItemType,
       actual: section.actual,
       comparison: section.comparison,
+      budget: section.budget ?? 0,
       children: section.accounts.map((a: PLAccountLine) => ({
         id: a.id,
         label: a.name,
         type: "item" as PLItemType,
         actual: a.actual,
         comparison: a.comparison,
+        budget: a.budget ?? 0,
       })),
     },
   ];
 }
 
 function buildPLItems(data: ProfitAndLossData): PLItem[] {
+  const revBudget = data.revenue.budget ?? 0;
+  const cogsBudget = data.cogs.budget ?? 0;
+  const opexBudget = data.operatingExpenses.budget ?? 0;
+  const otherIncomeBudget = data.otherIncome.budget ?? 0;
+  const otherExpBudget = data.otherExpenses.budget ?? 0;
+
   return [
     ...sectionToItems("revenue", "Revenue", data.revenue),
     {
@@ -123,6 +131,7 @@ function buildPLItems(data: ProfitAndLossData): PLItem[] {
       type: "subtotal",
       actual: data.revenue.actual,
       comparison: data.revenue.comparison,
+      budget: revBudget,
     },
     ...sectionToItems("cogs", "Cost of Goods Sold", data.cogs),
     {
@@ -131,6 +140,7 @@ function buildPLItems(data: ProfitAndLossData): PLItem[] {
       type: "subtotal",
       actual: data.cogs.actual,
       comparison: data.cogs.comparison,
+      budget: cogsBudget,
       negativeDisplay: true,
     },
     {
@@ -139,6 +149,7 @@ function buildPLItems(data: ProfitAndLossData): PLItem[] {
       type: "calculated",
       actual: data.grossProfit.actual,
       comparison: data.grossProfit.comparison,
+      budget: revBudget - cogsBudget,
     },
     ...sectionToItems(
       "operating-expenses",
@@ -151,6 +162,7 @@ function buildPLItems(data: ProfitAndLossData): PLItem[] {
       type: "subtotal",
       actual: data.operatingExpenses.actual,
       comparison: data.operatingExpenses.comparison,
+      budget: opexBudget,
       negativeDisplay: true,
     },
     {
@@ -159,6 +171,7 @@ function buildPLItems(data: ProfitAndLossData): PLItem[] {
       type: "calculated",
       actual: data.operatingProfit.actual,
       comparison: data.operatingProfit.comparison,
+      budget: revBudget - cogsBudget - opexBudget,
     },
     ...sectionToItems("other-income", "Other Income", data.otherIncome),
     ...sectionToItems("other-expenses", "Other Expenses", data.otherExpenses),
@@ -168,6 +181,7 @@ function buildPLItems(data: ProfitAndLossData): PLItem[] {
       type: "net",
       actual: data.netProfit.actual,
       comparison: data.netProfit.comparison,
+      budget: revBudget - cogsBudget - opexBudget + otherIncomeBudget - otherExpBudget,
     },
   ];
 }
@@ -292,11 +306,13 @@ function buildRows(
   toggleSection: (id: string) => void,
   showComparison: boolean,
   sym: string,
+  isBudgetMode: boolean,
 ): React.ReactNode[] {
   const rows: React.ReactNode[] = [];
 
   for (const item of items) {
     const indentPx = depth * 24 + 16;
+    const cmpVal = isBudgetMode ? item.budget : item.comparison;
 
     switch (item.type) {
       case "section": {
@@ -326,12 +342,12 @@ function buildRows(
             {showComparison && (
               <>
                 <td className="px-4 py-3 text-right text-sm text-gray-600 whitespace-nowrap">
-                  {formatCurrency(item.comparison, sym)}
+                  {formatCurrency(cmpVal, sym)}
                 </td>
                 <td className="px-4 py-3 min-w-[120px]">
                   <VarianceCell
                     actual={item.actual}
-                    comparison={item.comparison}
+                    comparison={cmpVal}
                   />
                 </td>
               </>
@@ -347,6 +363,7 @@ function buildRows(
               toggleSection,
               showComparison,
               sym,
+              isBudgetMode,
             ),
           );
         }
@@ -368,12 +385,12 @@ function buildRows(
             {showComparison && (
               <>
                 <td className="px-4 py-2.5 text-right text-sm text-gray-600 whitespace-nowrap">
-                  {formatCurrency(item.comparison, sym)}
+                  {formatCurrency(cmpVal, sym)}
                 </td>
                 <td className="px-4 py-2.5 min-w-[120px]">
                   <VarianceCell
                     actual={item.actual}
-                    comparison={item.comparison}
+                    comparison={cmpVal}
                   />
                 </td>
               </>
@@ -388,8 +405,8 @@ function buildRows(
           ? `(${formatCurrency(item.actual, sym)})`
           : formatCurrency(item.actual, sym);
         const dComp = item.negativeDisplay
-          ? `(${formatCurrency(item.comparison, sym)})`
-          : formatCurrency(item.comparison, sym);
+          ? `(${formatCurrency(cmpVal, sym)})`
+          : formatCurrency(cmpVal, sym);
         rows.push(
           <tr key={item.id} className="border-t border-gray-300 bg-white">
             <td className="px-4 py-3 text-sm font-bold">{item.label}</td>
@@ -404,7 +421,7 @@ function buildRows(
                 <td className="px-4 py-3 min-w-[120px]">
                   <VarianceCell
                     actual={item.actual}
-                    comparison={item.comparison}
+                    comparison={cmpVal}
                     percentOnly
                   />
                 </td>
@@ -425,12 +442,12 @@ function buildRows(
             {showComparison && (
               <>
                 <td className="px-4 py-3 text-right text-sm font-bold text-gray-600 whitespace-nowrap">
-                  {formatCurrency(item.comparison, sym)}
+                  {formatCurrency(cmpVal, sym)}
                 </td>
                 <td className="px-4 py-3 min-w-[120px]">
                   <VarianceCell
                     actual={item.actual}
-                    comparison={item.comparison}
+                    comparison={cmpVal}
                     percentOnly
                   />
                 </td>
@@ -442,10 +459,10 @@ function buildRows(
       }
 
       case "net": {
-        const variance = item.actual - item.comparison;
+        const variance = item.actual - cmpVal;
         const pct =
-          item.comparison !== 0
-            ? (variance / Math.abs(item.comparison)) * 100
+          cmpVal !== 0
+            ? (variance / Math.abs(cmpVal)) * 100
             : 0;
         const isPositive = variance >= 0;
         rows.push(
@@ -459,7 +476,7 @@ function buildRows(
             {showComparison && (
               <>
                 <td className="px-4 py-4 text-right text-sm text-gray-300 whitespace-nowrap">
-                  {formatCurrency(item.comparison, sym)}
+                  {formatCurrency(cmpVal, sym)}
                 </td>
                 <td className="px-4 py-4 min-w-[120px]">
                   <div className="flex justify-end">
@@ -581,8 +598,6 @@ export default function ProfitAndLoss() {
 
   const plData = (plDataData as any)?.data || null;
 
-  console.log("PL Data:", plData);
-
   const plItems = useMemo(() => (plData ? buildPLItems(plData) : []), [plData]);
   const kpiItems = useMemo(
     () => (plData ? buildKPIItems(plData) : []),
@@ -622,6 +637,7 @@ export default function ProfitAndLoss() {
     toggleSection,
     showComparison,
     sym,
+    compareType === "budget",
   );
   const compareLabel = compareType === "period" ? comparePeriod : "Budget";
 

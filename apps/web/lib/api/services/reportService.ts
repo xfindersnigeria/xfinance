@@ -6,11 +6,13 @@ export interface PLAccountLine {
   code: string;
   actual: number;
   comparison: number;
+  budget: number;
 }
 
 export interface PLSection {
   actual: number;
   comparison: number;
+  budget: number;
   accounts: PLAccountLine[];
 }
 

@@ -5,7 +5,7 @@ remove add transaction on left,
 also for mapping collect credit and debit fields and normalise to amount as negative or postiive
 reconcilation has to be multiple, so each should have an id and dedicatd page hence
 shpudl use reference from entry 
-
+start date in recinciliation
 
 for budget laod all by default, 
 creating budget should now reflact in report on create check that

@@ -5,6 +5,7 @@ export interface PLItem {
   label: string;
   actual: number;
   comparison: number;
+  budget: number;
   type: PLItemType;
   children?: PLItem[];
   negativeDisplay?: boolean;

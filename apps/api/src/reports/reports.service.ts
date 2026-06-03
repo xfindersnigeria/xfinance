@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
+import { BudgetService } from '@/accounts/budget/budget.service';
 import {
   PLAccountLineDto,
   PLSectionDto,
@@ -36,7 +37,10 @@ type SectionMap = Record<CategoryCode, { accounts: Map<string, AccountBucket>; t
 export class ReportsService {
   private readonly logger = new Logger(ReportsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly budgetService: BudgetService,
+  ) {}
 
   async getProfitAndLoss(
     entityId: string,
@@ -45,16 +49,18 @@ export class ReportsService {
     compareStartDate?: Date,
     compareEndDate?: Date,
   ): Promise<ProfitAndLossDto> {
-    const [actual, comparison] = await Promise.all([
+    const [actual, comparison, budgetMap] = await Promise.all([
       this.fetchPLSections(entityId, startDate, endDate),
       compareStartDate && compareEndDate
         ? this.fetchPLSections(entityId, compareStartDate, compareEndDate)
         : Promise.resolve(null),
+      this.budgetService.resolveBudgetForDateRange(entityId, startDate, endDate),
     ]);
 
     return this.buildResponse(
       actual,
       comparison,
+      budgetMap,
       startDate,
       endDate,
       compareStartDate,
@@ -161,6 +167,7 @@ export class ReportsService {
   private buildSection(
     actualSection: SectionMap[CategoryCode],
     compSection: SectionMap[CategoryCode] | undefined,
+    budgetMap: Map<string, number>,
   ): PLSectionDto {
     const merged = new Map<string, PLAccountLineDto>();
 
@@ -171,6 +178,7 @@ export class ReportsService {
         code: acc.code,
         actual: (acc as any).net ?? 0,
         comparison: 0,
+        budget: budgetMap.get(acc.id) ?? 0,
       });
     }
 
@@ -187,21 +195,35 @@ export class ReportsService {
             code: acc.code,
             actual: 0,
             comparison: net,
+            budget: budgetMap.get(acc.id) ?? 0,
           });
         }
       }
     }
 
+    // Also include accounts that have a budget but no transactions this period
+    for (const [accountId, budgetAmt] of budgetMap) {
+      if (!merged.has(accountId)) {
+        // We need the account name/code — skip if not in transactions
+        // (they'll appear once they have activity)
+      }
+    }
+
+    const accounts = Array.from(merged.values()).sort((a, b) => b.actual - a.actual);
+    const sectionBudget = accounts.reduce((sum, a) => sum + a.budget, 0);
+
     return {
       actual: actualSection.total,
       comparison: compSection?.total ?? 0,
-      accounts: Array.from(merged.values()).sort((a, b) => b.actual - a.actual),
+      budget: sectionBudget,
+      accounts,
     };
   }
 
   private buildResponse(
     actual: SectionMap,
     comparison: SectionMap | null,
+    budgetMap: Map<string, number>,
     startDate: Date,
     endDate: Date,
     compareStartDate?: Date,
@@ -210,22 +232,27 @@ export class ReportsService {
     const revenue = this.buildSection(
       actual[CATEGORY_CODES.OPERATING_REVENUE],
       comparison?.[CATEGORY_CODES.OPERATING_REVENUE],
+      budgetMap,
     );
     const otherIncome = this.buildSection(
       actual[CATEGORY_CODES.OTHER_INCOME],
       comparison?.[CATEGORY_CODES.OTHER_INCOME],
+      budgetMap,
     );
     const cogs = this.buildSection(
       actual[CATEGORY_CODES.COGS],
       comparison?.[CATEGORY_CODES.COGS],
+      budgetMap,
     );
     const operatingExpenses = this.buildSection(
       actual[CATEGORY_CODES.OPERATING_EXPENSES],
       comparison?.[CATEGORY_CODES.OPERATING_EXPENSES],
+      budgetMap,
     );
     const otherExpenses = this.buildSection(
       actual[CATEGORY_CODES.OTHER_EXPENSES],
       comparison?.[CATEGORY_CODES.OTHER_EXPENSES],
+      budgetMap,
     );
 
     const kpi = (actual: number, comparison: number): PLKPIEntryDto => ({

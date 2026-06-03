@@ -87,12 +87,17 @@ function SummaryCard({
 export default function Budget() {
   const sym = useEntityCurrencySymbol();
 
-  const [periodType, setPeriodType] = useState("Monthly");
-  const [period, setPeriod] = useState(currentMonth());
+  // "All" is the default — shows every budget for the fiscal year aggregated by account
+  const [periodType, setPeriodType] = useState("All");
+  const [period, setPeriod] = useState("");
   const [fiscalYear, setFiscalYear] = useState(currentYear());
 
   const { data: vsActualResponse, isLoading: vsActualLoading } =
-    useBudgetVsActual({ periodType, period, fiscalYear });
+    useBudgetVsActual(
+      periodType === "All"
+        ? { fiscalYear }
+        : { periodType, period, fiscalYear },
+    );
 
   const vsActualRows = vsActualResponse?.data ?? [];
   const summary = vsActualResponse?.summary;
@@ -101,7 +106,7 @@ export default function Budget() {
     setPeriodType(v);
     if (v === "Monthly") setPeriod(currentMonth());
     else if (v === "Quarterly") setPeriod("Q1");
-    else setPeriod("");
+    else setPeriod(""); // Yearly or All
   };
 
   return (
@@ -126,9 +131,9 @@ export default function Budget() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {["Monthly", "Quarterly", "Yearly"].map((v) => (
+                      {["All", "Monthly", "Quarterly", "Yearly"].map((v) => (
                         <SelectItem key={v} value={v}>
-                          {v}
+                          {v === "All" ? "All Periods" : v}
                         </SelectItem>
                       ))}
                     </SelectContent>

@@ -4,11 +4,15 @@ export class PLAccountLineDto {
   code: string;
   actual: number;
   comparison: number;
+  /** Budget amount for the same period as "actual". 0 if no budget set. */
+  budget: number;
 }
 
 export class PLSectionDto {
   actual: number;
   comparison: number;
+  /** Sum of budget amounts for all accounts in this section. */
+  budget: number;
   accounts: PLAccountLineDto[];
 }
 

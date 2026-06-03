@@ -42,15 +42,15 @@ type BudgetRow = BudgetVsActualItem & { id: string };
 
 export function BudgetOverviewTable() {
   const sym = useGroupCurrencySymbol();
-  const [periodType, setPeriodType] = useState('Monthly');
-  const [period, setPeriod] = useState(currentMonth());
+  const [periodType, setPeriodType] = useState('All');
+  const [period, setPeriod] = useState('');
   const [fiscalYear, setFiscalYear] = useState(currentYear());
 
-  const { data: vsActualResponse, isLoading } = useGroupBudgetVsActual({
-    periodType,
-    period,
-    fiscalYear,
-  });
+  const { data: vsActualResponse, isLoading } = useGroupBudgetVsActual(
+    periodType === 'All'
+      ? { fiscalYear }
+      : { periodType, period, fiscalYear },
+  );
 
   const rows: BudgetRow[] = (vsActualResponse?.data ?? []).map((item) => ({
     ...item,
@@ -63,7 +63,7 @@ export function BudgetOverviewTable() {
     setPeriodType(v);
     if (v === 'Monthly') setPeriod(currentMonth());
     else if (v === 'Quarterly') setPeriod('Q1');
-    else setPeriod('');
+    else setPeriod(''); // All or Yearly
   };
 
   const columns: Column<BudgetRow>[] = [
@@ -116,6 +116,7 @@ export function BudgetOverviewTable() {
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
+          <SelectItem value="All" className="text-xs">All Periods</SelectItem>
           {PERIOD_TYPES.map((pt) => (
             <SelectItem key={pt} value={pt} className="text-xs">{pt}</SelectItem>
           ))}

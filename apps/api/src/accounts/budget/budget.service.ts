@@ -91,6 +91,90 @@ export class BudgetService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
+   * Resolve budget amounts per account for a given date range.
+   * Used by the reports service to populate the "budget" column on P&L lines.
+   *
+   * Strategy:
+   *  1. Detect the period type from the date range length.
+   *  2. Try exact match (e.g. Quarterly "Q1 2026").
+   *  3. If no quarterly budget exists, sum the constituent monthly budgets.
+   *  4. For a full-year range, try Yearly; fall back to summing all monthly/quarterly.
+   *
+   * Returns: Map<accountId, budgetAmountInCurrency> (amounts already divided by 100)
+   */
+  async resolveBudgetForDateRange(
+    entityId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<Map<string, number>> {
+    const fiscalYear = String(startDate.getFullYear());
+    const diffDays = Math.round(
+      (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
+    );
+
+    // ── Monthly (up to 31 days) ──────────────────────────────────────────────
+    if (diffDays <= 31) {
+      const monthName = MONTHS[startDate.getMonth()];
+      const rows = await this.prisma.budget.findMany({
+        where: { entityId, periodType: 'Monthly', month: monthName, fiscalYear },
+        select: { accountId: true, amount: true },
+      });
+      return this.aggregateToCurrencyMap(rows);
+    }
+
+    // ── Quarterly (32–95 days) ───────────────────────────────────────────────
+    if (diffDays <= 95) {
+      const startMonth = startDate.getMonth();
+      const quarterLabels = ['Q1', 'Q2', 'Q3', 'Q4'];
+      const quarterStartMonths = [0, 3, 6, 9];
+      const qi = quarterStartMonths.indexOf(startMonth);
+      const quarter = qi >= 0 ? quarterLabels[qi] : null;
+
+      if (quarter) {
+        // Try exact quarterly budget first
+        const qRows = await this.prisma.budget.findMany({
+          where: { entityId, periodType: 'Quarterly', month: quarter, fiscalYear },
+          select: { accountId: true, amount: true },
+        });
+        if (qRows.length) return this.aggregateToCurrencyMap(qRows);
+
+        // Fall back: sum the three monthly budgets that make up this quarter
+        const range = QUARTER_RANGES[quarter];
+        const months = MONTHS.slice(range.start, range.end + 1);
+        const mRows = await this.prisma.budget.findMany({
+          where: { entityId, periodType: 'Monthly', month: { in: months }, fiscalYear },
+          select: { accountId: true, amount: true },
+        });
+        return this.aggregateToCurrencyMap(mRows);
+      }
+    }
+
+    // ── Yearly (96+ days) ────────────────────────────────────────────────────
+    const yRows = await this.prisma.budget.findMany({
+      where: { entityId, periodType: 'Yearly', fiscalYear },
+      select: { accountId: true, amount: true },
+    });
+    if (yRows.length) return this.aggregateToCurrencyMap(yRows);
+
+    // Last resort: sum everything for the fiscal year across all period types
+    const allRows = await this.prisma.budget.findMany({
+      where: { entityId, fiscalYear },
+      select: { accountId: true, amount: true },
+    });
+    return this.aggregateToCurrencyMap(allRows);
+  }
+
+  private aggregateToCurrencyMap(
+    rows: { accountId: string; amount: number }[],
+  ): Map<string, number> {
+    const map = new Map<string, number>();
+    for (const row of rows) {
+      map.set(row.accountId, (map.get(row.accountId) ?? 0) + row.amount / 100);
+    }
+    return map;
+  }
+
+  /**
    * Replace all budget lines for an entity+period in a single transaction.
    * Validates that every accountId belongs to this entity before writing.
    */
@@ -237,12 +321,21 @@ export class BudgetService {
       fiscalYear?: string;
     } = {},
   ) {
-    const periodType = params.periodType ?? 'Monthly';
+    // 'All' (or no periodType) → aggregate all budgets for the fiscal year
+    const showAll = !params.periodType || params.periodType === 'All';
+    const periodType = showAll ? 'All' : params.periodType!;
     const period = params.period ?? '';
     const fiscalYear = params.fiscalYear ?? String(new Date().getFullYear());
 
+    const where: Record<string, any> = { entityId };
+    if (!showAll) {
+      where.periodType = periodType;
+      where.month = period;
+    }
+    where.fiscalYear = fiscalYear;
+
     const budgets = await this.prisma.budget.findMany({
-      where: { entityId, periodType, month: period, fiscalYear },
+      where,
       include: {
         account: {
           select: {
@@ -297,7 +390,9 @@ export class BudgetService {
       }
     }
 
-    const { start, end } = getDateRange(periodType, period, fiscalYear);
+    const { start, end } = showAll
+      ? getDateRange('Yearly', '', fiscalYear)
+      : getDateRange(periodType, period, fiscalYear);
 
     // Aggregate account transactions for the period
     const txGroups = await this.prisma.accountTransaction.groupBy({
@@ -565,12 +660,20 @@ export class BudgetService {
       fiscalYear?: string;
     } = {},
   ) {
-    const periodType = params.periodType ?? 'Monthly';
+    const showAll = !params.periodType || params.periodType === 'All';
+    const periodType = showAll ? 'All' : params.periodType!;
     const period = params.period ?? '';
     const fiscalYear = params.fiscalYear ?? String(new Date().getFullYear());
 
+    const where: Record<string, any> = { groupId };
+    if (!showAll) {
+      where.periodType = periodType;
+      where.period = period;
+    }
+    where.fiscalYear = fiscalYear;
+
     const budgets = await this.prisma.groupBudget.findMany({
-      where: { groupId, periodType, period, fiscalYear },
+      where,
       include: {
         account: {
           select: {
@@ -624,7 +727,9 @@ export class BudgetService {
       }
     }
 
-    const { start, end } = getDateRange(periodType, period, fiscalYear);
+    const { start, end } = showAll
+      ? getDateRange('Yearly', '', fiscalYear)
+      : getDateRange(periodType, period, fiscalYear);
 
     const txGroups = await this.prisma.accountTransaction.groupBy({
       by: ['accountId'],
