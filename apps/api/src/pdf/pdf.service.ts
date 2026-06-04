@@ -37,15 +37,17 @@ export class PdfService implements OnModuleDestroy {
     this.launching = true;
     try {
       const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+      const args = [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        // --single-process is Linux-only; crashes Chromium on Windows
+        ...(process.platform === 'linux' ? ['--single-process'] : []),
+      ];
       this.browser = await puppeteer.launch({
         executablePath: executablePath || undefined,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-gpu',
-          '--single-process',
-        ],
+        args,
         headless: true,
       });
       this.logger.log(`Chromium launched (${executablePath ?? 'bundled'})`);
@@ -86,6 +88,8 @@ export class PdfService implements OnModuleDestroy {
     const templatePath = path.join(__dirname, 'templates', `${templateName}.hbs`);
     const templateSource = fs.readFileSync(templatePath, 'utf8');
 
+    // console.log('Generating PDF with data:', `${templateName}`, JSON.stringify(data, null, 2)); // Debug log
+
     // Register helpers once — idempotent in Handlebars
     Handlebars.registerHelper('eq', (a: any, b: any) => a === b);
     Handlebars.registerHelper('formatDate', (dateValue: any) => {
@@ -103,8 +107,16 @@ export class PdfService implements OnModuleDestroy {
     });
 
     // Fetch logo as base64 so it works offline / in Docker with no external fetch
-    if (data.entity?.logo?.secureUrl) {
-      data.entity.logo.base64 = await this.fetchImageAsBase64(data.entity.logo.secureUrl);
+    // Handle all three data shapes: { entity }, { record.entity }, { batch.entity }
+    const logoTargets = [
+      data.entity?.logo,
+      data.record?.entity?.logo,
+      data.batch?.entity?.logo,
+    ];
+    for (const logo of logoTargets) {
+      if (logo?.secureUrl && !logo.base64) {
+        logo.base64 = await this.fetchImageAsBase64(logo.secureUrl);
+      }
     }
 
     const template = Handlebars.compile(templateSource);
@@ -113,7 +125,8 @@ export class PdfService implements OnModuleDestroy {
     // Inline CSS
     const cssPath = path.join(__dirname, 'styles', 'common.css');
     const css = fs.existsSync(cssPath) ? fs.readFileSync(cssPath, 'utf8') : '';
-    const htmlWithCss = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${css}</style></head><body>${html}</body></html>`;
+    const primaryColor: string = data.primaryColor ?? '#4152B6';
+    const htmlWithCss = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>:root{--primary:${primaryColor};}${css}</style></head><body>${html}</body></html>`;
 
     const browser = await this.getBrowser();
     const page = await browser.newPage();

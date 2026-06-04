@@ -24,7 +24,10 @@ import {
   getEffectiveGroupId,
 } from '@/auth/utils/context.util';
 import { PdfService } from '@/pdf/pdf.service';
+import { PrismaService } from '@/prisma/prisma.service';
 import { Response } from 'express';
+
+const DEFAULT_PRIMARY = '#4152B6';
 
 @Controller('hr-payroll/payroll')
 @UseGuards(AuthGuard)
@@ -32,7 +35,13 @@ export class PayrollController {
   constructor(
     private payrollService: PayrollService,
     private pdfService: PdfService,
+    private prisma: PrismaService,
   ) {}
+
+  private async getPrimaryColor(groupId: string): Promise<string> {
+    const c = await this.prisma.groupCustomization.findUnique({ where: { groupId }, select: { primaryColor: true } });
+    return c?.primaryColor ?? DEFAULT_PRIMARY;
+  }
 
   @Get('prefill')
   getPrefill(@Req() req: any) {
@@ -100,9 +109,14 @@ export class PayrollController {
   ) {
     const entityId = getEffectiveEntityId(req);
     if (!entityId) throw new UnauthorizedException('Access denied no entityId');
-    const { data: record } = await this.payrollService.getRecord(id, entityId);
+    const groupId = getEffectiveGroupId(req);
+    const [{ data: record }, primaryColor] = await Promise.all([
+      this.payrollService.getRecord(id, entityId),
+      groupId ? this.getPrimaryColor(groupId) : Promise.resolve(DEFAULT_PRIMARY),
+    ]);
 
-    const pdfBuffer = await this.pdfService.generate('payslip', { record });
+
+    const pdfBuffer = await this.pdfService.generate('payslip', { record, primaryColor });
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
@@ -127,9 +141,14 @@ export class PayrollController {
   ) {
     const entityId = getEffectiveEntityId(req);
     if (!entityId) throw new UnauthorizedException('Access denied');
-    const { data: batch } = await this.payrollService.getBatch(id, entityId);
+    const groupId = getEffectiveGroupId(req);
+    const [{ data: batch }, primaryColor] = await Promise.all([
+      this.payrollService.getBatch(id, entityId),
+      groupId ? this.getPrimaryColor(groupId) : Promise.resolve(DEFAULT_PRIMARY),
+    ]);
     const pdfBuffer = await this.pdfService.generate('payroll-batch', {
       batch,
+      primaryColor,
     });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(

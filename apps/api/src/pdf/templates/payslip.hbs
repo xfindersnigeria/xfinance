@@ -1,13 +1,9 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: Arial, sans-serif; font-size: 12px; color: #333; background: #fff; }
   .container { max-width: 720px; margin: 0 auto; padding: 32px; }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #4f46e5; padding-bottom: 16px; margin-bottom: 24px; }
-  .entity-name { font-size: 20px; font-weight: bold; color: #4f46e5; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid var(--primary); padding-bottom: 16px; margin-bottom: 24px; }
+  .entity-name { font-size: 20px; font-weight: bold; color: var(--primary); }
   .slip-title { font-size: 18px; font-weight: bold; color: #1e293b; text-align: right; }
   .slip-period { color: #64748b; font-size: 12px; text-align: right; margin-top: 4px; }
   .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
@@ -22,7 +18,7 @@
   .section-title { font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 8px; margin-top: 16px; }
   .amount-green { color: #16a34a; font-weight: 600; }
   .amount-red { color: #dc2626; font-weight: 600; }
-  .net-pay-box { background: linear-gradient(135deg, #4f46e5, #7c3aed); border-radius: 10px; padding: 20px; text-align: center; margin-top: 20px; color: #fff; }
+  .net-pay-box { background: var(--primary); border-radius: 10px; padding: 20px; text-align: center; margin-top: 20px; color: #fff; }
   .net-pay-label { font-size: 12px; opacity: 0.85; margin-bottom: 4px; }
   .net-pay-amount { font-size: 28px; font-weight: bold; }
   .footer { text-align: center; margin-top: 24px; font-size: 10px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 12px; }
@@ -31,17 +27,18 @@
   .badge-pending { background: #fef9c3; color: #ca8a04; }
   .badge-draft { background: #f1f5f9; color: #64748b; }
 </style>
-</head>
-<body>
+
 <div class="container">
   <!-- Header -->
   <div class="header">
-    <div>
+    <div style="display:flex;align-items:flex-start;gap:10px;">
       {{#if record.entity.logo.base64}}
-        <img src="{{record.entity.logo.base64}}" alt="Logo" style="height:40px;margin-bottom:6px;" />
+        <img src="{{record.entity.logo.base64}}" alt="Logo" style="height:40px;width:40px;object-fit:contain;border-radius:6px;" />
       {{/if}}
-      <div class="entity-name">{{record.entity.name}}</div>
-      <div style="color:#64748b;font-size:11px;">{{record.entity.address}}</div>
+      <div>
+        <div class="entity-name">{{record.entity.name}}</div>
+        <div style="color:#64748b;font-size:11px;">{{record.entity.address}}</div>
+      </div>
     </div>
     <div>
       <div class="slip-title">PAYSLIP</div>
@@ -77,11 +74,11 @@
   <table class="earnings-table">
     <thead><tr><th>Description</th><th style="text-align:right;">Amount</th></tr></thead>
     <tbody>
-      <tr><td>Basic Salary</td><td style="text-align:right;" class="amount-green">{{record.employee.currency}} {{record.basicSalary}}</td></tr>
-      {{#if record.allowances}}<tr><td>Allowances</td><td style="text-align:right;" class="amount-green">{{record.employee.currency}} {{record.allowances}}</td></tr>{{/if}}
-      {{#if record.bonus}}<tr><td>Bonus</td><td style="text-align:right;" class="amount-green">{{record.employee.currency}} {{record.bonus}}</td></tr>{{/if}}
-      {{#if record.overtime}}<tr><td>Overtime</td><td style="text-align:right;" class="amount-green">{{record.employee.currency}} {{record.overtime}}</td></tr>{{/if}}
-      <tr style="background:#f8fafc;font-weight:700;"><td>Gross Pay</td><td style="text-align:right;">{{record.employee.currency}} {{record.grossPay}}</td></tr>
+      <tr><td>Basic Salary</td><td style="text-align:right;" class="amount-green">{{record.entity.currency}} {{record.basicSalary}}</td></tr>
+      {{#if record.allowances}}<tr><td>Allowances</td><td style="text-align:right;" class="amount-green">{{record.entity.currency}} {{record.allowances}}</td></tr>{{/if}}
+      {{#if record.bonus}}<tr><td>Bonus</td><td style="text-align:right;" class="amount-green">{{record.entity.currency}} {{record.bonus}}</td></tr>{{/if}}
+      {{#if record.overtime}}<tr><td>Overtime</td><td style="text-align:right;" class="amount-green">{{record.entity.currency}} {{record.overtime}}</td></tr>{{/if}}
+      <tr style="background:#f8fafc;font-weight:700;"><td>Gross Pay</td><td style="text-align:right;">{{record.entity.currency}} {{record.grossPay}}</td></tr>
     </tbody>
   </table>
 
@@ -90,21 +87,19 @@
   <table class="deductions-table">
     <thead><tr><th>Description</th><th style="text-align:right;">Amount</th></tr></thead>
     <tbody>
-      {{#if record.statutoryDed}}<tr><td>Statutory Deductions (PAYE, NHIS, Pension)</td><td style="text-align:right;" class="amount-red">- {{record.employee.currency}} {{record.statutoryDed}}</td></tr>{{/if}}
-      {{#if record.otherDed}}<tr><td>Other Deductions</td><td style="text-align:right;" class="amount-red">- {{record.employee.currency}} {{record.otherDed}}</td></tr>{{/if}}
-      <tr style="background:#f8fafc;font-weight:700;"><td>Total Deductions</td><td style="text-align:right;" class="amount-red">- {{record.employee.currency}} {{record.statutoryDed}}</td></tr>
+      {{#if record.statutoryDed}}<tr><td>Statutory Deductions (PAYE, NHIS, Pension)</td><td style="text-align:right;" class="amount-red">- {{record.entity.currency}} {{record.statutoryDed}}</td></tr>{{/if}}
+      {{#if record.otherDed}}<tr><td>Other Deductions</td><td style="text-align:right;" class="amount-red">- {{record.entity.currency}} {{record.otherDed}}</td></tr>{{/if}}
+      <tr style="background:#f8fafc;font-weight:700;"><td>Total Deductions</td><td style="text-align:right;" class="amount-red">- {{record.entity.currency}} {{record.statutoryDed}}</td></tr>
     </tbody>
   </table>
 
   <!-- Net Pay -->
   <div class="net-pay-box">
     <div class="net-pay-label">NET PAY</div>
-    <div class="net-pay-amount">{{record.employee.currency}} {{record.netPay}}</div>
+    <div class="net-pay-amount">{{record.entity.currency}} {{record.netPay}}</div>
   </div>
 
   <div class="footer">
     This payslip is computer generated and does not require a signature. &mdash; {{record.entity.name}}
   </div>
 </div>
-</body>
-</html>

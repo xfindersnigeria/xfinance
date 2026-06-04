@@ -29,6 +29,7 @@ import { GetPaidInvoicesQueryDto } from './dto/get-paid-invoices-query.dto';
 import { GetEntityInvoicesResponseDto } from './dto/get-entity-invoices-response.dto';
 import { GetPaidInvoicesResponseDto } from './dto/get-paid-invoices-response.dto';
 import { PdfService } from '@/pdf/pdf.service';
+import { PrismaService } from '@/prisma/prisma.service';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -43,6 +44,8 @@ import {
 } from '@nestjs/swagger';
 import { ConfigService } from '@/settings/config/config.service';
 
+const DEFAULT_PRIMARY = '#4152B6';
+
 @ApiTags('Invoices')
 @Controller('sales/invoices')
 export class InvoiceController {
@@ -51,7 +54,13 @@ export class InvoiceController {
     private pdfService: PdfService,
     private bankingService: BankingService, // If you have a service for bank accounts
     private settingsService: ConfigService, // To fetch invoice notes from settings
+    private prisma: PrismaService,
   ) {}
+
+  private async getPrimaryColor(groupId: string): Promise<string> {
+    const c = await this.prisma.groupCustomization.findUnique({ where: { groupId }, select: { primaryColor: true } });
+    return c?.primaryColor ?? DEFAULT_PRIMARY;
+  }
 
   @Post()
   @UseGuards(AuthGuard)
@@ -272,7 +281,9 @@ export class InvoiceController {
     };
 
     // Generate PDF
-    const pdfBuffer = await this.pdfService.generate('invoice', pdfData);
+    const groupId = getEffectiveGroupId(req);
+    const primaryColor = groupId ? await this.getPrimaryColor(groupId) : DEFAULT_PRIMARY;
+    const pdfBuffer = await this.pdfService.generate('invoice', { ...pdfData, primaryColor });
 
     // Send PDF as download
     res.setHeader('Content-Type', 'application/pdf');

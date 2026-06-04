@@ -38,11 +38,11 @@ function PayslipModal({ row }: { row: any }) {
         width="sm:max-w-2xl"
       >
         {isLoading ? (
-          <div className="py-12 text-center"><Loader2 className="animate-spin mx-auto text-indigo-500 w-8 h-8" /></div>
+          <div className="py-12 text-center"><Loader2 className="animate-spin mx-auto text-primary w-8 h-8" /></div>
         ) : record ? (
           <div className="pb-4">
             {/* Header */}
-            <div className="flex justify-between items-start bg-gradient-to-r from-indigo-600 to-violet-600 rounded-xl p-5 mb-4 text-white">
+            <div className="flex justify-between items-start bg-gradient-to-r from-primary to-primary/70 rounded-xl p-5 mb-4 text-white">
               <div>
                 <div className="text-lg font-bold">{record.entity?.name}</div>
                 <div className="text-xs opacity-75 mt-1">{record.entity?.address}</div>
@@ -119,7 +119,7 @@ function PayslipModal({ row }: { row: any }) {
             </div>
 
             {/* Net Pay */}
-            <div className="bg-gradient-to-r from-indigo-600 to-violet-600 rounded-xl p-5 text-center text-white mb-4">
+            <div className="bg-gradient-to-r from-primary to-primary/70 rounded-xl p-5 text-center text-white mb-4">
               <div className="text-xs opacity-80 mb-1">NET PAY</div>
               <div className="text-3xl font-bold">{fmt(record.netPay)}</div>
             </div>

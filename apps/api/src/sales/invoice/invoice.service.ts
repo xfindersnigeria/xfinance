@@ -1409,6 +1409,11 @@ export class InvoiceService {
         : null;
 
       // Generate PDF
+      const customization = await this.prisma.groupCustomization.findUnique({
+        where: { groupId: invoice.groupId },
+        select: { primaryColor: true },
+      });
+      const primaryColor = customization?.primaryColor ?? '#4152B6';
       const pdfBuffer = await this.pdfService.generate('invoice', {
         invoice: {
           ...invoice,
@@ -1417,6 +1422,7 @@ export class InvoiceService {
         customer: invoice.customer,
         entity: invoice.entity,
         bankAccount: bankAccountRaw ?? null,
+        primaryColor,
       });
 
       // Build HTML email body

@@ -22,23 +22,25 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import dayjs from "dayjs";
 import { Calendar, Users, TrendingUp, CalendarDays, Info } from "lucide-react";
+import { useGroupCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 // --- Custom Implementation for Process Payroll ---
-const PAY_PERIODS = [
-  "January 2024",
-  "February 2024",
-  "March 2024",
-  "April 2024",
-  "May 2024",
-  "June 2024",
-  "July 2024",
-  "August 2024",
-  "September 2024",
-  "October 2024",
-  "November 2024",
-  "December 2024",
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
 ];
 const PAYMENT_METHODS = ["Bank Transfer", "Cash", "Cheque"];
+
+const currentYear = new Date().getFullYear();
+const YEARS = Array.from({ length: 6 }, (_, i) => String(currentYear - 2 + i));
+
+function parsePeriod(period: string): { month: string; year: string } {
+  const parts = period?.split(" ") ?? [];
+  if (parts.length === 2 && MONTHS.includes(parts[0]) && parts[1]) {
+    return { month: parts[0], year: parts[1] };
+  }
+  return { month: MONTHS[new Date().getMonth()], year: String(currentYear) };
+}
 
 export default function ProcessPayrollForm({
   employees = [],
@@ -49,6 +51,8 @@ export default function ProcessPayrollForm({
   initialBatch,
   isEditMode = false,
 }: any) {
+
+  const sym = useGroupCurrencySymbol();
   const buildRows = (emps: any[]) =>
     emps.map((emp: any) => ({
       id: emp.id,
@@ -71,9 +75,10 @@ export default function ProcessPayrollForm({
 
   const [selected, setSelected] = useState<boolean[]>([]);
   const [selectAll, setSelectAll] = useState(true);
-  const [payPeriod, setPayPeriod] = useState(
-    initialBatch?.period ?? PAY_PERIODS[10],
-  );
+  const initialParsed = parsePeriod(initialBatch?.period);
+  const [payMonth, setPayMonth] = useState(initialParsed.month);
+  const [payYear, setPayYear] = useState(initialParsed.year);
+  const payPeriod = `${payMonth} ${payYear}`;
   const [paymentDate, setPaymentDate] = useState(
     initialBatch?.paymentDate
       ? new Date(initialBatch.paymentDate).toISOString().slice(0, 10)
@@ -191,20 +196,33 @@ export default function ProcessPayrollForm({
           <Calendar className="w-5 h-5 text-blue-500" /> Payroll Period &
           Payment Details
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div>
             <div className="font-semibold text-gray-700 mb-1 flex items-center gap-1">
-              Pay Period <span className="text-red-500">*</span>
+              Month <span className="text-red-500">*</span>
             </div>
-            <Select value={payPeriod} onValueChange={setPayPeriod}>
+            <Select value={payMonth} onValueChange={setPayMonth}>
               <SelectTrigger className="w-full rounded-xl bg-white">
-                <SelectValue placeholder="Select period" />
+                <SelectValue placeholder="Month" />
               </SelectTrigger>
               <SelectContent>
-                {PAY_PERIODS.map((period) => (
-                  <SelectItem key={period} value={period}>
-                    {period}
-                  </SelectItem>
+                {MONTHS.map((m) => (
+                  <SelectItem key={m} value={m}>{m}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <div className="font-semibold text-gray-700 mb-1 flex items-center gap-1">
+              Year <span className="text-red-500">*</span>
+            </div>
+            <Select value={payYear} onValueChange={setPayYear}>
+              <SelectTrigger className="w-full rounded-xl bg-white">
+                <SelectValue placeholder="Year" />
+              </SelectTrigger>
+              <SelectContent>
+                {YEARS.map((y) => (
+                  <SelectItem key={y} value={y}>{y}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -392,19 +410,19 @@ export default function ProcessPayrollForm({
             <div>
               Total Basic Salary:{" "}
               <span className="font-semibold text-gray-700">
-                ${totalBasic.toLocaleString()}
+                {sym}{totalBasic.toLocaleString()}
               </span>
             </div>
             <div>
               Total Allowances:{" "}
               <span className="font-semibold text-green-700">
-                +${totalAllowances.toLocaleString()}
+                +{sym}{totalAllowances.toLocaleString()}
               </span>
             </div>
             <div>
               Total Bonus:{" "}
               <span className="font-semibold text-green-700">
-                +${totalBonus.toLocaleString()}
+                +{sym}{totalBonus.toLocaleString()}
               </span>
             </div>
           </div>
@@ -412,25 +430,25 @@ export default function ProcessPayrollForm({
             <div>
               Total Overtime:{" "}
               <span className="font-semibold text-green-700">
-                +${totalOvertime.toLocaleString()}
+                +{sym}{totalOvertime.toLocaleString()}
               </span>
             </div>
             <div>
               Total Statutory Deductions:{" "}
               <span className="font-semibold text-red-600">
-                -${totalDeductionsStat.toLocaleString()}
+                -{sym}{totalDeductionsStat.toLocaleString()}
               </span>
             </div>
             <div>
               Total Other Deductions:{" "}
               <span className="font-semibold text-red-600">
-                -${totalDeductionsOther.toLocaleString()}
+                -{sym}{totalDeductionsOther.toLocaleString()}
               </span>
             </div>
           </div>
         </div>
         <div className="text-right text-lg font-bold text-blue-900 mb-2">
-          Total Net Pay: ${totalNetPay.toLocaleString()}
+          Total Net Pay: {sym}{totalNetPay.toLocaleString()}
         </div>
         <div className="flex flex-wrap gap-4 items-center bg-white rounded-xl p-3 mt-2">
           <div>

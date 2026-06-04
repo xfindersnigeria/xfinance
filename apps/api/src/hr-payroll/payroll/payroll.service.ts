@@ -224,6 +224,7 @@ export class PayrollService {
               },
             },
           },
+          entity: { select: { name: true, logo: true, address: true, currency: true } },
           createdBy:  { select: { firstName: true, lastName: true } },
           approvedBy: { select: { firstName: true, lastName: true } },
         },
@@ -359,7 +360,7 @@ export class PayrollService {
             },
           },
           batch: { select: { batchName: true, period: true, paymentDate: true, paymentMethod: true, status: true } },
-          entity: { select: { name: true, logo: true, address: true, email: true } },
+          entity: { select: { name: true, logo: true, address: true, email: true, currency: true } },
         },
       });
       if (!record) throw new HttpException('Payroll record not found', HttpStatus.NOT_FOUND);
