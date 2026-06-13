@@ -32,6 +32,7 @@ export const MODAL = {
   EXPENSE_CREATE: "expense-create",
   EXPENSE_EDIT: "expense-edit",
   EXPENSE_DELETE: "expense-delete",
+  EXPENSE_VIEW: "expense-view",
   EXPENSE_MARK_APPROVED: "expense-mark-approved",
 
   PAYMENT_RECEIVED_CREATE: "payment-received-create",

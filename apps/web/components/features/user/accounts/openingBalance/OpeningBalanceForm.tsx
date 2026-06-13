@@ -476,7 +476,12 @@ export default function OpeningBalanceForm({
 
           {/* Action Buttons */}
           <div className="flex justify-end gap-3 border-t pt-6">
-            <Button variant="outline" className="rounded-lg" type="button">
+            <Button
+              variant="outline"
+              className="rounded-lg"
+              type="button"
+              onClick={() => onSuccess?.()}
+            >
               Cancel
             </Button>
             <Button

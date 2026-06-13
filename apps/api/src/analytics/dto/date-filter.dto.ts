@@ -1,4 +1,5 @@
 export enum DateFilterEnum {
+  THIS_MONTH = 'THIS_MONTH',
   THIS_YEAR = 'THIS_YEAR',
   THIS_FISCAL_YEAR = 'THIS_FISCAL_YEAR',
   LAST_FISCAL_YEAR = 'LAST_FISCAL_YEAR',
@@ -29,10 +30,21 @@ export class DateFilterHelper {
    * @param filter The date filter type
    * @returns DateRange with startDate and endDate
    */
-  static getDateRange(filter: DateFilterEnum = DateFilterEnum.THIS_YEAR): DateRange {
-    const now = new Date();
+  static getDateRange(filter: string = DateFilterEnum.THIS_MONTH): DateRange {
+    // Handle dynamic MONTH_YYYY_MM pattern (e.g. MONTH_2026_06)
+    const monthMatch = filter.match(/^MONTH_(\d{4})_(\d{2})$/);
+    if (monthMatch) {
+      const year = parseInt(monthMatch[1]);
+      const month = parseInt(monthMatch[2]) - 1;
+      const startDate = new Date(year, month, 1, 0, 0, 0, 0);
+      const endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
+      return { startDate, endDate };
+    }
 
     switch (filter) {
+      case DateFilterEnum.THIS_MONTH:
+        return this.getThisMonthRange();
+
       case DateFilterEnum.THIS_YEAR:
         return this.getThisYearRange();
 
@@ -46,8 +58,40 @@ export class DateFilterHelper {
         return this.getLast12MonthsRange();
 
       default:
-        return this.getThisYearRange();
+        return this.getThisMonthRange();
     }
+  }
+
+  static getPreviousRange(filter: string): DateRange {
+    const monthMatch = filter.match(/^MONTH_(\d{4})_(\d{2})$/);
+    if (monthMatch || filter === DateFilterEnum.THIS_MONTH) {
+      let year: number, month: number;
+      if (monthMatch) {
+        year = parseInt(monthMatch[1]);
+        month = parseInt(monthMatch[2]) - 1; // 0-indexed current month
+      } else {
+        const now = new Date();
+        year = now.getFullYear();
+        month = now.getMonth();
+      }
+      const prevStart = new Date(year, month - 1, 1, 0, 0, 0, 0);
+      const prevEnd = new Date(year, month, 0, 23, 59, 59, 999);
+      return { startDate: prevStart, endDate: prevEnd };
+    }
+    // For year-range filters: shift primary range back 1 year
+    const primary = this.getDateRange(filter);
+    const prevStart = new Date(primary.startDate);
+    prevStart.setFullYear(prevStart.getFullYear() - 1);
+    const prevEnd = new Date(primary.endDate);
+    prevEnd.setFullYear(prevEnd.getFullYear() - 1);
+    return { startDate: prevStart, endDate: prevEnd };
+  }
+
+  private static getThisMonthRange(): DateRange {
+    const now = new Date();
+    const startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    return { startDate, endDate };
   }
 
   /**

@@ -28,6 +28,8 @@ import { CustomModal } from "@/components/local/custom/modal";
 import { MODULES } from "@/lib/types/enums";
 import { ItemSelector } from "../../income/invoices/ItemSelector";
 import { StoreItemsResponse } from "@/lib/api/hooks/types/productsTypes";
+import { useModal } from "@/components/providers/ModalProvider";
+import { MODAL } from "@/lib/data/modal-data";
 
 type CollectionFormData = z.infer<typeof collectionSchema>;
 
@@ -39,6 +41,7 @@ export default function CollectionsForm({
   isEditMode?: boolean;
 }) {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const { closeModal } = useModal();
   // const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -463,7 +466,18 @@ export default function CollectionsForm({
 
           {/* Actions */}
           <div className="flex justify-end gap-2 border-t pt-4">
-            <Button variant="outline" type="button" disabled={isSubmitting}>
+            <Button
+              variant="outline"
+              type="button"
+              disabled={isSubmitting}
+              onClick={() =>
+                closeModal(
+                  isEditMode
+                    ? MODAL.COLLECTION_EDIT + "-" + (collection?.id || "")
+                    : MODAL.COLLECTION_CREATE,
+                )
+              }
+            >
               Cancel
             </Button>
             <Button

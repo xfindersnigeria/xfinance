@@ -85,7 +85,7 @@ export const useUpdateCustomer = (
         });
       }
       toast.success("Customer updated successfully");
-      closeModal(MODAL.CUSTOMER_EDIT);
+      closeModal(MODAL.CUSTOMER_EDIT + "-" + variables.id);
     },
     onError: (error) => {
       toast.error(
@@ -561,7 +561,7 @@ export const useUpdatePaymentReceived = (
       }
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       toast.success("Payment received updated successfully");
-      closeModal(MODAL.PAYMENT_RECEIVED_EDIT);
+      closeModal(MODAL.PAYMENT_RECEIVED_EDIT + "-" + variables.id);
     },
     onError: (error) => {
       toast.error(

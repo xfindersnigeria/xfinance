@@ -38,8 +38,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { useAccounts, useCreateForecast } from "@/lib/api/hooks/useAccounts";
-import type { Account } from "@/lib/api/hooks/types/accountsTypes";
+import { useGroupBudgetAccounts, useCreateForecast } from "@/lib/api/hooks/useAccounts";
 import { useGroupCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -169,12 +168,10 @@ export function CreateForecastForm() {
   const sym = useGroupCurrencySymbol();
   const [method, setMethod] = useState<ForecastMethod>("manual");
 
-  const { data: accountsResponse, isLoading: accountsLoading } = useAccounts({
-    limit: 200,
-  });
-  const accounts: Account[] = useMemo(
-    () => (accountsResponse as any)?.data ?? [],
-    [accountsResponse],
+  const { data: accountsData, isLoading: accountsLoading } = useGroupBudgetAccounts();
+  const accounts = useMemo<{ id: string; name: string; code: string; categoryName: string; subCategoryName: string }[]>(
+    () => (accountsData as any)?.data ?? [],
+    [accountsData],
   );
 
   const createForecast = useCreateForecast();
@@ -207,7 +204,7 @@ export function CreateForecastForm() {
 
   const getAccountCategory = (id: string) => {
     const acc = accounts.find((a) => a.id === id);
-    return acc?.categoryName ?? acc?.typeName ?? "";
+    return acc?.categoryName ?? "";
   };
 
   const handlePeriodTypeChange = (v: string) => {

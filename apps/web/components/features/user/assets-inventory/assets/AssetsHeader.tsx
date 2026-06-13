@@ -9,6 +9,8 @@ import AssetsStatCardSmall from "./AssetsStatCardSmall";
 import AssetAttentionAlert from "./AssetAttentionAlert";
 import AssetsForm from "./AssetsForm";
 import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { useModal } from "@/components/providers/ModalProvider";
+import { MODAL } from "@/lib/data/modal-data";
 
 export default function AssetsHeader({
   summary,
@@ -18,11 +20,12 @@ export default function AssetsHeader({
     total: number;
     inUse: number;
     inStorage: number;
-    depricableValue: number;
+    depreciableValue: number;
+    totalCurrentValue: number;
   };
   loading: boolean;
 }) {
-  const [open, setOpen] = React.useState(false);
+  const { openModal, isOpen, closeModal } = useModal();
   const sym = useEntityCurrencySymbol();
   return (
     <div className="mb-6">
@@ -38,7 +41,7 @@ export default function AssetsHeader({
             <Download />
             Export
           </Button>
-          <Button onClick={() => setOpen(true)} className="rounded-xl">
+          <Button onClick={() => openModal(MODAL.ASSET_CREATE)} className="rounded-xl">
             <Plus /> New Asset
           </Button>
         </div>
@@ -56,7 +59,7 @@ export default function AssetsHeader({
           subtitle={
             <span>
               Worth {sym}
-              {((summary?.depricableValue || 0)).toLocaleString(undefined, {
+              {(summary?.totalCurrentValue || 0).toLocaleString(undefined, {
                 maximumFractionDigits: 0,
               })}
             </span>
@@ -84,16 +87,16 @@ export default function AssetsHeader({
           loading={loading}
         />
         <AssetsStatCardSmall
-          title="Total Value"
+          title="Depreciable Value"
           value={
             <span className="text-3xl font-bold text-primary">
               {sym}
-              {((summary?.depricableValue || 0)).toLocaleString(undefined, {
+              {(summary?.depreciableValue || 0).toLocaleString(undefined, {
                 maximumFractionDigits: 0,
               })}
             </span>
           }
-          subtitle={<span>Current value</span>}
+          subtitle={<span>Tracked for depreciation</span>}
           loading={loading}
         />
       </div>
@@ -101,10 +104,12 @@ export default function AssetsHeader({
       <CustomModal
         title="Add New Asset"
         module={MODULES.ASSETS}
-        open={open}
-        onOpenChange={setOpen}
+        open={isOpen(MODAL.ASSET_CREATE)}
+        onOpenChange={(v) =>
+          v ? openModal(MODAL.ASSET_CREATE) : closeModal(MODAL.ASSET_CREATE)
+        }
       >
-        <AssetsForm onSuccess={() => setOpen(false)} />
+        <AssetsForm />
       </CustomModal>
     </div>
   );

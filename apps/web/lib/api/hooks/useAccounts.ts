@@ -19,6 +19,8 @@ import {
   AccountTransactionTypeEnum,
   TransactionPostingStatusEnum,
   BudgetListResponse,
+  BudgetHeaderListResponse,
+  BudgetHeaderDetail,
   BudgetVsActualResponse,
   PreviousPeriodBudget,
   GroupBudgetListResponse,
@@ -200,27 +202,51 @@ export const useCreateBudget = (
 
 export const useBudgets = (params?: {
   periodType?: string;
-  period?: string;
   fiscalYear?: string;
   search?: string;
   page?: number;
   limit?: number;
 }) => {
-  return useQuery<BudgetListResponse>({
+  return useQuery<BudgetHeaderListResponse>({
     queryKey: [
       "budgets",
       "list",
       params?.periodType,
-      params?.period,
       params?.fiscalYear,
       params?.search,
       params?.page,
       params?.limit,
     ],
     queryFn: () =>
-      accountsService.getBudgets(params) as Promise<BudgetListResponse>,
+      accountsService.getBudgets(params) as Promise<BudgetHeaderListResponse>,
     staleTime: 2 * 60 * 1000,
     refetchOnWindowFocus: true,
+  });
+};
+
+export const useBudgetHeader = (id: string | null) => {
+  return useQuery<BudgetHeaderDetail>({
+    queryKey: ["budgets", "header", id],
+    queryFn: () => accountsService.getBudgetHeader(id!) as Promise<BudgetHeaderDetail>,
+    enabled: !!id,
+    staleTime: 2 * 60 * 1000,
+  });
+};
+
+export const useUpdateBudget = (
+  options?: UseMutationOptions<any, Error, { id: string; data: any }>,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }) => accountsService.updateBudget(id, data),
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ["budgets"] });
+      toast.success("Budget updated successfully");
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to update budget");
+    },
+    ...options,
   });
 };
 
@@ -273,11 +299,11 @@ export const useDeleteBudget = (
     mutationFn: accountsService.deleteBudget,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["budgets"] });
-      toast.success("Budget line deleted");
+      toast.success("Budget deleted");
     },
     onError: (error) => {
       toast.error(
-        error instanceof Error ? error.message : "Failed to delete budget line",
+        error instanceof Error ? error.message : "Failed to delete budget",
       );
     },
     ...options,
@@ -310,17 +336,50 @@ export const useCreateGroupBudget = (
 
 export const useGroupBudgets = (params?: {
   periodType?: string;
-  period?: string;
   fiscalYear?: string;
   search?: string;
   page?: number;
   limit?: number;
 }) => {
-  return useQuery<GroupBudgetListResponse>({
-    queryKey: ["groupBudgets", "list", params?.periodType, params?.period, params?.fiscalYear, params?.search, params?.page, params?.limit],
-    queryFn: () => accountsService.getGroupBudgets(params) as Promise<GroupBudgetListResponse>,
+  return useQuery<BudgetHeaderListResponse>({
+    queryKey: ["groupBudgets", "list", params?.periodType, params?.fiscalYear, params?.search, params?.page, params?.limit],
+    queryFn: () => accountsService.getGroupBudgets(params) as Promise<BudgetHeaderListResponse>,
     staleTime: 2 * 60 * 1000,
     refetchOnWindowFocus: true,
+  });
+};
+
+export const useGroupBudgetHeader = (id: string | null) => {
+  return useQuery<BudgetHeaderDetail>({
+    queryKey: ["groupBudgets", "header", id],
+    queryFn: () => accountsService.getGroupBudgetHeader(id!) as Promise<BudgetHeaderDetail>,
+    enabled: !!id,
+    staleTime: 2 * 60 * 1000,
+  });
+};
+
+export const useUpdateGroupBudget = (
+  options?: UseMutationOptions<any, Error, { id: string; data: any }>,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }) => accountsService.updateGroupBudget(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["groupBudgets"] });
+      toast.success("Group budget updated successfully");
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to update group budget");
+    },
+    ...options,
+  });
+};
+
+export const useGroupBudgetAccounts = () => {
+  return useQuery({
+    queryKey: ["budget", "group", "accounts"],
+    queryFn: () => accountsService.getGroupBudgetAccounts() as Promise<{ data: { id: string; name: string; code: string; categoryName: string; subCategoryName: string }[] }>,
+    staleTime: 5 * 60 * 1000,
   });
 };
 
@@ -359,11 +418,11 @@ export const useDeleteGroupBudget = (
     mutationFn: accountsService.deleteGroupBudget,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["groupBudgets"] });
-      toast.success("Group budget line deleted");
+      toast.success("Group budget deleted");
     },
     onError: (error) => {
       toast.error(
-        error instanceof Error ? error.message : "Failed to delete group budget line",
+        error instanceof Error ? error.message : "Failed to delete group budget",
       );
     },
     ...options,

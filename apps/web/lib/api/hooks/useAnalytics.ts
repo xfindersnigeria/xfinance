@@ -132,7 +132,7 @@ export const useRecentTransactions = (options?: UseQueryOptions<RecentTransactio
  * Fetch group-consolidated admin dashboard data (KPIs, monthly trend, entity performance)
  */
 export const useAdminDashboard = (
-  filter?: FilterOption,
+  filter?: string,
   options?: UseQueryOptions<GroupDashboardData>
 ) => {
   return useQuery<GroupDashboardData>({

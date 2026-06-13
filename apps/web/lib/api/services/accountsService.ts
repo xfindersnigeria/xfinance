@@ -264,6 +264,19 @@ export const getPreviousPeriodBudget = async (params: {
   });
 };
 
+export const getBudgetHeader = async (id: string) =>
+  apiClient(`budget/${id}`, { method: "GET" });
+
+export const updateBudget = async (id: string, data: {
+  name?: string;
+  periodType?: string;
+  month?: string;
+  fiscalYear?: string;
+  note?: string;
+  lines?: Array<{ accountId: string; amount: number }>;
+}) =>
+  apiClient(`budget/${id}`, { method: "PUT", body: JSON.stringify(data) });
+
 export const deleteBudget = async (id: string) =>
   apiClient(`budget/${id}`, { method: "DELETE" });
 
@@ -284,9 +297,21 @@ export const createGroupBudget = async (data: {
   });
 };
 
+export const getGroupBudgetHeader = async (id: string) =>
+  apiClient(`budget/group/${id}`, { method: "GET" });
+
+export const updateGroupBudget = async (id: string, data: {
+  name?: string;
+  periodType?: string;
+  month?: string;
+  fiscalYear?: string;
+  note?: string;
+  lines?: Array<{ accountId: string; amount: number }>;
+}) =>
+  apiClient(`budget/group/${id}`, { method: "PUT", body: JSON.stringify(data) });
+
 export const getGroupBudgets = async (params?: {
   periodType?: string;
-  period?: string;
   fiscalYear?: string;
   search?: string;
   page?: number;
@@ -294,7 +319,6 @@ export const getGroupBudgets = async (params?: {
 }) => {
   const q = new URLSearchParams();
   if (params?.periodType) q.append("periodType", params.periodType);
-  if (params?.period) q.append("period", params.period);
   if (params?.fiscalYear) q.append("fiscalYear", params.fiscalYear);
   if (params?.search) q.append("search", params.search);
   if (params?.page) q.append("page", params.page.toString());
@@ -333,6 +357,9 @@ export const getGroupPreviousPeriodBudget = async (params: {
     method: "GET",
   });
 };
+
+export const getGroupBudgetAccounts = async () =>
+  apiClient("budget/group/accounts", { method: "GET" });
 
 export const deleteGroupBudget = async (id: string) =>
   apiClient(`budget/group/${id}`, { method: "DELETE" });

@@ -3,52 +3,52 @@ import { Badge } from "@/components/ui/badge";
 import { Column } from "@/components/local/custom/custom-table";
 import AssetsActions from "./AssetsActions";
 
-export const assetsData = [
-  {
-    id: 1,
-    name: "Dell Laptop - XPS 15",
-    code: "AST-001",
-    category: "Computer Equipment",
-    purchaseDate: "2024-01-15",
-    location: "Office - Floor 3",
-    purchaseCost: 2500,
-    currentValue: 2000,
-    status: "In Use",
-  },
-  {
-    id: 2,
-    name: "Conference Room Table",
-    code: "AST-002",
-    category: "Furniture",
-    purchaseDate: "2023-06-20",
-    location: "Conference Room A",
-    purchasePrice: 1800,
-    currentValue: 1500,
-    status: "In Use",
-  },
-  {
-    id: 3,
-    name: "Backup Server - HP ProLiant",
-    code: "AST-003",
-    category: "IT Equipment",
-    purchaseDate: "2023-03-10",
-    location: "Storage Room B",
-    purchasePrice: 5500,
-    currentValue: 4200,
-    status: "In Storage",
-  },
-  {
-    id: 4,
-    name: "Old Desktop Computer",
-    code: "AST-004",
-    category: "Computer Equipment",
-    purchaseDate: "2018-05-12",
-    location: "Storage Room B",
-    purchasePrice: 1200,
-    currentValue: 0,
-    status: "In Storage",
-  },
-];
+// export const assetsData = [
+//   {
+//     id: 1,
+//     name: "Dell Laptop - XPS 15",
+//     code: "AST-001",
+//     category: "Computer Equipment",
+//     purchaseDate: "2024-01-15",
+//     location: "Office - Floor 3",
+//     purchaseCost: 2500,
+//     currentValue: 2000,
+//     status: "In Use",
+//   },
+//   {
+//     id: 2,
+//     name: "Conference Room Table",
+//     code: "AST-002",
+//     category: "Furniture",
+//     purchaseDate: "2023-06-20",
+//     location: "Conference Room A",
+//     purchasePrice: 1800,
+//     currentValue: 1500,
+//     status: "In Use",
+//   },
+//   {
+//     id: 3,
+//     name: "Backup Server - HP ProLiant",
+//     code: "AST-003",
+//     category: "IT Equipment",
+//     purchaseDate: "2023-03-10",
+//     location: "Storage Room B",
+//     purchasePrice: 5500,
+//     currentValue: 4200,
+//     status: "In Storage",
+//   },
+//   {
+//     id: 4,
+//     name: "Old Desktop Computer",
+//     code: "AST-004",
+//     category: "Computer Equipment",
+//     purchaseDate: "2018-05-12",
+//     location: "Storage Room B",
+//     purchasePrice: 1200,
+//     currentValue: 0,
+//     status: "In Storage",
+//   },
+// ];
 
 export function createAssetsColumns(sym: string): Column<any>[] {
   return [
@@ -98,7 +98,8 @@ export function createAssetsColumns(sym: string): Column<any>[] {
       key: "status",
       title: "Status",
       className: "text-xs",
-      render: (value) => {
+      render: (value, row) => {
+        console.log(row)
         if (value === "in_use")
           return (
             <Badge className="bg-green-100 text-green-700 px-3 py-1 rounded-full font-medium">

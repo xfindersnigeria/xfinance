@@ -32,6 +32,8 @@ import {
 import { useAccountTypes } from "@/lib/api/hooks/useAccountTypes";
 import { useAccountCategories } from "@/lib/api/hooks/useAccountCategories";
 import { useSubCategoriesByCategory } from "@/lib/api/hooks/useAccountSubCategories";
+import { useModal } from "@/components/providers/ModalProvider";
+import { MODAL } from "@/lib/data/modal-data";
 
 // Zod schema for Chart of Accounts
 
@@ -46,6 +48,7 @@ export default function ChartOfAccountsForm({
 }: ChartOfAccountsFormProps) {
   const createAccount = useCreateAccount();
   const updateAccount = useUpdateAccount();
+  const { closeModal } = useModal();
   const [typeId, setTypeId] = React.useState<string>("");
 
   const form = useForm<ChartOfAccountsFormData>({
@@ -342,7 +345,16 @@ export default function ChartOfAccountsForm({
               <span className="text-red-500">*</span> Required fields
             </p>{" "}
             <div className="flex flex-wrap gap-3 items-center">
-              <Button variant="outline" className="rounded-lg" type="button">
+              <Button
+                variant="outline"
+                className="rounded-lg"
+                type="button"
+                onClick={() =>
+                  closeModal(
+                    isEditMode ? MODAL.ACCOUNT_EDIT : MODAL.ACCOUNT_CREATE,
+                  )
+                }
+              >
                 Cancel
               </Button>
               <Button

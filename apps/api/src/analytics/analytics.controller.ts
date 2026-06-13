@@ -246,8 +246,7 @@ export class AnalyticsController {
   async getGroupDashboard(@Req() req: Request, @Query('filter') filter?: string) {
     const groupId = getEffectiveGroupId(req);
     if (!groupId) throw new BadRequestException('Group ID is required');
-    const dateFilter = (filter as DateFilterEnum) || DateFilterEnum.THIS_YEAR;
-    return this.analyticsService.getGroupDashboard(groupId, dateFilter);
+    return this.analyticsService.getGroupDashboard(groupId, filter || DateFilterEnum.THIS_MONTH);
   }
 
   @Get('superadmin/dashboard')

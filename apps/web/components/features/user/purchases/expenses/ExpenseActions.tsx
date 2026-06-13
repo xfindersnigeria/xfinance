@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MoreVertical, Edit, Trash2, CheckCircle } from "lucide-react";
+import { MoreVertical, Edit, Trash2, CheckCircle, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
     DropdownMenu,
@@ -17,6 +17,7 @@ import { useModal } from "@/components/providers/ModalProvider";
 import { MODAL } from "@/lib/data/modal-data";
 import { useUpdateExpenseStatus, useDeleteExpense } from "@/lib/api/hooks/usePurchases";
 import ExpensesForm from "./ExpensesForm";
+import ExpenseViewModal from "./ExpenseViewModal";
 
 interface ExpenseActionsProps {
     expense: any;
@@ -32,6 +33,12 @@ export default function ExpenseActions({ expense }: ExpenseActionsProps) {
     const deleteKey = MODAL.EXPENSE_DELETE + "-" + expense.id;
     const editKey = MODAL.EXPENSE_EDIT + "-" + expense.id;
     const approveKey = MODAL.EXPENSE_MARK_APPROVED + "-" + expense.id;
+    const viewKey = MODAL.EXPENSE_VIEW + "-" + expense.id;
+
+    const handleViewClick = () => {
+        setDropdownOpen(false);
+        setTimeout(() => openModal(viewKey), 100);
+    };
 
     const handleDeleteClick = () => {
         setDropdownOpen(false);
@@ -73,6 +80,15 @@ export default function ExpenseActions({ expense }: ExpenseActionsProps) {
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-40">
+                    <DropdownMenuItem
+                        onSelect={(e) => {
+                            e.preventDefault();
+                            handleViewClick();
+                        }}
+                    >
+                        <Eye className="size-4 mr-2" /> View
+                    </DropdownMenuItem>
+
                     {isDraft && (
                         <>
                             <DropdownMenuItem
@@ -91,20 +107,33 @@ export default function ExpenseActions({ expense }: ExpenseActionsProps) {
                             >
                                 <CheckCircle className="size-4 mr-2" /> Mark as Approved
                             </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                                data-variant="destructive"
-                                onSelect={(e) => {
-                                    e.preventDefault();
-                                    handleDeleteClick();
-                                }}
-                            >
-                                <Trash2 className="size-4 mr-2" /> Delete
-                            </DropdownMenuItem>
                         </>
                     )}
+
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                        data-variant="destructive"
+                        onSelect={(e) => {
+                            e.preventDefault();
+                            handleDeleteClick();
+                        }}
+                    >
+                        <Trash2 className="size-4 mr-2" /> Delete
+                    </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
+
+            {/* View Modal */}
+            <CustomModal
+                title={`Expense: ${expense?.reference || expense.id}`}
+                open={isOpen(viewKey)}
+                onOpenChange={(open) =>
+                    open ? openModal(viewKey) : closeModal(viewKey)
+                }
+                module={MODULES.PURCHASES}
+            >
+                <ExpenseViewModal expense={expense} />
+            </CustomModal>
 
             {/* Delete Confirmation Modal */}
             <CustomModal

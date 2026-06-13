@@ -21,7 +21,7 @@ export default function NewBudgetPage() {
           Create consolidated budget targets across all entities in the group
         </p>
       </div>
-      <SetGroupBudgetForm />
+      <SetGroupBudgetForm onSuccess={() => router.back()} />
     </div>
   );
 }

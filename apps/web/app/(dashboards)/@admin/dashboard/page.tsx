@@ -6,16 +6,11 @@ import {
   AdminStatsGrid,
   RevenueAndProfitTrendChart,
   EntityPerformanceChart,
-  ConsolidationStatusChart,
-  FXImpactSummaryCard,
-  QuickActionsCard,
 } from "@/components/features/admin/dashboard";
 import { useAdminDashboard } from "@/lib/api/hooks/useAnalytics";
-import { FilterOption } from "@/lib/api/services/analyticsService";
-import { Loader2 } from "lucide-react";
 
 export default function AdminDashboard() {
-  const [filter, setFilter] = useState<FilterOption>("THIS_YEAR");
+  const [filter, setFilter] = useState<string>("THIS_MONTH");
   const { data, isLoading, error } = useAdminDashboard(filter);
 
   if (error) {
@@ -33,13 +28,11 @@ export default function AdminDashboard() {
 
   return (
     <div className="flex flex-col gap-4 p-4">
-      <AdminDashboardHeader />
-      <AdminStatsGrid data={data?.kpis} loading={isLoading} />
+      <AdminDashboardHeader filter={filter} onFilterChange={setFilter} />
+      <AdminStatsGrid data={data?.kpis} loading={isLoading} filter={filter} />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <RevenueAndProfitTrendChart
           data={data?.monthlyBreakdown}
-          filter={filter}
-          onFilterChange={setFilter}
           loading={isLoading}
         />
         <EntityPerformanceChart
@@ -47,11 +40,6 @@ export default function AdminDashboard() {
           loading={isLoading}
         />
       </div>
-      {/* <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <ConsolidationStatusChart />
-        <FXImpactSummaryCard />
-        <QuickActionsCard />
-      </div> */}
     </div>
   );
 }

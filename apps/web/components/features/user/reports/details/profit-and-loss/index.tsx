@@ -30,50 +30,17 @@ import {
   ProfitAndLossData,
 } from "@/lib/api/services/reportService";
 import { PLItem, PLItemType, KPIItem } from "./mock-data";
-
-// ─── Period helpers ────────────────────────────────────────────────────────────
-
-const PERIODS = [
-  "Q1 2024",
-  "Q2 2024",
-  "Q3 2024",
-  "Q4 2024",
-  "Q1 2025",
-  "Q2 2025",
-  "Q3 2025",
-  "Q4 2025",
-  "Q1 2026",
-  "Q2 2026",
-  "Q3 2026",
-  "Q4 2026",
-];
-
-const QUARTER_END: Record<string, string> = {
-  Q1: "March 31",
-  Q2: "June 30",
-  Q3: "September 30",
-  Q4: "December 31",
-};
-
-const QUARTER_DATES: Record<string, { start: string; end: string }> = {
-  Q1: { start: "-01-01", end: "-03-31" },
-  Q2: { start: "-04-01", end: "-06-30" },
-  Q3: { start: "-07-01", end: "-09-30" },
-  Q4: { start: "-10-01", end: "-12-31" },
-};
-
-function quarterToDates(period: string) {
-  const [q, year] = period.split(" ");
-  return {
-    startDate: `${year}${QUARTER_DATES[q].start}`,
-    endDate: `${year}${QUARTER_DATES[q].end}`,
-  };
-}
-
-function getQuarterEndLabel(period: string) {
-  const [q, year] = period.split(" ");
-  return `For the Quarter Ended ${QUARTER_END[q] ?? ""}, ${year}`;
-}
+import {
+  MONTHS,
+  QUARTERS,
+  REPORT_PERIOD_TYPES,
+  ReportPeriodType,
+  getFiscalYears,
+  periodToDates,
+  getPeriodEndLabel,
+  getPeriodDisplayLabel,
+  defaultPeriodValue,
+} from "@/lib/period-utils";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -574,18 +541,32 @@ function PLEmpty({ period }: { period: string }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
+const FISCAL_YEARS = getFiscalYears();
+
 export default function ProfitAndLoss() {
   const router = useRouter();
   const sym = useEntityCurrencySymbol();
 
-  const [period, setPeriod] = useState("Q2 2026");
+  const now = new Date();
+  const curYear = now.getFullYear();
+  const [periodType, setPeriodType] = useState<ReportPeriodType>("Quarterly");
+  const [period, setPeriod] = useState(() => defaultPeriodValue("Quarterly"));
+  const [year, setYear] = useState(curYear);
+  const [comparePeriod, setComparePeriod] = useState(() => defaultPeriodValue("Quarterly"));
+  const [compareYear, setCompareYear] = useState(curYear - 1);
   const [compareType, setCompareType] = useState<"period" | "budget">("period");
-  const [comparePeriod, setComparePeriod] = useState("Q2 2025");
   const [showComparison, setShowComparison] = useState(true);
 
-  const { startDate, endDate } = quarterToDates(period);
+  const handlePeriodTypeChange = (t: ReportPeriodType) => {
+    const def = defaultPeriodValue(t);
+    setPeriodType(t);
+    setPeriod(def);
+    setComparePeriod(def);
+  };
+
+  const { startDate, endDate } = periodToDates(periodType, period, year);
   const { startDate: compareStartDate, endDate: compareEndDate } =
-    quarterToDates(comparePeriod);
+    periodToDates(periodType, comparePeriod, compareYear);
 
   const { data: plDataData, isLoading } = useProfitAndLoss({
     startDate,
@@ -639,7 +620,10 @@ export default function ProfitAndLoss() {
     sym,
     compareType === "budget",
   );
-  const compareLabel = compareType === "period" ? comparePeriod : "Budget";
+  const compareLabel =
+    compareType === "period"
+      ? getPeriodDisplayLabel(periodType, comparePeriod, compareYear)
+      : "Budget";
 
   return (
     <div className="flex flex-col gap-4 pb-10">
@@ -677,24 +661,50 @@ export default function ProfitAndLoss() {
 
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-3">
+        {/* Period type */}
         <div className="flex items-center gap-2">
           <CalendarDays className="w-4 h-4 text-gray-500" />
-          <Select value={period} onValueChange={setPeriod}>
-            <SelectTrigger className="w-36 h-9 text-sm bg-gray-100 border-0 rounded-xl">
+          <Select value={periodType} onValueChange={(v) => handlePeriodTypeChange(v as ReportPeriodType)}>
+            <SelectTrigger className="w-32 h-9 text-sm bg-gray-100 border-0 rounded-xl">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {PERIODS.map((p) => (
-                <SelectItem key={p} value={p}>
-                  {p}
-                </SelectItem>
+              {REPORT_PERIOD_TYPES.map((pt) => (
+                <SelectItem key={pt.value} value={pt.value}>{pt.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
 
+        {/* Period value (month or quarter) */}
+        {periodType !== "Annual" && (
+          <Select value={period} onValueChange={setPeriod}>
+            <SelectTrigger className="w-36 h-9 text-sm bg-gray-100 border-0 rounded-xl">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {periodType === "Monthly"
+                ? MONTHS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)
+                : QUARTERS.map((q) => <SelectItem key={q.value} value={q.value}>{q.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
+
+        {/* Year */}
+        <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
+          <SelectTrigger className="w-24 h-9 text-sm bg-gray-100 border-0 rounded-xl">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {FISCAL_YEARS.map((y) => (
+              <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* Compare with */}
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-600">Compare with:</span>
+          <span className="text-sm text-gray-600">Compare:</span>
           <div className="flex rounded-xl border bg-gray-100 p-0.5">
             {(["period", "budget"] as const).map((t) => (
               <button
@@ -714,18 +724,30 @@ export default function ProfitAndLoss() {
         </div>
 
         {compareType === "period" && (
-          <Select value={comparePeriod} onValueChange={setComparePeriod}>
-            <SelectTrigger className="w-36 h-9 text-sm bg-gray-100 border-0 rounded-xl">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PERIODS.map((p) => (
-                <SelectItem key={p} value={p}>
-                  {p}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <>
+            {periodType !== "Annual" && (
+              <Select value={comparePeriod} onValueChange={setComparePeriod}>
+                <SelectTrigger className="w-36 h-9 text-sm bg-gray-100 border-0 rounded-xl">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {periodType === "Monthly"
+                    ? MONTHS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)
+                    : QUARTERS.map((q) => <SelectItem key={q.value} value={q.value}>{q.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+            <Select value={String(compareYear)} onValueChange={(v) => setCompareYear(Number(v))}>
+              <SelectTrigger className="w-24 h-9 text-sm bg-gray-100 border-0 rounded-xl">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {FISCAL_YEARS.map((y) => (
+                  <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </>
         )}
 
         <Button
@@ -741,7 +763,7 @@ export default function ProfitAndLoss() {
       {isLoading ? (
         <PLSkeleton />
       ) : isEmpty ? (
-        <PLEmpty period={period} />
+        <PLEmpty period={getPeriodDisplayLabel(periodType, period, year)} />
       ) : (
         <>
           {/* KPI Cards */}
@@ -759,7 +781,7 @@ export default function ProfitAndLoss() {
               </p>
               <p className="text-primary text-sm mt-0.5">Income Statement</p>
               <p className="text-gray-500 text-sm mt-0.5">
-                {getQuarterEndLabel(period)}
+                {getPeriodEndLabel(periodType, period, year)}
               </p>
             </div>
 

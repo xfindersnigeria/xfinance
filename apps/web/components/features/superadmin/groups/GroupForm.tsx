@@ -29,6 +29,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Image as ImageIcon, X } from "lucide-react";
+import { useModal } from "@/components/providers/ModalProvider";
+import { MODAL } from "@/lib/data/modal-data";
 
 const groupSchema = z.object({
   // Logo - can be File (when uploading) or object (when editing) or null
@@ -79,6 +81,7 @@ export function GroupForm({
   isEditMode = false,
 }: GroupFormProps) {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const { closeModal } = useModal();
 
   const createGroupMutation = useCreateGroup();
 
@@ -568,7 +571,17 @@ export function GroupForm({
 
           {/* Actions */}
           <div className="flex justify-end gap-2 border-t pt-6">
-            <Button variant="outline" type="button">
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() =>
+                closeModal(
+                  isEditMode
+                    ? MODAL.GROUP_EDIT + "-" + (group?.id || "")
+                    : MODAL.GROUP_CREATE,
+                )
+              }
+            >
               Cancel
             </Button>
             <Button

@@ -5,8 +5,9 @@ import {
   IsOptional,
   IsArray,
   IsPositive,
+  MinLength,
 } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, PartialType } from '@nestjs/swagger';
 
 export class BudgetLineDto {
   @ApiProperty({ example: 'clxyzacc001', description: 'Account ID' })
@@ -24,47 +25,35 @@ export class BudgetLineDto {
 }
 
 export class CreateBulkBudgetDto {
-  @ApiProperty({
-    example: 'Q1 Marketing 2025',
-    description: 'Name for all budgets in this batch',
-  })
+  @ApiProperty({ example: 'Q1 Marketing 2025', description: 'Budget name' })
   @IsString()
   @IsNotEmpty()
+  @MinLength(1)
   name: string;
 
-  @ApiProperty({
-    example: 'Quarterly',
-    description: 'Period type — same for all records',
-    enum: ['Monthly', 'Quarterly', 'Yearly', 'Custom'],
-  })
+  @ApiProperty({ example: 'Quarterly', enum: ['Monthly', 'Quarterly', 'Yearly', 'Custom'] })
   @IsString()
   @IsNotEmpty()
   periodType: string;
 
-  @ApiProperty({
-    example: 'November',
-    description: 'Period value: month name, quarter (Q1-Q4), or fiscal year for yearly budgets',
-    required: false,
-  })
+  @ApiProperty({ example: 'November', required: false })
   @IsOptional()
   @IsString()
   month?: string;
 
-  @ApiProperty({ example: '2025', description: 'Fiscal year — same for all' })
+  @ApiProperty({ example: '2025' })
   @IsString()
   @IsNotEmpty()
   fiscalYear: string;
 
-  @ApiProperty({ example: 'Q1 digital & events budget', required: false })
+  @ApiProperty({ required: false })
   @IsString()
   @IsOptional()
   note?: string;
 
-  @ApiProperty({
-    type: [BudgetLineDto],
-    description:
-      'Array of account + amount pairs. One Budget record created per item.',
-  })
+  @ApiProperty({ type: [BudgetLineDto] })
   @IsArray()
   lines: BudgetLineDto[];
 }
+
+export class UpdateBulkBudgetDto extends PartialType(CreateBulkBudgetDto) {}

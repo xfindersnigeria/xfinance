@@ -871,7 +871,7 @@ export class AnalyticsService {
 
   async getGroupDashboard(
     groupId: string,
-    filter: DateFilterEnum = DateFilterEnum.THIS_YEAR,
+    filter: string = DateFilterEnum.THIS_MONTH,
   ): Promise<GroupDashboardResponseDto> {
     const cacheKey = `group-dashboard:${groupId}:${filter}`;
     const cached = await this.cacheService.get<GroupDashboardResponseDto>(cacheKey);
@@ -881,7 +881,7 @@ export class AnalyticsService {
     }
 
     const [kpis, monthlyBreakdown, entityPerformance] = await Promise.all([
-      this.getGroupKPIs(groupId),
+      this.getGroupKPIs(groupId, filter),
       this.getGroupMonthlyBreakdown(groupId, filter),
       this.getGroupEntityPerformance(groupId, filter),
     ]);
@@ -892,7 +892,7 @@ export class AnalyticsService {
     return result;
   }
 
-  async getGroupKPIs(groupId: string): Promise<GroupKPIDto> {
+  async getGroupKPIs(groupId: string, filter: string = DateFilterEnum.THIS_MONTH): Promise<GroupKPIDto> {
     try {
       const entities = await this.prisma.entity.findMany({
         where: { groupId },
@@ -909,41 +909,39 @@ export class AnalyticsService {
         };
       }
 
-      const now = new Date();
-      const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const previousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const previousMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+      const { startDate: periodStart, endDate: periodEnd } = DateFilterHelper.getDateRange(filter);
+      const { startDate: prevStart, endDate: prevEnd } = DateFilterHelper.getPreviousRange(filter);
 
       const [
         paidInv, partialPay, overduePay, receipts,
         prevPaidInv, prevPartialPay, prevOverduePay, prevReceipts,
-        expensesMTD, billPaysMTD,
+        expensesPeriod, billPaysPeriod,
         prevExpenses, prevBillPays,
         bankAccounts,
         lastTxPrev,
         unpaidBills,
       ] = await Promise.all([
-        this.prisma.invoice.aggregate({ where: { entityId: { in: entityIds }, status: 'Paid', invoiceDate: { gte: currentMonth, lte: now } }, _sum: { total: true } }),
-        this.prisma.paymentReceived.aggregate({ where: { entityId: { in: entityIds }, invoice: { status: 'Partial', invoiceDate: { gte: currentMonth, lte: now } } }, _sum: { amount: true } }),
-        this.prisma.paymentReceived.aggregate({ where: { entityId: { in: entityIds }, invoice: { status: 'Overdue', invoiceDate: { gte: currentMonth, lte: now } } }, _sum: { amount: true } }),
-        this.prisma.receipt.aggregate({ where: { entityId: { in: entityIds }, status: 'Completed', date: { gte: currentMonth, lte: now } }, _sum: { total: true } }),
-        this.prisma.invoice.aggregate({ where: { entityId: { in: entityIds }, status: 'Paid', invoiceDate: { gte: previousMonth, lte: previousMonthEnd } }, _sum: { total: true } }),
-        this.prisma.paymentReceived.aggregate({ where: { entityId: { in: entityIds }, invoice: { status: 'Partial', invoiceDate: { gte: previousMonth, lte: previousMonthEnd } } }, _sum: { amount: true } }),
-        this.prisma.paymentReceived.aggregate({ where: { entityId: { in: entityIds }, invoice: { status: 'Overdue', invoiceDate: { gte: previousMonth, lte: previousMonthEnd } } }, _sum: { amount: true } }),
-        this.prisma.receipt.aggregate({ where: { entityId: { in: entityIds }, status: 'Completed', date: { gte: previousMonth, lte: previousMonthEnd } }, _sum: { total: true } }),
-        this.prisma.expenses.aggregate({ where: { entityId: { in: entityIds }, status: 'approved', createdAt: { gte: currentMonth, lte: now } }, _sum: { amount: true } }),
-        this.prisma.paymentMade.aggregate({ where: { entityId: { in: entityIds }, paymentDate: { gte: currentMonth, lte: now } }, _sum: { amount: true } }),
-        this.prisma.expenses.aggregate({ where: { entityId: { in: entityIds }, status: 'approved', createdAt: { gte: previousMonth, lte: previousMonthEnd } }, _sum: { amount: true } }),
-        this.prisma.paymentMade.aggregate({ where: { entityId: { in: entityIds }, paymentDate: { gte: previousMonth, lte: previousMonthEnd } }, _sum: { amount: true } }),
+        this.prisma.invoice.aggregate({ where: { entityId: { in: entityIds }, status: 'Paid', invoiceDate: { gte: periodStart, lte: periodEnd } }, _sum: { total: true } }),
+        this.prisma.paymentReceived.aggregate({ where: { entityId: { in: entityIds }, invoice: { status: 'Partial', invoiceDate: { gte: periodStart, lte: periodEnd } } }, _sum: { amount: true } }),
+        this.prisma.paymentReceived.aggregate({ where: { entityId: { in: entityIds }, invoice: { status: 'Overdue', invoiceDate: { gte: periodStart, lte: periodEnd } } }, _sum: { amount: true } }),
+        this.prisma.receipt.aggregate({ where: { entityId: { in: entityIds }, status: 'Completed', date: { gte: periodStart, lte: periodEnd } }, _sum: { total: true } }),
+        this.prisma.invoice.aggregate({ where: { entityId: { in: entityIds }, status: 'Paid', invoiceDate: { gte: prevStart, lte: prevEnd } }, _sum: { total: true } }),
+        this.prisma.paymentReceived.aggregate({ where: { entityId: { in: entityIds }, invoice: { status: 'Partial', invoiceDate: { gte: prevStart, lte: prevEnd } } }, _sum: { amount: true } }),
+        this.prisma.paymentReceived.aggregate({ where: { entityId: { in: entityIds }, invoice: { status: 'Overdue', invoiceDate: { gte: prevStart, lte: prevEnd } } }, _sum: { amount: true } }),
+        this.prisma.receipt.aggregate({ where: { entityId: { in: entityIds }, status: 'Completed', date: { gte: prevStart, lte: prevEnd } }, _sum: { total: true } }),
+        this.prisma.expenses.aggregate({ where: { entityId: { in: entityIds }, status: 'approved', createdAt: { gte: periodStart, lte: periodEnd } }, _sum: { amount: true } }),
+        this.prisma.paymentMade.aggregate({ where: { entityId: { in: entityIds }, paymentDate: { gte: periodStart, lte: periodEnd } }, _sum: { amount: true } }),
+        this.prisma.expenses.aggregate({ where: { entityId: { in: entityIds }, status: 'approved', createdAt: { gte: prevStart, lte: prevEnd } }, _sum: { amount: true } }),
+        this.prisma.paymentMade.aggregate({ where: { entityId: { in: entityIds }, paymentDate: { gte: prevStart, lte: prevEnd } }, _sum: { amount: true } }),
         this.prisma.bankAccount.findMany({ where: { entityId: { in: entityIds } }, include: { linkedAccount: { select: { balance: true } } } }),
-        this.prisma.accountTransaction.findFirst({ where: { entityId: { in: entityIds }, type: 'BANK', date: { lte: previousMonthEnd } }, orderBy: { date: 'desc' }, select: { runningBalance: true } }),
+        this.prisma.accountTransaction.findFirst({ where: { entityId: { in: entityIds }, type: 'BANK', date: { lte: prevEnd } }, orderBy: { date: 'desc' }, select: { runningBalance: true } }),
         this.prisma.bills.aggregate({ where: { entityId: { in: entityIds }, status: { in: ['unpaid', 'partial'] } }, _sum: { total: true } }),
       ]);
 
       const revenueMTD = (paidInv._sum.total || 0) + (partialPay._sum.amount || 0) + (overduePay._sum.amount || 0) + (receipts._sum.total || 0);
       const revenuePrev = (prevPaidInv._sum.total || 0) + (prevPartialPay._sum.amount || 0) + (prevOverduePay._sum.amount || 0) + (prevReceipts._sum.total || 0);
 
-      const expTotal = (expensesMTD._sum.amount || 0) + (billPaysMTD._sum.amount || 0);
+      const expTotal = (expensesPeriod._sum.amount || 0) + (billPaysPeriod._sum.amount || 0);
       const prevExpTotal = (prevExpenses._sum.amount || 0) + (prevBillPays._sum.amount || 0);
 
       const netProfitMTD = revenueMTD - expTotal;
@@ -977,7 +975,7 @@ export class AnalyticsService {
 
   async getGroupMonthlyBreakdown(
     groupId: string,
-    filter: DateFilterEnum = DateFilterEnum.THIS_YEAR,
+    filter: string = DateFilterEnum.THIS_MONTH,
   ): Promise<MonthlyDataPointWithProfitDto[]> {
     try {
       const entities = await this.prisma.entity.findMany({ where: { groupId }, select: { id: true } });
@@ -1029,7 +1027,7 @@ export class AnalyticsService {
 
   async getGroupEntityPerformance(
     groupId: string,
-    filter: DateFilterEnum = DateFilterEnum.THIS_YEAR,
+    filter: string = DateFilterEnum.THIS_MONTH,
   ): Promise<EntityPerformanceDto[]> {
     try {
       const entities = await this.prisma.entity.findMany({ where: { groupId }, select: { id: true, name: true } });

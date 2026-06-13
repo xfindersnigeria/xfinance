@@ -1,6 +1,6 @@
 import { apiClient } from "../client";
 
-export type FilterOption = "THIS_YEAR" | "THIS_FISCAL_YEAR" | "LAST_FISCAL_YEAR" | "LAST_12_MONTHS";
+export type FilterOption = "THIS_MONTH" | "THIS_YEAR" | "THIS_FISCAL_YEAR" | "LAST_FISCAL_YEAR" | "LAST_12_MONTHS" | string;
 
 export interface DashboardFilters {
   monthlyFilter?: FilterOption;

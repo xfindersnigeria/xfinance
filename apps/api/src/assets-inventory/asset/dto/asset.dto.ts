@@ -171,4 +171,14 @@ export class UpdateAssetDto {
   @IsInt()
   @Min(0)
   salvageValue?: number;
+
+  @ApiPropertyOptional({ example: true, description: 'Track depreciation' })
+  @IsBoolean()
+  @IsOptional()
+  trackDepreciation?: boolean;
+
+  @ApiPropertyOptional({ example: true, description: 'Is asset active?' })
+  @IsBoolean()
+  @IsOptional()
+  activeAsset?: boolean;
 }

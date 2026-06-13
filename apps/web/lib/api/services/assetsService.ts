@@ -20,7 +20,7 @@ export const getAssetById = async (id: string) => {
 export const createAsset = async (data: {
   name: string;
   type: string;
-  department: string;
+  departmentId: string;
   assignedId: string;
   description?: string;
   purchaseDate: string;
@@ -30,6 +30,8 @@ export const createAsset = async (data: {
   depreciationMethod: string;
   years: number;
   salvageValue: number;
+  trackDepreciation: boolean;
+  activeAsset: boolean;
 }) => {
   return apiClient("asset", {
     method: "POST",
@@ -45,8 +47,8 @@ export const updateAsset = async (
   data: {
     name?: string;
     type?: string;
-    department?: string;
-    assigned?: string;
+    departmentId?: string;
+    assignedId?: string;
     description?: string;
     purchaseDate?: string;
     purchaseCost?: number;
@@ -55,6 +57,8 @@ export const updateAsset = async (
     depreciationMethod?: string;
     years?: number;
     salvageValue?: number;
+    trackDepreciation?: boolean;
+    activeAsset?: boolean;
   },
 ) => {
   return apiClient(`asset/${id}`, {

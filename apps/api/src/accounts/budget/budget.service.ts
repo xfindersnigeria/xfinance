@@ -3,7 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import { CreateBulkBudgetDto } from './dto/budget.dto';
+import { CreateBulkBudgetDto, UpdateBulkBudgetDto } from './dto/budget.dto';
 import { PrismaService } from '@/prisma/prisma.service';
 
 // ── Period helpers ────────────────────────────────────────────────────────────
@@ -84,100 +84,26 @@ function getPreviousPeriodValues(
   return { period: String(year - 1), fiscalYear: String(year - 1) };
 }
 
+const ACCOUNT_SELECT = {
+  id: true,
+  name: true,
+  code: true,
+  subCategory: {
+    select: {
+      name: true,
+      category: { select: { name: true } },
+    },
+  },
+};
+
 // ── Service ───────────────────────────────────────────────────────────────────
 
 @Injectable()
 export class BudgetService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * Resolve budget amounts per account for a given date range.
-   * Used by the reports service to populate the "budget" column on P&L lines.
-   *
-   * Strategy:
-   *  1. Detect the period type from the date range length.
-   *  2. Try exact match (e.g. Quarterly "Q1 2026").
-   *  3. If no quarterly budget exists, sum the constituent monthly budgets.
-   *  4. For a full-year range, try Yearly; fall back to summing all monthly/quarterly.
-   *
-   * Returns: Map<accountId, budgetAmountInCurrency> (amounts already divided by 100)
-   */
-  async resolveBudgetForDateRange(
-    entityId: string,
-    startDate: Date,
-    endDate: Date,
-  ): Promise<Map<string, number>> {
-    const fiscalYear = String(startDate.getFullYear());
-    const diffDays = Math.round(
-      (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
-    );
+  // ── Entity budget headers ──────────────────────────────────────────────────
 
-    // ── Monthly (up to 31 days) ──────────────────────────────────────────────
-    if (diffDays <= 31) {
-      const monthName = MONTHS[startDate.getMonth()];
-      const rows = await this.prisma.budget.findMany({
-        where: { entityId, periodType: 'Monthly', month: monthName, fiscalYear },
-        select: { accountId: true, amount: true },
-      });
-      return this.aggregateToCurrencyMap(rows);
-    }
-
-    // ── Quarterly (32–95 days) ───────────────────────────────────────────────
-    if (diffDays <= 95) {
-      const startMonth = startDate.getMonth();
-      const quarterLabels = ['Q1', 'Q2', 'Q3', 'Q4'];
-      const quarterStartMonths = [0, 3, 6, 9];
-      const qi = quarterStartMonths.indexOf(startMonth);
-      const quarter = qi >= 0 ? quarterLabels[qi] : null;
-
-      if (quarter) {
-        // Try exact quarterly budget first
-        const qRows = await this.prisma.budget.findMany({
-          where: { entityId, periodType: 'Quarterly', month: quarter, fiscalYear },
-          select: { accountId: true, amount: true },
-        });
-        if (qRows.length) return this.aggregateToCurrencyMap(qRows);
-
-        // Fall back: sum the three monthly budgets that make up this quarter
-        const range = QUARTER_RANGES[quarter];
-        const months = MONTHS.slice(range.start, range.end + 1);
-        const mRows = await this.prisma.budget.findMany({
-          where: { entityId, periodType: 'Monthly', month: { in: months }, fiscalYear },
-          select: { accountId: true, amount: true },
-        });
-        return this.aggregateToCurrencyMap(mRows);
-      }
-    }
-
-    // ── Yearly (96+ days) ────────────────────────────────────────────────────
-    const yRows = await this.prisma.budget.findMany({
-      where: { entityId, periodType: 'Yearly', fiscalYear },
-      select: { accountId: true, amount: true },
-    });
-    if (yRows.length) return this.aggregateToCurrencyMap(yRows);
-
-    // Last resort: sum everything for the fiscal year across all period types
-    const allRows = await this.prisma.budget.findMany({
-      where: { entityId, fiscalYear },
-      select: { accountId: true, amount: true },
-    });
-    return this.aggregateToCurrencyMap(allRows);
-  }
-
-  private aggregateToCurrencyMap(
-    rows: { accountId: string; amount: number }[],
-  ): Map<string, number> {
-    const map = new Map<string, number>();
-    for (const row of rows) {
-      map.set(row.accountId, (map.get(row.accountId) ?? 0) + row.amount / 100);
-    }
-    return map;
-  }
-
-  /**
-   * Replace all budget lines for an entity+period in a single transaction.
-   * Validates that every accountId belongs to this entity before writing.
-   */
   async createBulkBudgets(
     entityId: string,
     dto: CreateBulkBudgetDto,
@@ -201,85 +127,72 @@ export class BudgetService {
       );
     }
 
+    const month = dto.month ?? dto.fiscalYear;
+
     const result = await this.prisma.$transaction(async (tx) => {
-      await tx.budget.deleteMany({
-        where: {
-          entityId,
+      // Create the header
+      const header = await tx.budgetHeader.create({
+        data: {
+          name: dto.name,
           periodType: dto.periodType,
-          month: dto.month,
+          month,
           fiscalYear: dto.fiscalYear,
+          note: dto.note ?? null,
+          entityId,
+          groupId,
         },
       });
 
-      return tx.budget.createMany({
+      await tx.budget.createMany({
         data: dto.lines.map((line) => ({
           name: dto.name,
           periodType: dto.periodType,
-          month: dto.month ?? dto.fiscalYear,
+          month,
           fiscalYear: dto.fiscalYear,
           note: dto.note ?? null,
           entityId,
           groupId,
           accountId: line.accountId,
           amount: line.amount,
+          budgetHeaderId: header.id,
         })),
       });
+
+      return header;
     });
 
     return {
-      message: `Budget set for ${dto.periodType} – ${dto.month ?? dto.fiscalYear} ${dto.fiscalYear}`,
-      count: result.count,
+      message: `Budget created: ${dto.name}`,
+      id: result.id,
     };
   }
 
-  /**
-   * List budgets for an entity with optional filters and pagination.
-   */
-  async findAll(
+  async findAllHeaders(
     entityId: string,
     params: {
       periodType?: string;
-      period?: string;
       fiscalYear?: string;
       search?: string;
       page?: number;
       limit?: number;
     } = {},
   ) {
-    const { periodType, period, fiscalYear, search } = params;
+    const { periodType, fiscalYear, search } = params;
     const page = Math.max(1, params.page ?? 1);
     const limit = Math.min(200, Math.max(1, params.limit ?? 50));
     const skip = (page - 1) * limit;
 
-    const where: Record<string, any> = { entityId };
+    const where: any = { entityId };
     if (periodType) where.periodType = periodType;
-    if (period) where.month = period;
     if (fiscalYear) where.fiscalYear = fiscalYear;
-    if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { account: { name: { contains: search, mode: 'insensitive' } } },
-      ];
-    }
+    if (search) where.name = { contains: search, mode: 'insensitive' };
 
-    const [total, budgets] = await Promise.all([
-      this.prisma.budget.count({ where }),
-      this.prisma.budget.findMany({
+    const [total, headers] = await Promise.all([
+      this.prisma.budgetHeader.count({ where }),
+      this.prisma.budgetHeader.findMany({
         where,
         include: {
-          account: {
-            select: {
-              id: true,
-              name: true,
-              code: true,
-              subCategory: {
-                select: {
-                  name: true,
-                  category: { select: { name: true } },
-                },
-              },
-            },
-          },
+          lines: { select: { amount: true, accountId: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -288,19 +201,16 @@ export class BudgetService {
     ]);
 
     return {
-      data: budgets.map((b) => ({
-        id: b.id,
-        name: b.name,
-        periodType: b.periodType,
-        period: b.month,
-        fiscalYear: b.fiscalYear,
-        note: b.note,
-        amount: b.amount / 100,
-        accountId: b.accountId,
-        accountCode: b.account.code,
-        accountName: b.account.name,
-        accountCategory: b.account.subCategory?.category?.name ?? '',
-        createdAt: b.createdAt,
+      data: headers.map((h) => ({
+        id: h.id,
+        name: h.name,
+        periodType: h.periodType,
+        period: h.month,
+        fiscalYear: h.fiscalYear,
+        note: h.note,
+        totalAmount: h.lines.reduce((s, l) => s + l.amount / 100, 0),
+        accountCount: new Set(h.lines.map((l) => l.accountId)).size,
+        createdAt: h.createdAt,
       })),
       total,
       page,
@@ -309,10 +219,113 @@ export class BudgetService {
     };
   }
 
-  /**
-   * Budget vs Actual for a given period.
-   * Actual = net movement in the account's normal balance direction.
-   */
+  async getBudgetHeader(headerId: string, entityId: string) {
+    const header = await this.prisma.budgetHeader.findFirst({
+      where: { id: headerId, entityId },
+      include: {
+        lines: {
+          include: { account: { select: ACCOUNT_SELECT } },
+          orderBy: { account: { code: 'asc' } },
+        },
+      },
+    });
+    if (!header) throw new NotFoundException('Budget not found');
+
+    return {
+      id: header.id,
+      name: header.name,
+      periodType: header.periodType,
+      period: header.month,
+      fiscalYear: header.fiscalYear,
+      note: header.note,
+      createdAt: header.createdAt,
+      lines: header.lines.map((l) => ({
+        id: l.id,
+        accountId: l.accountId,
+        accountCode: l.account.code,
+        accountName: l.account.name,
+        accountCategory: l.account.subCategory?.category?.name ?? '',
+        amount: l.amount / 100,
+      })),
+    };
+  }
+
+  async updateBudgetHeader(
+    headerId: string,
+    dto: UpdateBulkBudgetDto,
+    entityId: string,
+    groupId: string,
+  ) {
+    const existing = await this.prisma.budgetHeader.findFirst({
+      where: { id: headerId, entityId },
+    });
+    if (!existing) throw new NotFoundException('Budget not found');
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.budgetHeader.update({
+        where: { id: headerId },
+        data: {
+          ...(dto.name && { name: dto.name }),
+          ...(dto.periodType && { periodType: dto.periodType }),
+          ...(dto.month !== undefined && { month: dto.month ?? dto.fiscalYear ?? existing.month }),
+          ...(dto.fiscalYear && { fiscalYear: dto.fiscalYear }),
+          ...(dto.note !== undefined && { note: dto.note }),
+        },
+      });
+
+      if (dto.lines?.length) {
+        const month = dto.month ?? existing.month;
+        const periodType = dto.periodType ?? existing.periodType;
+        const fiscalYear = dto.fiscalYear ?? existing.fiscalYear;
+        const name = dto.name ?? existing.name;
+
+        // Validate accounts
+        const accountIds = dto.lines.map((l) => l.accountId);
+        const validAccounts = await tx.account.findMany({
+          where: { id: { in: accountIds }, entityId },
+          select: { id: true },
+        });
+        const validIds = new Set(validAccounts.map((a) => a.id));
+        const invalid = accountIds.filter((id) => !validIds.has(id));
+        if (invalid.length) {
+          throw new BadRequestException(`Accounts not found: ${invalid.join(', ')}`);
+        }
+
+        // Replace all lines
+        await tx.budget.deleteMany({ where: { budgetHeaderId: headerId } });
+        await tx.budget.createMany({
+          data: dto.lines.map((line) => ({
+            name,
+            periodType,
+            month,
+            fiscalYear,
+            note: dto.note ?? existing.note ?? null,
+            entityId,
+            groupId,
+            accountId: line.accountId,
+            amount: line.amount,
+            budgetHeaderId: headerId,
+          })),
+        });
+      }
+    });
+
+    return { message: 'Budget updated' };
+  }
+
+  async deleteBudgetHeader(headerId: string, entityId: string) {
+    const header = await this.prisma.budgetHeader.findFirst({
+      where: { id: headerId, entityId },
+    });
+    if (!header) throw new NotFoundException('Budget not found');
+
+    // Cascade handles lines deletion
+    await this.prisma.budgetHeader.delete({ where: { id: headerId } });
+    return { message: 'Budget deleted' };
+  }
+
+  // ── Budget vs Actual (unchanged — reads flat Budget rows) ─────────────────
+
   async getBudgetVsActual(
     entityId: string,
     params: {
@@ -321,7 +334,6 @@ export class BudgetService {
       fiscalYear?: string;
     } = {},
   ) {
-    // 'All' (or no periodType) → aggregate all budgets for the fiscal year
     const showAll = !params.periodType || params.periodType === 'All';
     const periodType = showAll ? 'All' : params.periodType!;
     const period = params.period ?? '';
@@ -343,9 +355,7 @@ export class BudgetService {
             name: true,
             code: true,
             subCategory: {
-              select: {
-                category: { select: { name: true } },
-              },
+              select: { category: { select: { name: true } } },
             },
           },
         },
@@ -362,17 +372,13 @@ export class BudgetService {
       };
     }
 
-    // Aggregate budgeted amounts per account (sum in case of duplicates)
-    const budgetMap = new Map<
-      string,
-      {
-        accountId: string;
-        accountCode: string;
-        accountName: string;
-        categoryName: string;
-        budgetedCents: number;
-      }
-    >();
+    const budgetMap = new Map<string, {
+      accountId: string;
+      accountCode: string;
+      accountName: string;
+      categoryName: string;
+      budgetedCents: number;
+    }>();
 
     for (const b of budgets) {
       const cat = b.account.subCategory?.category?.name ?? '';
@@ -394,7 +400,6 @@ export class BudgetService {
       ? getDateRange('Yearly', '', fiscalYear)
       : getDateRange(periodType, period, fiscalYear);
 
-    // Aggregate account transactions for the period
     const txGroups = await this.prisma.accountTransaction.groupBy({
       by: ['accountId'],
       where: {
@@ -406,13 +411,7 @@ export class BudgetService {
     });
 
     const txMap = new Map(
-      txGroups.map((g) => [
-        g.accountId,
-        {
-          debit: g._sum.debitAmount ?? 0,
-          credit: g._sum.creditAmount ?? 0,
-        },
-      ]),
+      txGroups.map((g) => [g.accountId, { debit: g._sum.debitAmount ?? 0, credit: g._sum.creditAmount ?? 0 }]),
     );
 
     let totalBudgeted = 0;
@@ -421,22 +420,11 @@ export class BudgetService {
     const data = [...budgetMap.values()].map((b) => {
       const tx = txMap.get(b.accountId) ?? { debit: 0, credit: 0 };
       const isCreditNormal = CREDIT_NORMAL.has(b.categoryName);
-
-      // Net movement in the expected direction — clamp to 0 for display
-      const actualCents = Math.max(
-        0,
-        isCreditNormal
-          ? tx.credit - tx.debit
-          : tx.debit - tx.credit,
-      );
-
+      const actualCents = Math.max(0, isCreditNormal ? tx.credit - tx.debit : tx.debit - tx.credit);
       const budgeted = b.budgetedCents / 100;
       const actual = actualCents / 100;
       const variance = budgeted - actual;
-      const variancePercentage =
-        budgeted !== 0
-          ? parseFloat(((variance / budgeted) * 100).toFixed(2))
-          : 0;
+      const variancePercentage = budgeted !== 0 ? parseFloat(((variance / budgeted) * 100).toFixed(2)) : 0;
 
       totalBudgeted += budgeted;
       totalActual += actual;
@@ -456,20 +444,13 @@ export class BudgetService {
 
     return {
       data,
-      summary: {
-        totalBudgeted,
-        totalActual,
-        totalVariance: totalBudgeted - totalActual,
-      },
+      summary: { totalBudgeted, totalActual, totalVariance: totalBudgeted - totalActual },
       periodType,
       period,
       fiscalYear,
     };
   }
 
-  /**
-   * Return budget lines from the previous period to support "Copy from Previous".
-   */
   async getPreviousPeriod(
     entityId: string,
     params: { periodType: string; period: string; fiscalYear: string },
@@ -478,15 +459,8 @@ export class BudgetService {
     const prev = getPreviousPeriodValues(periodType, period, fiscalYear);
 
     const budgets = await this.prisma.budget.findMany({
-      where: {
-        entityId,
-        periodType,
-        month: prev.period,
-        fiscalYear: prev.fiscalYear,
-      },
-      include: {
-        account: { select: { id: true, name: true, code: true } },
-      },
+      where: { entityId, periodType, month: prev.period, fiscalYear: prev.fiscalYear },
+      include: { account: { select: { id: true, name: true, code: true } } },
       orderBy: { account: { code: 'asc' } },
     });
 
@@ -503,27 +477,74 @@ export class BudgetService {
   }
 
   /**
-   * Delete a single budget line by id, scoped to the entity.
+   * Resolve budget amounts per account for a given date range.
+   * Used by the reports service — reads flat Budget rows, unaffected by header changes.
    */
-  async deleteBudget(id: string, entityId: string) {
-    const budget = await this.prisma.budget.findFirst({
-      where: { id, entityId },
-    });
-    if (!budget) throw new NotFoundException('Budget line not found');
+  async resolveBudgetForDateRange(
+    entityId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<Map<string, number>> {
+    const fiscalYear = String(startDate.getFullYear());
+    const diffDays = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
 
-    await this.prisma.budget.delete({ where: { id } });
-    return { message: 'Budget line deleted' };
+    if (diffDays <= 31) {
+      const monthName = MONTHS[startDate.getMonth()];
+      const rows = await this.prisma.budget.findMany({
+        where: { entityId, periodType: 'Monthly', month: monthName, fiscalYear },
+        select: { accountId: true, amount: true },
+      });
+      return this.aggregateToCurrencyMap(rows);
+    }
+
+    if (diffDays <= 95) {
+      const startMonth = startDate.getMonth();
+      const quarterLabels = ['Q1', 'Q2', 'Q3', 'Q4'];
+      const quarterStartMonths = [0, 3, 6, 9];
+      const qi = quarterStartMonths.indexOf(startMonth);
+      const quarter = qi >= 0 ? quarterLabels[qi] : null;
+
+      if (quarter) {
+        const qRows = await this.prisma.budget.findMany({
+          where: { entityId, periodType: 'Quarterly', month: quarter, fiscalYear },
+          select: { accountId: true, amount: true },
+        });
+        if (qRows.length) return this.aggregateToCurrencyMap(qRows);
+
+        const range = QUARTER_RANGES[quarter];
+        const months = MONTHS.slice(range.start, range.end + 1);
+        const mRows = await this.prisma.budget.findMany({
+          where: { entityId, periodType: 'Monthly', month: { in: months }, fiscalYear },
+          select: { accountId: true, amount: true },
+        });
+        return this.aggregateToCurrencyMap(mRows);
+      }
+    }
+
+    const yRows = await this.prisma.budget.findMany({
+      where: { entityId, periodType: 'Yearly', fiscalYear },
+      select: { accountId: true, amount: true },
+    });
+    if (yRows.length) return this.aggregateToCurrencyMap(yRows);
+
+    const allRows = await this.prisma.budget.findMany({
+      where: { entityId, fiscalYear },
+      select: { accountId: true, amount: true },
+    });
+    return this.aggregateToCurrencyMap(allRows);
   }
 
-  // ── Group-scoped budget methods ────────────────────────────────────────────
+  private aggregateToCurrencyMap(rows: { accountId: string; amount: number }[]): Map<string, number> {
+    const map = new Map<string, number>();
+    for (const row of rows) {
+      map.set(row.accountId, (map.get(row.accountId) ?? 0) + row.amount / 100);
+    }
+    return map;
+  }
 
-  /**
-   * Replace all group budget lines for a period in a single transaction.
-   */
-  async createGroupBulkBudgets(
-    groupId: string,
-    dto: CreateBulkBudgetDto,
-  ) {
+  // ── Group budget headers ───────────────────────────────────────────────────
+
+  async createGroupBulkBudgets(groupId: string, dto: CreateBulkBudgetDto) {
     if (!dto.lines?.length) {
       throw new BadRequestException('At least one budget line is required');
     }
@@ -537,90 +558,62 @@ export class BudgetService {
     const validIds = new Set(validAccounts.map((a) => a.id));
     const invalid = accountIds.filter((id) => !validIds.has(id));
     if (invalid.length) {
-      throw new BadRequestException(
-        `Accounts not found or access denied: ${invalid.join(', ')}`,
-      );
+      throw new BadRequestException(`Accounts not found or access denied: ${invalid.join(', ')}`);
     }
 
+    const period = dto.month ?? dto.fiscalYear;
+
     const result = await this.prisma.$transaction(async (tx) => {
-      await tx.groupBudget.deleteMany({
-        where: {
-          groupId,
+      const header = await tx.groupBudgetHeader.create({
+        data: {
+          name: dto.name,
           periodType: dto.periodType,
-          period: dto.month ?? dto.fiscalYear,
+          period,
           fiscalYear: dto.fiscalYear,
+          note: dto.note ?? null,
+          groupId,
         },
       });
 
-      return tx.groupBudget.createMany({
+      await tx.groupBudget.createMany({
         data: dto.lines.map((line) => ({
           name: dto.name,
           periodType: dto.periodType,
-          period: dto.month ?? dto.fiscalYear,
+          period,
           fiscalYear: dto.fiscalYear,
           note: dto.note ?? null,
           groupId,
           accountId: line.accountId,
           amount: line.amount,
+          groupBudgetHeaderId: header.id,
         })),
       });
+
+      return header;
     });
 
-    return {
-      message: `Group budget set for ${dto.periodType} – ${dto.month ?? dto.fiscalYear} ${dto.fiscalYear}`,
-      count: result.count,
-    };
+    return { message: `Group budget created: ${dto.name}`, id: result.id };
   }
 
-  /**
-   * List group budgets with optional filters and pagination.
-   */
-  async findAllGroup(
+  async findAllGroupHeaders(
     groupId: string,
-    params: {
-      periodType?: string;
-      period?: string;
-      fiscalYear?: string;
-      search?: string;
-      page?: number;
-      limit?: number;
-    } = {},
+    params: { periodType?: string; fiscalYear?: string; search?: string; page?: number; limit?: number } = {},
   ) {
-    const { periodType, period, fiscalYear, search } = params;
+    const { periodType, fiscalYear, search } = params;
     const page = Math.max(1, params.page ?? 1);
     const limit = Math.min(200, Math.max(1, params.limit ?? 50));
     const skip = (page - 1) * limit;
 
-    const where: Record<string, any> = { groupId };
+    const where: any = { groupId };
     if (periodType) where.periodType = periodType;
-    if (period) where.period = period;
     if (fiscalYear) where.fiscalYear = fiscalYear;
-    if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { account: { name: { contains: search, mode: 'insensitive' } } },
-      ];
-    }
+    if (search) where.name = { contains: search, mode: 'insensitive' };
 
-    const [total, budgets] = await Promise.all([
-      this.prisma.groupBudget.count({ where }),
-      this.prisma.groupBudget.findMany({
+    const [total, headers] = await Promise.all([
+      this.prisma.groupBudgetHeader.count({ where }),
+      this.prisma.groupBudgetHeader.findMany({
         where,
-        include: {
-          account: {
-            select: {
-              id: true,
-              name: true,
-              code: true,
-              subCategory: {
-                select: {
-                  name: true,
-                  category: { select: { name: true } },
-                },
-              },
-            },
-          },
-        },
+        include: { lines: { select: { amount: true, accountId: true } } },
         orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
@@ -628,19 +621,16 @@ export class BudgetService {
     ]);
 
     return {
-      data: budgets.map((b) => ({
-        id: b.id,
-        name: b.name,
-        periodType: b.periodType,
-        period: b.period,
-        fiscalYear: b.fiscalYear,
-        note: b.note,
-        amount: b.amount / 100,
-        accountId: b.accountId,
-        accountCode: b.account.code,
-        accountName: b.account.name,
-        accountCategory: b.account.subCategory?.category?.name ?? '',
-        createdAt: b.createdAt,
+      data: headers.map((h) => ({
+        id: h.id,
+        name: h.name,
+        periodType: h.periodType,
+        period: h.period,
+        fiscalYear: h.fiscalYear,
+        note: h.note,
+        totalAmount: h.lines.reduce((s, l) => s + l.amount / 100, 0),
+        accountCount: new Set(h.lines.map((l) => l.accountId)).size,
+        createdAt: h.createdAt,
       })),
       total,
       page,
@@ -649,16 +639,99 @@ export class BudgetService {
     };
   }
 
-  /**
-   * Group Budget vs Actual for a given period.
-   */
+  async getGroupBudgetHeader(headerId: string, groupId: string) {
+    const header = await this.prisma.groupBudgetHeader.findFirst({
+      where: { id: headerId, groupId },
+      include: {
+        lines: {
+          include: { account: { select: ACCOUNT_SELECT } },
+          orderBy: { account: { code: 'asc' } },
+        },
+      },
+    });
+    if (!header) throw new NotFoundException('Group budget not found');
+
+    return {
+      id: header.id,
+      name: header.name,
+      periodType: header.periodType,
+      period: header.period,
+      fiscalYear: header.fiscalYear,
+      note: header.note,
+      createdAt: header.createdAt,
+      lines: header.lines.map((l) => ({
+        id: l.id,
+        accountId: l.accountId,
+        accountCode: l.account.code,
+        accountName: l.account.name,
+        accountCategory: l.account.subCategory?.category?.name ?? '',
+        amount: l.amount / 100,
+      })),
+    };
+  }
+
+  async updateGroupBudgetHeader(headerId: string, dto: UpdateBulkBudgetDto, groupId: string) {
+    const existing = await this.prisma.groupBudgetHeader.findFirst({ where: { id: headerId, groupId } });
+    if (!existing) throw new NotFoundException('Group budget not found');
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.groupBudgetHeader.update({
+        where: { id: headerId },
+        data: {
+          ...(dto.name && { name: dto.name }),
+          ...(dto.periodType && { periodType: dto.periodType }),
+          ...(dto.month !== undefined && { period: dto.month ?? dto.fiscalYear ?? existing.period }),
+          ...(dto.fiscalYear && { fiscalYear: dto.fiscalYear }),
+          ...(dto.note !== undefined && { note: dto.note }),
+        },
+      });
+
+      if (dto.lines?.length) {
+        const period = dto.month ?? existing.period;
+        const periodType = dto.periodType ?? existing.periodType;
+        const fiscalYear = dto.fiscalYear ?? existing.fiscalYear;
+        const name = dto.name ?? existing.name;
+
+        const accountIds = dto.lines.map((l) => l.accountId);
+        const validAccounts = await tx.account.findMany({
+          where: { id: { in: accountIds }, groupId },
+          select: { id: true },
+        });
+        const validIds = new Set(validAccounts.map((a) => a.id));
+        const invalid = accountIds.filter((id) => !validIds.has(id));
+        if (invalid.length) throw new BadRequestException(`Accounts not found: ${invalid.join(', ')}`);
+
+        await tx.groupBudget.deleteMany({ where: { groupBudgetHeaderId: headerId } });
+        await tx.groupBudget.createMany({
+          data: dto.lines.map((line) => ({
+            name,
+            periodType,
+            period,
+            fiscalYear,
+            note: dto.note ?? existing.note ?? null,
+            groupId,
+            accountId: line.accountId,
+            amount: line.amount,
+            groupBudgetHeaderId: headerId,
+          })),
+        });
+      }
+    });
+
+    return { message: 'Group budget updated' };
+  }
+
+  async deleteGroupBudgetHeader(headerId: string, groupId: string) {
+    const header = await this.prisma.groupBudgetHeader.findFirst({ where: { id: headerId, groupId } });
+    if (!header) throw new NotFoundException('Group budget not found');
+
+    await this.prisma.groupBudgetHeader.delete({ where: { id: headerId } });
+    return { message: 'Group budget deleted' };
+  }
+
   async getGroupBudgetVsActual(
     groupId: string,
-    params: {
-      periodType?: string;
-      period?: string;
-      fiscalYear?: string;
-    } = {},
+    params: { periodType?: string; period?: string; fiscalYear?: string } = {},
   ) {
     const showAll = !params.periodType || params.periodType === 'All';
     const periodType = showAll ? 'All' : params.periodType!;
@@ -666,10 +739,7 @@ export class BudgetService {
     const fiscalYear = params.fiscalYear ?? String(new Date().getFullYear());
 
     const where: Record<string, any> = { groupId };
-    if (!showAll) {
-      where.periodType = periodType;
-      where.period = period;
-    }
+    if (!showAll) { where.periodType = periodType; where.period = period; }
     where.fiscalYear = fiscalYear;
 
     const budgets = await this.prisma.groupBudget.findMany({
@@ -677,79 +747,34 @@ export class BudgetService {
       include: {
         account: {
           select: {
-            id: true,
-            name: true,
-            code: true,
-            subCategory: {
-              select: {
-                category: { select: { name: true } },
-              },
-            },
+            id: true, name: true, code: true,
+            subCategory: { select: { category: { select: { name: true } } } },
           },
         },
       },
     });
 
     if (!budgets.length) {
-      return {
-        data: [],
-        summary: { totalBudgeted: 0, totalActual: 0, totalVariance: 0 },
-        periodType,
-        period,
-        fiscalYear,
-      };
+      return { data: [], summary: { totalBudgeted: 0, totalActual: 0, totalVariance: 0 }, periodType, period, fiscalYear };
     }
 
-    const budgetMap = new Map<
-      string,
-      {
-        accountId: string;
-        accountCode: string;
-        accountName: string;
-        categoryName: string;
-        budgetedCents: number;
-      }
-    >();
-
+    const budgetMap = new Map<string, { accountId: string; accountCode: string; accountName: string; categoryName: string; budgetedCents: number }>();
     for (const b of budgets) {
       const cat = b.account.subCategory?.category?.name ?? '';
       const existing = budgetMap.get(b.accountId);
-      if (existing) {
-        existing.budgetedCents += b.amount;
-      } else {
-        budgetMap.set(b.accountId, {
-          accountId: b.accountId,
-          accountCode: b.account.code,
-          accountName: b.account.name,
-          categoryName: cat,
-          budgetedCents: b.amount,
-        });
-      }
+      if (existing) { existing.budgetedCents += b.amount; }
+      else { budgetMap.set(b.accountId, { accountId: b.accountId, accountCode: b.account.code, accountName: b.account.name, categoryName: cat, budgetedCents: b.amount }); }
     }
 
-    const { start, end } = showAll
-      ? getDateRange('Yearly', '', fiscalYear)
-      : getDateRange(periodType, period, fiscalYear);
+    const { start, end } = showAll ? getDateRange('Yearly', '', fiscalYear) : getDateRange(periodType, period, fiscalYear);
 
     const txGroups = await this.prisma.accountTransaction.groupBy({
       by: ['accountId'],
-      where: {
-        groupId,
-        accountId: { in: [...budgetMap.keys()] },
-        date: { gte: start, lte: end },
-      },
+      where: { groupId, accountId: { in: [...budgetMap.keys()] }, date: { gte: start, lte: end } },
       _sum: { debitAmount: true, creditAmount: true },
     });
 
-    const txMap = new Map(
-      txGroups.map((g) => [
-        g.accountId,
-        {
-          debit: g._sum.debitAmount ?? 0,
-          credit: g._sum.creditAmount ?? 0,
-        },
-      ]),
-    );
+    const txMap = new Map(txGroups.map((g) => [g.accountId, { debit: g._sum.debitAmount ?? 0, credit: g._sum.creditAmount ?? 0 }]));
 
     let totalBudgeted = 0;
     let totalActual = 0;
@@ -757,96 +782,62 @@ export class BudgetService {
     const data = [...budgetMap.values()].map((b) => {
       const tx = txMap.get(b.accountId) ?? { debit: 0, credit: 0 };
       const isCreditNormal = CREDIT_NORMAL.has(b.categoryName);
-
-      const actualCents = Math.max(
-        0,
-        isCreditNormal
-          ? tx.credit - tx.debit
-          : tx.debit - tx.credit,
-      );
-
+      const actualCents = Math.max(0, isCreditNormal ? tx.credit - tx.debit : tx.debit - tx.credit);
       const budgeted = b.budgetedCents / 100;
       const actual = actualCents / 100;
       const variance = budgeted - actual;
-      const variancePercentage =
-        budgeted !== 0
-          ? parseFloat(((variance / budgeted) * 100).toFixed(2))
-          : 0;
-
+      const variancePercentage = budgeted !== 0 ? parseFloat(((variance / budgeted) * 100).toFixed(2)) : 0;
       totalBudgeted += budgeted;
       totalActual += actual;
-
-      return {
-        accountId: b.accountId,
-        account: `${b.accountCode} – ${b.accountName}`,
-        accountCode: b.accountCode,
-        accountName: b.accountName,
-        accountCategory: b.categoryName,
-        budgeted,
-        actual,
-        variance,
-        variancePercentage,
-      };
+      return { accountId: b.accountId, account: `${b.accountCode} – ${b.accountName}`, accountCode: b.accountCode, accountName: b.accountName, accountCategory: b.categoryName, budgeted, actual, variance, variancePercentage };
     });
 
-    return {
-      data,
-      summary: {
-        totalBudgeted,
-        totalActual,
-        totalVariance: totalBudgeted - totalActual,
-      },
-      periodType,
-      period,
-      fiscalYear,
-    };
+    return { data, summary: { totalBudgeted, totalActual, totalVariance: totalBudgeted - totalActual }, periodType, period, fiscalYear };
   }
 
-  /**
-   * Return group budget lines from the previous period.
-   */
-  async getGroupPreviousPeriod(
-    groupId: string,
-    params: { periodType: string; period: string; fiscalYear: string },
-  ) {
+  async getGroupPreviousPeriod(groupId: string, params: { periodType: string; period: string; fiscalYear: string }) {
     const { periodType, period, fiscalYear } = params;
     const prev = getPreviousPeriodValues(periodType, period, fiscalYear);
 
     const budgets = await this.prisma.groupBudget.findMany({
-      where: {
-        groupId,
-        periodType,
-        period: prev.period,
-        fiscalYear: prev.fiscalYear,
-      },
-      include: {
-        account: { select: { id: true, name: true, code: true } },
-      },
+      where: { groupId, periodType, period: prev.period, fiscalYear: prev.fiscalYear },
+      include: { account: { select: { id: true, name: true, code: true } } },
       orderBy: { account: { code: 'asc' } },
     });
 
     return {
       period: prev.period,
       fiscalYear: prev.fiscalYear,
-      lines: budgets.map((b) => ({
-        accountId: b.accountId,
-        accountCode: b.account.code,
-        accountName: b.account.name,
-        amount: b.amount / 100,
-      })),
+      lines: budgets.map((b) => ({ accountId: b.accountId, accountCode: b.account.code, accountName: b.account.name, amount: b.amount / 100 })),
     };
   }
 
-  /**
-   * Delete a single group budget line by id.
-   */
-  async deleteGroupBudget(id: string, groupId: string) {
-    const budget = await this.prisma.groupBudget.findFirst({
-      where: { id, groupId },
+  /** Accounts scoped to a group (for group budget form) */
+  async getGroupAccounts(groupId: string) {
+    const accounts = await this.prisma.account.findMany({
+      where: { groupId },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        subCategory: {
+          select: {
+            name: true,
+            category: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { code: 'asc' },
     });
-    if (!budget) throw new NotFoundException('Group budget line not found');
 
-    await this.prisma.groupBudget.delete({ where: { id } });
-    return { message: 'Group budget line deleted' };
+    return {
+      data: accounts.map((a) => ({
+        id: a.id,
+        name: a.name,
+        code: a.code,
+        categoryName: a.subCategory?.category?.name ?? '',
+        subCategoryName: a.subCategory?.name ?? '',
+      })),
+    };
   }
 }

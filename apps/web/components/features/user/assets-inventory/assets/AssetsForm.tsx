@@ -2,6 +2,8 @@
 
 import { useEffect } from "react";
 import { useCreateAsset, useUpdateAsset } from "@/lib/api/hooks/useAssets";
+import { useModal } from "@/components/providers/ModalProvider";
+import { MODAL } from "@/lib/data/modal-data";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -58,6 +60,7 @@ export default function AssetsForm({
 }: assetsFormProps) {
   const createAsset = useCreateAsset();
   const updateAsset = useUpdateAsset();
+  const { closeModal } = useModal();
   const sym = useEntityCurrencySymbol();
 
   // Fetch all employees for assignment
@@ -140,7 +143,7 @@ export default function AssetsForm({
         currentValue: Math.round(Number(values.currentValue) || 0),
         expiryDate: values.warrantyExpiry
           ? convertToISO(values.warrantyExpiry)
-          : "",
+          : undefined,
         depreciationMethod: values.depreciationMethod as DepreciationMethodEnum,
         years: Number(values.usefulLife) || 0,
         salvageValue: Math.round(Number(values.salvageValue) || 0),
@@ -717,7 +720,19 @@ export default function AssetsForm({
           </div>
 
           <div className="flex justify-end gap-2 border-t pt-1 pb-3">
-            <Button variant={"outline"}>Cancel</Button>
+            <Button
+              type="button"
+              variant={"outline"}
+              onClick={() =>
+                closeModal(
+                  isEditMode
+                    ? MODAL.ASSET_EDIT + "-" + (assets?.id || "")
+                    : MODAL.ASSET_CREATE,
+                )
+              }
+            >
+              Cancel
+            </Button>
             <Button
               type="submit"
               className=""

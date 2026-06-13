@@ -93,6 +93,47 @@ export interface AccountSubCategory {
   accounts?: Account[];
 }
 
+// Budget Header (parent entity with multiple account lines)
+export interface BudgetHeaderListItem {
+  id: string;
+  name: string;
+  periodType: string;
+  period: string;
+  fiscalYear: string;
+  note?: string;
+  totalAmount: number;
+  accountCount: number;
+  createdAt: string;
+}
+
+export interface BudgetHeaderListResponse {
+  data: BudgetHeaderListItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface BudgetHeaderLine {
+  id: string;
+  accountId: string;
+  accountCode: string;
+  accountName: string;
+  accountCategory: string;
+  amount: number;
+}
+
+export interface BudgetHeaderDetail {
+  id: string;
+  name: string;
+  periodType: string;
+  period: string;
+  fiscalYear: string;
+  note?: string;
+  createdAt: string;
+  lines: BudgetHeaderLine[];
+}
+
 // Budget Interface
 export interface Budget {
   id?: string;

@@ -494,11 +494,13 @@ export class InvoiceService {
       // Build where clause for filtering
       const whereClause: any = { entityId };
       if (query.status) {
-        if (query.status === ('Sent' as any)) {
-          // Active means all invoices except Draft
+        const statuses = String(query.status).split(',').map((s) => s.trim()).filter(Boolean);
+        if (statuses.length > 1) {
+          whereClause.status = { in: statuses };
+        } else if (statuses[0] === 'Sent') {
           whereClause.status = { not: InvoiceStatus.Draft };
         } else {
-          whereClause.status = query.status;
+          whereClause.status = statuses[0];
         }
       }
 

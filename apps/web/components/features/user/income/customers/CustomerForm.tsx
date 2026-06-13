@@ -47,6 +47,7 @@ export default function CustomerForm({
   const createCustomer = useCreateCustomer();
   const updateCustomer = useUpdateCustomer();
   const sym = useEntityCurrencySymbol();
+  const { closeModal } = useModal();
 
 
   const form = useForm<CustomerFormData>({
@@ -358,7 +359,19 @@ export default function CustomerForm({
           />
 
           <div className="flex justify-end gap-2 border-t pt-1 pb-3">
-            <Button variant={"outline"}>Cancel</Button>
+            <Button
+              type="button"
+              variant={"outline"}
+              onClick={() =>
+                closeModal(
+                  isEditMode
+                    ? MODAL.CUSTOMER_EDIT + "-" + (customer?.id || "")
+                    : MODAL.CUSTOMER_CREATE,
+                )
+              }
+            >
+              Cancel
+            </Button>
             <Button
               type="submit"
               className=""

@@ -32,6 +32,8 @@ import { useAccounts } from "@/lib/api/hooks/useAccounts";
 import { useProjects } from "@/lib/api/hooks/useProjects";
 import { paymentReceivedSchema, PaymentReceivedFormData } from "./utils/schema";
 import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { useModal } from "@/components/providers/ModalProvider";
+import { MODAL } from "@/lib/data/modal-data";
 
 export const paymentMethodOptions = [
   { label: "Bank Transfer", value: "Bank_Transfer" },
@@ -54,9 +56,10 @@ export default function PaymentReceivedForm({
 }: PaymentReceivedFormProps) {
   const [submitting, setSubmitting] = useState(false);
   const sym = useEntityCurrencySymbol();
+  const { closeModal } = useModal();
 
   const { data: invoicesData, isLoading: invoicesLoading } = useInvoices({
-    status: "Sent",
+    status: "Sent,Overdue,Partial",
   });
   const { data: accountsData, isLoading: accountsLoading } = useAccounts({
     subCategory: "Cash and Cash Equivalents",
@@ -416,7 +419,17 @@ export default function PaymentReceivedForm({
 
           {/* --- Actions --- */}
           <div className="flex justify-end gap-2 border-t pt-4 pb-3">
-            <Button variant="outline" type="button">
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() =>
+                closeModal(
+                  isEditMode
+                    ? MODAL.PAYMENT_RECEIVED_EDIT + "-" + (payment?.id || "")
+                    : MODAL.PAYMENT_RECEIVED_CREATE,
+                )
+              }
+            >
               Cancel
             </Button>
             <Button

@@ -96,6 +96,7 @@ model Entity {
   attendance           AttendanceLog[]
   bills                Bills[]
   budget               Budget[]
+  budgetHeaders        BudgetHeader[]
   collection           Collection[]
   customer             Customer[]
   employee             Employee[]
@@ -640,7 +641,7 @@ model Asset {
   purchaseDate       DateTime
   purchaseCost       Int
   currentValue       Int
-  expiryDate         DateTime
+  expiryDate         DateTime?
   trackDepreciation  Boolean     @default(false)
   depreciationMethod String
   years              Int
@@ -835,42 +836,81 @@ model Journal {
   @@index([groupId])
 }
 
-model Budget {
+model BudgetHeader {
   id         String   @id @default(cuid())
   name       String
-  amount     Int
   periodType String
   month      String
   fiscalYear String
   note       String?
-  accountId  String
   entityId   String
-  groupId    String // denormalized — extraction handle
+  groupId    String
   createdAt  DateTime @default(now())
-  updatedAt  DateTime @default(now()) @updatedAt
-  account    Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  updatedAt  DateTime @updatedAt
   entity     Entity   @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  lines      Budget[]
 
   @@index([entityId])
   @@index([groupId])
 }
 
-model GroupBudget {
-  id         String   @id @default(cuid())
+model Budget {
+  id             String        @id @default(cuid())
+  name           String
+  amount         Int
+  periodType     String
+  month          String
+  fiscalYear     String
+  note           String?
+  accountId      String
+  entityId       String
+  groupId        String // denormalized — extraction handle
+  budgetHeaderId String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @default(now()) @updatedAt
+  account        Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  entity         Entity        @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  header         BudgetHeader? @relation(fields: [budgetHeaderId], references: [id], onDelete: Cascade)
+
+  @@index([entityId])
+  @@index([groupId])
+  @@index([budgetHeaderId])
+}
+
+model GroupBudgetHeader {
+  id         String        @id @default(cuid())
   name       String
-  amount     Int
   periodType String
   period     String
   fiscalYear String
   note       String?
-  accountId  String
   groupId    String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @default(now()) @updatedAt
-  account    Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  lines      GroupBudget[]
+
+  @@index([groupId])
+}
+
+model GroupBudget {
+  id                  String             @id @default(cuid())
+  name                String
+  amount              Int
+  periodType          String
+  period              String
+  fiscalYear          String
+  note                String?
+  accountId           String
+  groupId             String
+  groupBudgetHeaderId String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @default(now()) @updatedAt
+  account             Account            @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  header              GroupBudgetHeader? @relation(fields: [groupBudgetHeaderId], references: [id], onDelete: Cascade)
 
   @@index([groupId])
   @@index([accountId])
+  @@index([groupBudgetHeaderId])
 }
 
 model Forecast {

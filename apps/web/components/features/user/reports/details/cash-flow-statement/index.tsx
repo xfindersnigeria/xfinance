@@ -24,37 +24,24 @@ import {
   CFItem,
   CFItemType,
   CFKPIItem,
-  PERIODS,
   getAllSectionIds,
 } from "./mock-data";
 import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 import { useCashFlowStatement } from "@/lib/api/hooks/useReports";
 import { CashFlowStatementData } from "@/lib/api/services/reportService";
+import {
+  MONTHS,
+  QUARTERS,
+  REPORT_PERIOD_TYPES,
+  ReportPeriodType,
+  getFiscalYears,
+  periodToDates,
+  getPeriodEndLabel,
+  getPeriodDisplayLabel,
+  defaultPeriodValue,
+} from "@/lib/period-utils";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function quarterToDates(period: string): {
-  startDate: string;
-  endDate: string;
-} {
-  const [q, yearStr] = period.split(" ");
-  const year = parseInt(yearStr, 10);
-  const ranges: Record<string, [string, string]> = {
-    Q1: [`${year}-01-01`, `${year}-03-31`],
-    Q2: [`${year}-04-01`, `${year}-06-30`],
-    Q3: [`${year}-07-01`, `${year}-09-30`],
-    Q4: [`${year}-10-01`, `${year}-12-31`],
-  };
-  const [startDate, endDate] = ranges[q] ?? [`${year}-01-01`, `${year}-03-31`];
-  return { startDate, endDate };
-}
-
-const QUARTER_END: Record<string, string> = {
-  Q1: "March 31",
-  Q2: "June 30",
-  Q3: "September 30",
-  Q4: "December 31",
-};
 
 function fmt(value: number | null, sym: string): string {
   if (value === null) return "-";
@@ -64,11 +51,6 @@ function fmt(value: number | null, sym: string): string {
     maximumFractionDigits: 2,
   })}`;
   return value < 0 ? `(${s})` : s;
-}
-
-function getQuarterEndLabel(period: string): string {
-  const [q, year] = period.split(" ");
-  return `For the Quarter Ended ${QUARTER_END[q] ?? ""}, ${year}`;
 }
 
 function amountColor(
@@ -658,20 +640,35 @@ const STATIC_SECTION_IDS = [
   "financing-activities",
 ];
 
+const FISCAL_YEARS = getFiscalYears();
+
 export default function CashFlowStatement() {
   const router = useRouter();
   const sym = useEntityCurrencySymbol();
-  const [period, setPeriod] = useState("Q2 2026");
-  const [compareType, setCompareType] = useState<"period" | "budget">("period");
-  const [comparePeriod, setComparePeriod] = useState("Q2 2025");
+
+  const now = new Date();
+  const curYear = now.getFullYear();
+  const [periodType, setPeriodType] = useState<ReportPeriodType>("Quarterly");
+  const [period, setPeriod] = useState(() => defaultPeriodValue("Quarterly"));
+  const [year, setYear] = useState(curYear);
+  const [comparePeriod, setComparePeriod] = useState(() => defaultPeriodValue("Quarterly"));
+  const [compareYear, setCompareYear] = useState(curYear - 1);
   const [showComparison, setShowComparison] = useState(true);
   const [collapsed, setCollapsed] = useState<Set<string>>(
     () => new Set(STATIC_SECTION_IDS),
   );
 
-  const periodDates = quarterToDates(period);
-  const compareDates =
-    compareType === "period" ? quarterToDates(comparePeriod) : null;
+  const handlePeriodTypeChange = (t: ReportPeriodType) => {
+    const def = defaultPeriodValue(t);
+    setPeriodType(t);
+    setPeriod(def);
+    setComparePeriod(def);
+  };
+
+  const periodDates = periodToDates(periodType, period, year);
+  const compareDates = showComparison
+    ? periodToDates(periodType, comparePeriod, compareYear)
+    : null;
 
   const {
     data: cashFlowData,
@@ -688,7 +685,7 @@ export default function CashFlowStatement() {
 
   useEffect(() => {
     setCollapsed(new Set(STATIC_SECTION_IDS));
-  }, [period, comparePeriod]);
+  }, [period, year, comparePeriod, compareYear]);
 
   const toggleSection = (id: string) => {
     setCollapsed((prev) => {
@@ -701,7 +698,7 @@ export default function CashFlowStatement() {
 
   const cfItems = data ? buildCFItems(data) : [];
   const kpiItems = data ? buildKPIItems(data) : [];
-  const compareLabel = compareType === "period" ? comparePeriod : "Budget";
+  const compareLabel = getPeriodDisplayLabel(periodType, comparePeriod, compareYear);
   const hasData = !!data;
   const effectiveShowComparison = showComparison && !!data?.comparePeriod;
 
@@ -746,63 +743,74 @@ export default function CashFlowStatement() {
 
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-3">
+        {/* Period type */}
         <div className="flex items-center gap-2">
           <CalendarDays className="w-4 h-4 text-gray-500" />
+          <Select value={periodType} onValueChange={(v) => handlePeriodTypeChange(v as ReportPeriodType)}>
+            <SelectTrigger className="w-32 h-9 text-sm bg-gray-100 border-0 rounded-xl">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {REPORT_PERIOD_TYPES.map((pt) => (
+                <SelectItem key={pt.value} value={pt.value}>{pt.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Period value (month or quarter) */}
+        {periodType !== "Annual" && (
           <Select value={period} onValueChange={setPeriod}>
             <SelectTrigger className="w-36 h-9 text-sm bg-gray-100 border-0 rounded-xl">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {PERIODS.map((p) => (
-                <SelectItem key={p} value={p}>
-                  {p}
-                </SelectItem>
-              ))}
+              {periodType === "Monthly"
+                ? MONTHS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)
+                : QUARTERS.map((q) => <SelectItem key={q.value} value={q.value}>{q.label}</SelectItem>)}
             </SelectContent>
           </Select>
-        </div>
+        )}
 
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-600">Compare with:</span>
-          <div className="flex rounded-xl border bg-gray-100 p-0.5">
-            <button
-              className={cn(
-                "px-3 py-1 text-sm rounded-lg transition-all",
-                compareType === "period"
-                  ? "bg-white shadow-sm font-medium"
-                  : "text-gray-600 hover:text-gray-900",
-              )}
-              onClick={() => setCompareType("period")}
-            >
-              Period
-            </button>
-            <button
-              className={cn(
-                "px-3 py-1 text-sm rounded-lg transition-all",
-                compareType === "budget"
-                  ? "bg-white shadow-sm font-medium"
-                  : "text-gray-600 hover:text-gray-900",
-              )}
-              onClick={() => setCompareType("budget")}
-            >
-              Budget
-            </button>
-          </div>
-        </div>
+        {/* Year */}
+        <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
+          <SelectTrigger className="w-24 h-9 text-sm bg-gray-100 border-0 rounded-xl">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {FISCAL_YEARS.map((y) => (
+              <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-        {compareType === "period" && (
-          <Select value={comparePeriod} onValueChange={setComparePeriod}>
-            <SelectTrigger className="w-36 h-9 text-sm bg-gray-100 border-0 rounded-xl">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PERIODS.map((p) => (
-                <SelectItem key={p} value={p}>
-                  {p}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        {/* Compare period */}
+        {showComparison && (
+          <>
+            <span className="text-sm text-gray-600">vs</span>
+            {periodType !== "Annual" && (
+              <Select value={comparePeriod} onValueChange={setComparePeriod}>
+                <SelectTrigger className="w-36 h-9 text-sm bg-gray-100 border-0 rounded-xl">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {periodType === "Monthly"
+                    ? MONTHS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)
+                    : QUARTERS.map((q) => <SelectItem key={q.value} value={q.value}>{q.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+            <Select value={String(compareYear)} onValueChange={(v) => setCompareYear(Number(v))}>
+              <SelectTrigger className="w-24 h-9 text-sm bg-gray-100 border-0 rounded-xl">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {FISCAL_YEARS.map((y) => (
+                  <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </>
         )}
 
         <Button
@@ -843,7 +851,7 @@ export default function CashFlowStatement() {
                 Statement of Cash Flows (Indirect Method)
               </p>
               <p className="text-gray-500 text-sm mt-0.5">
-                {getQuarterEndLabel(period)}
+                {getPeriodEndLabel(periodType, period, year)}
               </p>
             </div>
 
@@ -860,7 +868,7 @@ export default function CashFlowStatement() {
                         Activity
                       </th>
                       <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
-                        {period}
+                        {getPeriodDisplayLabel(periodType, period, year)}
                       </th>
                       {effectiveShowComparison && (
                         <>

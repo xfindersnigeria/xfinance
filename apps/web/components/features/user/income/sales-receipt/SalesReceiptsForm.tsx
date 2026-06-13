@@ -32,6 +32,8 @@ import { useAccounts } from "@/lib/api/hooks/useAccounts";
 import { ItemSelector } from "../invoices/ItemSelector";
 import { paymentMethodOptions } from "../payment-received/PaymentReceivedForm";
 import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { useModal } from "@/components/providers/ModalProvider";
+import { MODAL } from "@/lib/data/modal-data";
 
 export const receiptSchema = z.object({
   customerId: z.string().min(1, "Customer is required"),
@@ -72,6 +74,7 @@ export default function SalesReceiptsForm({
   isEditMode = false,
 }: SalesReceiptsFormProps) {
   const sym = useEntityCurrencySymbol();
+  const { closeModal } = useModal();
   const { data, isLoading: customersLoading } = useCustomers();
   const itemsQuery = useItems();
   const items = itemsQuery.data?.items || [];
@@ -471,7 +474,17 @@ export default function SalesReceiptsForm({
             </div>
           </div>
           <div className="flex justify-end gap-2 border-t pt-1 pb-3">
-            <Button variant={"outline"} type="button">
+            <Button
+              variant={"outline"}
+              type="button"
+              onClick={() =>
+                closeModal(
+                  isEditMode
+                    ? MODAL.SALES_RECEIPT_EDIT + "-" + (receipt?.id || "")
+                    : MODAL.SALES_RECEIPT_CREATE,
+                )
+              }
+            >
               Cancel
             </Button>
             <Button

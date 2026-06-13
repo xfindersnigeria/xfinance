@@ -8,13 +8,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
@@ -22,12 +15,10 @@ import {
 } from "@/components/ui/chart";
 import { Line, LineChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FilterOption, MonthlyBreakdownWithProfit } from "@/lib/api/services/analyticsService";
+import { MonthlyBreakdownWithProfit } from "@/lib/api/services/analyticsService";
 
 interface RevenueAndProfitTrendChartProps {
   data?: MonthlyBreakdownWithProfit[];
-  filter?: FilterOption;
-  onFilterChange?: (filter: FilterOption) => void;
   loading?: boolean;
 }
 
@@ -44,8 +35,6 @@ const chartConfig = {
 
 export default function RevenueAndProfitTrendChart({
   data,
-  filter = "THIS_YEAR",
-  onFilterChange,
   loading,
 }: RevenueAndProfitTrendChartProps) {
   const chartData = data?.map((item) => ({
@@ -70,22 +59,9 @@ export default function RevenueAndProfitTrendChart({
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-start justify-between">
-        <div>
-          <CardTitle>Revenue & Profit Trend</CardTitle>
-          <CardDescription>Group consolidated monthly trend</CardDescription>
-        </div>
-        <Select value={filter} onValueChange={onFilterChange}>
-          <SelectTrigger className="w-45">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="THIS_YEAR">This Year</SelectItem>
-            <SelectItem value="THIS_FISCAL_YEAR">This Fiscal Year</SelectItem>
-            <SelectItem value="LAST_FISCAL_YEAR">Last Fiscal Year</SelectItem>
-            <SelectItem value="LAST_12_MONTHS">Last 12 Months</SelectItem>
-          </SelectContent>
-        </Select>
+      <CardHeader>
+        <CardTitle>Revenue & Profit Trend</CardTitle>
+        <CardDescription>Group consolidated monthly trend</CardDescription>
       </CardHeader>
       <CardContent>
         <ChartContainer config={chartConfig}>

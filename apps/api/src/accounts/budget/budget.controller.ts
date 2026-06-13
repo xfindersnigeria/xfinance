@@ -6,12 +6,13 @@ import {
   Get,
   Param,
   Post,
+  Put,
   Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
 import { BudgetService } from './budget.service';
-import { CreateBulkBudgetDto } from './dto/budget.dto';
+import { CreateBulkBudgetDto, UpdateBulkBudgetDto } from './dto/budget.dto';
 import {
   getEffectiveEntityId,
   getEffectiveGroupId,
@@ -34,8 +35,10 @@ import {
 export class BudgetController {
   constructor(private readonly budgetService: BudgetService) {}
 
+  // ── Entity budget endpoints ────────────────────────────────────────────────
+
   @Post()
-  @ApiOperation({ summary: 'Create or replace budget lines for a period' })
+  @ApiOperation({ summary: 'Create a budget (header + lines)' })
   async create(@Body() dto: CreateBulkBudgetDto, @Req() req: Request) {
     const entityId = getEffectiveEntityId(req);
     const groupId = getEffectiveGroupId(req);
@@ -44,7 +47,6 @@ export class BudgetController {
     return this.budgetService.createBulkBudgets(entityId, dto, groupId);
   }
 
-  /** Must come before /:id to avoid "vs-actual" being parsed as an id param */
   @Get('vs-actual')
   @ApiOperation({ summary: 'Budget vs Actual comparison for a period' })
   @ApiQuery({ name: 'periodType', required: false })
@@ -58,11 +60,7 @@ export class BudgetController {
   ) {
     const entityId = getEffectiveEntityId(req);
     if (!entityId) throw new BadRequestException('Entity ID is required');
-    return this.budgetService.getBudgetVsActual(entityId, {
-      periodType,
-      period,
-      fiscalYear,
-    });
+    return this.budgetService.getBudgetVsActual(entityId, { periodType, period, fiscalYear });
   }
 
   @Get('previous-period')
@@ -80,17 +78,12 @@ export class BudgetController {
     if (!entityId) throw new BadRequestException('Entity ID is required');
     if (!periodType || !fiscalYear)
       throw new BadRequestException('periodType and fiscalYear are required');
-    return this.budgetService.getPreviousPeriod(entityId, {
-      periodType,
-      period: period ?? '',
-      fiscalYear,
-    });
+    return this.budgetService.getPreviousPeriod(entityId, { periodType, period: period ?? '', fiscalYear });
   }
 
   @Get()
-  @ApiOperation({ summary: 'List budgets for the entity' })
+  @ApiOperation({ summary: 'List budget headers for the entity' })
   @ApiQuery({ name: 'periodType', required: false })
-  @ApiQuery({ name: 'period', required: false })
   @ApiQuery({ name: 'fiscalYear', required: false })
   @ApiQuery({ name: 'search', required: false })
   @ApiQuery({ name: 'page', required: false })
@@ -98,7 +91,6 @@ export class BudgetController {
   async findAll(
     @Req() req: Request,
     @Query('periodType') periodType?: string,
-    @Query('period') period?: string,
     @Query('fiscalYear') fiscalYear?: string,
     @Query('search') search?: string,
     @Query('page') page?: string,
@@ -106,9 +98,8 @@ export class BudgetController {
   ) {
     const entityId = getEffectiveEntityId(req);
     if (!entityId) throw new BadRequestException('Entity ID is required');
-    return this.budgetService.findAll(entityId, {
+    return this.budgetService.findAllHeaders(entityId, {
       periodType,
-      period,
       fiscalYear,
       search,
       page: page ? parseInt(page, 10) : undefined,
@@ -116,18 +107,36 @@ export class BudgetController {
     });
   }
 
+  @Get(':id')
+  @ApiOperation({ summary: 'Get a budget header with all its lines' })
+  async findOne(@Param('id') id: string, @Req() req: Request) {
+    const entityId = getEffectiveEntityId(req);
+    if (!entityId) throw new BadRequestException('Entity ID is required');
+    return this.budgetService.getBudgetHeader(id, entityId);
+  }
+
+  @Put(':id')
+  @ApiOperation({ summary: 'Update a budget header and replace its lines' })
+  async update(@Param('id') id: string, @Body() dto: UpdateBulkBudgetDto, @Req() req: Request) {
+    const entityId = getEffectiveEntityId(req);
+    const groupId = getEffectiveGroupId(req);
+    if (!entityId) throw new BadRequestException('Entity ID is required');
+    if (!groupId) throw new BadRequestException('Group ID is required');
+    return this.budgetService.updateBudgetHeader(id, dto, entityId, groupId);
+  }
+
   @Delete(':id')
-  @ApiOperation({ summary: 'Delete a budget line by id' })
+  @ApiOperation({ summary: 'Delete a budget (header + all its lines)' })
   async delete(@Param('id') id: string, @Req() req: Request) {
     const entityId = getEffectiveEntityId(req);
     if (!entityId) throw new BadRequestException('Entity ID is required');
-    return this.budgetService.deleteBudget(id, entityId);
+    return this.budgetService.deleteBudgetHeader(id, entityId);
   }
 
-  // ── Group-scoped routes (must be before :id to avoid parsing as id param) ──
+  // ── Group budget endpoints ─────────────────────────────────────────────────
 
   @Post('group')
-  @ApiOperation({ summary: 'Create or replace group budget lines for a period' })
+  @ApiOperation({ summary: 'Create a group budget (header + lines)' })
   async createGroup(@Body() dto: CreateBulkBudgetDto, @Req() req: Request) {
     const groupId = getEffectiveGroupId(req);
     if (!groupId) throw new BadRequestException('Group ID is required');
@@ -147,11 +156,7 @@ export class BudgetController {
   ) {
     const groupId = getEffectiveGroupId(req);
     if (!groupId) throw new BadRequestException('Group ID is required');
-    return this.budgetService.getGroupBudgetVsActual(groupId, {
-      periodType,
-      period,
-      fiscalYear,
-    });
+    return this.budgetService.getGroupBudgetVsActual(groupId, { periodType, period, fiscalYear });
   }
 
   @Get('group/previous-period')
@@ -169,17 +174,20 @@ export class BudgetController {
     if (!groupId) throw new BadRequestException('Group ID is required');
     if (!periodType || !fiscalYear)
       throw new BadRequestException('periodType and fiscalYear are required');
-    return this.budgetService.getGroupPreviousPeriod(groupId, {
-      periodType,
-      period: period ?? '',
-      fiscalYear,
-    });
+    return this.budgetService.getGroupPreviousPeriod(groupId, { periodType, period: period ?? '', fiscalYear });
+  }
+
+  @Get('group/accounts')
+  @ApiOperation({ summary: 'Get all accounts for the group (for group budget form)' })
+  async getGroupAccounts(@Req() req: Request) {
+    const groupId = getEffectiveGroupId(req);
+    if (!groupId) throw new BadRequestException('Group ID is required');
+    return this.budgetService.getGroupAccounts(groupId);
   }
 
   @Get('group')
-  @ApiOperation({ summary: 'List group budgets' })
+  @ApiOperation({ summary: 'List group budget headers' })
   @ApiQuery({ name: 'periodType', required: false })
-  @ApiQuery({ name: 'period', required: false })
   @ApiQuery({ name: 'fiscalYear', required: false })
   @ApiQuery({ name: 'search', required: false })
   @ApiQuery({ name: 'page', required: false })
@@ -187,7 +195,6 @@ export class BudgetController {
   async findAllGroup(
     @Req() req: Request,
     @Query('periodType') periodType?: string,
-    @Query('period') period?: string,
     @Query('fiscalYear') fiscalYear?: string,
     @Query('search') search?: string,
     @Query('page') page?: string,
@@ -195,9 +202,8 @@ export class BudgetController {
   ) {
     const groupId = getEffectiveGroupId(req);
     if (!groupId) throw new BadRequestException('Group ID is required');
-    return this.budgetService.findAllGroup(groupId, {
+    return this.budgetService.findAllGroupHeaders(groupId, {
       periodType,
-      period,
       fiscalYear,
       search,
       page: page ? parseInt(page, 10) : undefined,
@@ -205,11 +211,27 @@ export class BudgetController {
     });
   }
 
+  @Get('group/:id')
+  @ApiOperation({ summary: 'Get a group budget header with all its lines' })
+  async findOneGroup(@Param('id') id: string, @Req() req: Request) {
+    const groupId = getEffectiveGroupId(req);
+    if (!groupId) throw new BadRequestException('Group ID is required');
+    return this.budgetService.getGroupBudgetHeader(id, groupId);
+  }
+
+  @Put('group/:id')
+  @ApiOperation({ summary: 'Update a group budget header and replace its lines' })
+  async updateGroup(@Param('id') id: string, @Body() dto: UpdateBulkBudgetDto, @Req() req: Request) {
+    const groupId = getEffectiveGroupId(req);
+    if (!groupId) throw new BadRequestException('Group ID is required');
+    return this.budgetService.updateGroupBudgetHeader(id, dto, groupId);
+  }
+
   @Delete('group/:id')
-  @ApiOperation({ summary: 'Delete a group budget line by id' })
+  @ApiOperation({ summary: 'Delete a group budget (header + all its lines)' })
   async deleteGroup(@Param('id') id: string, @Req() req: Request) {
     const groupId = getEffectiveGroupId(req);
     if (!groupId) throw new BadRequestException('Group ID is required');
-    return this.budgetService.deleteGroupBudget(id, groupId);
+    return this.budgetService.deleteGroupBudgetHeader(id, groupId);
   }
 }

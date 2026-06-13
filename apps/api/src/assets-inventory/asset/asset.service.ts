@@ -32,12 +32,13 @@ export class AssetService {
           purchaseDate: new Date(createAsset.purchaseDate),
           purchaseCost: createAsset.purchaseCost,
           currentValue: createAsset.currentValue ?? createAsset.purchaseCost,
-          expiryDate: createAsset.expiryDate ? new Date(createAsset.expiryDate) : new Date(),
+          expiryDate: createAsset.expiryDate ? new Date(createAsset.expiryDate) : undefined,
           trackDepreciation: createAsset.trackDepreciation,
           depreciationMethod: createAsset.depreciationMethod ?? '',
           years: createAsset.years ?? 0,
           salvageValue: createAsset.salvageValue ?? 0,
           activeAsset: createAsset.activeAsset,
+          status: createAsset.activeAsset ? 'in_use' : 'in_storage',
           serialNumber,
           entityId,
           groupId,
@@ -54,12 +55,16 @@ export class AssetService {
 
   async findAll(entityId: string) {
     try {
-      const [total, inUse, inStorage, depreciableAgg, assets] = await Promise.all([
+      const [total, inUse, inStorage, depreciableAgg, totalValueAgg, assets] = await Promise.all([
         this.prisma.asset.count({ where: { entityId } }),
         this.prisma.asset.count({ where: { entityId, status: 'in_use' } }),
         this.prisma.asset.count({ where: { entityId, status: 'in_storage' } }),
         this.prisma.asset.aggregate({
           where: { entityId, trackDepreciation: true },
+          _sum: { currentValue: true },
+        }),
+        this.prisma.asset.aggregate({
+          where: { entityId },
           _sum: { currentValue: true },
         }),
         this.prisma.asset.findMany({
@@ -76,6 +81,7 @@ export class AssetService {
             inUse,
             inStorage,
             depreciableValue: depreciableAgg._sum.currentValue ?? 0,
+            totalCurrentValue: totalValueAgg._sum.currentValue ?? 0,
           },
           assets,
         },
@@ -91,11 +97,15 @@ export class AssetService {
 
   async update(id: string, updateAsset: UpdateAssetDto, entityId: string) {
     try {
-      // Prevent serialNumber from being updated
-      const { serialNumber, ...rest } = updateAsset as any;
+      const { serialNumber, activeAsset, ...rest } = updateAsset as any;
+      const data: any = { ...rest };
+      if (activeAsset !== undefined) {
+        data.activeAsset = activeAsset;
+        data.status = activeAsset ? 'in_use' : 'in_storage';
+      }
       const asset = await this.prisma.asset.update({
         where: { id },
-        data: rest,
+        data,
       });
       return asset;
     } catch (error) {
