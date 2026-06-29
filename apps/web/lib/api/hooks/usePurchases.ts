@@ -516,6 +516,27 @@ export const useUpdateExpenseStatus = (
   });
 };
 
+export const useBulkImportExpenses = (
+  options?: UseMutationOptions<any, Error, purchasesService.BulkImportExpensesPayload>,
+) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: purchasesService.bulkImportExpenses,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["expenses"] });
+      queryClient.invalidateQueries({ queryKey: ["account-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : "Bulk import failed",
+      );
+    },
+    ...options,
+  });
+};
+
 export const useApproveExpense = (
   options?: UseMutationOptions<any, Error, string>,
 ) => {

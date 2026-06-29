@@ -199,3 +199,23 @@ export const updatePaymentMade = async (id: string | number, data: any) =>
 
 export const deletePaymentMade = async (id: string | number) =>
   apiClient(`purchases/payment-made/${id}`, { method: "DELETE" });
+
+export interface BulkExpenseItem {
+  date: string;
+  description: string;
+  amount: number;
+  reference?: string;
+  payee?: string;
+  expenseAccountId: string;
+}
+
+export interface BulkImportExpensesPayload {
+  paymentAccountId: string;
+  items: BulkExpenseItem[];
+}
+
+export const bulkImportExpenses = async (payload: BulkImportExpensesPayload) =>
+  apiClient("purchases/expenses/bulk-import", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });

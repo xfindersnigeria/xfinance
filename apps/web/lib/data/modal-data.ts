@@ -163,4 +163,6 @@ export const MODAL = {
   PAYROLL_BATCH_EDIT: "payroll-batch-edit",
   PAYROLL_BATCH_DELETE: "payroll-batch-delete",
   PAYROLL_SLIP_VIEW: "payroll-slip-view",
+
+  BULK_EXPENSE_IMPORT: "bulk-expense-import",
 };

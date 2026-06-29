@@ -1,7 +1,7 @@
 import { ExpenseStatus } from './../../../prisma/generated/enums';
 import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
-import { CreateExpenseDto } from './dto/expense.dto';
+import { CreateExpenseDto, BulkImportExpensesDto } from './dto/expense.dto';
 import { GetExpensesQueryDto } from './dto/get-expenses-query.dto';
 import { FileuploadService } from '@/fileupload/fileupload.service';
 import { BullmqService } from '@/bullmq/bullmq.service';
@@ -28,19 +28,19 @@ export class ExpensesService {
     try {
       let attachment: any = undefined;
 
-      const vendor = await this.prisma.vendor.findUnique({
-        where: { id: body.vendorId },
-      });
-
-      if (!vendor) {
-        throw new HttpException('Vendor not found', HttpStatus.NOT_FOUND);
-      }
-
-      if (vendor.entityId !== entityId) {
-        throw new HttpException(
-          'Vendor does not belong to this entity',
-          HttpStatus.FORBIDDEN,
-        );
+      if (body.vendorId) {
+        const vendor = await this.prisma.vendor.findUnique({
+          where: { id: body.vendorId },
+        });
+        if (!vendor) {
+          throw new HttpException('Vendor not found', HttpStatus.NOT_FOUND);
+        }
+        if (vendor.entityId !== entityId) {
+          throw new HttpException(
+            'Vendor does not belong to this entity',
+            HttpStatus.FORBIDDEN,
+          );
+        }
       }
 
       const expenseAccountId = body.expenseAccountId;
@@ -692,6 +692,95 @@ export class ExpensesService {
       if (error instanceof HttpException) throw error;
       throw new HttpException(
         `Retry failed: ${error instanceof Error ? error.message : String(error)}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  async bulkImportExpenses(
+    body: BulkImportExpensesDto,
+    entityId: string,
+    groupId: string,
+  ) {
+    try {
+      if (!body.items || body.items.length === 0) {
+        throw new HttpException('No items provided', HttpStatus.BAD_REQUEST);
+      }
+
+      const paymentAccount = await this.prisma.account.findUnique({
+        where: { id: body.paymentAccountId },
+      });
+      if (!paymentAccount) {
+        throw new HttpException('Payment account not found', HttpStatus.NOT_FOUND);
+      }
+      if (paymentAccount.entityId !== entityId) {
+        throw new HttpException('Payment account does not belong to this entity', HttpStatus.FORBIDDEN);
+      }
+
+      const expenseAccountIds = [...new Set(body.items.map((i) => i.expenseAccountId))];
+      const expenseAccounts = await this.prisma.account.findMany({
+        where: { id: { in: expenseAccountIds }, entityId },
+        select: { id: true },
+      });
+      const validAccountIds = new Set(expenseAccounts.map((a) => a.id));
+      const invalidItem = body.items.find((i) => !validAccountIds.has(i.expenseAccountId));
+      if (invalidItem) {
+        throw new HttpException(
+          `Expense account ${invalidItem.expenseAccountId} not found or does not belong to this entity`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      const created: string[] = [];
+      for (const item of body.items) {
+        const reference = generateRandomInvoiceNumber({ prefix: 'BEXP' });
+        const descriptionWithPayee = item.payee
+          ? `${item.description} — ${item.payee}`
+          : item.description;
+
+        const expense = await this.prisma.expenses.create({
+          data: {
+            date: new Date(item.date),
+            description: descriptionWithPayee,
+            reference: item.reference || reference,
+            expenseAccountId: item.expenseAccountId,
+            paymentAccountId: body.paymentAccountId,
+            paymentMethod: 'Bank_Transfer' as any,
+            amount: Math.round(item.amount),
+            tax: '0',
+            status: 'approved' as any,
+            entityId,
+            groupId,
+          },
+        });
+
+        await this.bullmqService.addJob('post-expense-journal', {
+          expenseId: expense.id,
+          expenseData: {
+            reference: expense.reference,
+            entityId,
+            groupId,
+            amount: expense.amount,
+            tax: 0,
+            expenseAccountId: expense.expenseAccountId,
+            paymentAccountId: expense.paymentAccountId,
+          },
+        });
+
+        created.push(expense.id);
+      }
+
+      await this.cacheService.invalidateEntityDashboardCache(entityId);
+
+      return {
+        imported: created.length,
+        total: body.items.reduce((sum, i) => sum + Math.round(i.amount), 0),
+        message: `${created.length} expense(s) imported and queued for posting`,
+      };
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      throw new HttpException(
+        `Bulk import failed: ${error instanceof Error ? error.message : String(error)}`,
         HttpStatus.BAD_REQUEST,
       );
     }

@@ -18,7 +18,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ExpensesService } from './expenses.service';
 import { AuthGuard } from '@/auth/guards/auth.guard';
 import { getEffectiveEntityId, getEffectiveGroupId } from '@/auth/utils/context.util';
-import { CreateExpenseDto } from './dto/expense.dto';
+import { CreateExpenseDto, BulkImportExpensesDto } from './dto/expense.dto';
 import { GetExpensesQueryDto } from './dto/get-expenses-query.dto';
 import { GetExpensesResponseDto } from './dto/get-expenses-response.dto';
 import {
@@ -215,6 +215,21 @@ export class ExpensesController {
       entityId,
       body.status,
     );
+  }
+
+  @Post('bulk-import')
+  @UseGuards(AuthGuard)
+  @ApiOperation({ summary: 'Bulk import expenses from a parsed CSV/XLSX upload' })
+  @ApiBearerAuth('jwt')
+  @ApiCookieAuth('cookieAuth')
+  @ApiOkResponse({ description: 'Bulk import queued successfully' })
+  @ApiUnauthorizedResponse({ description: 'Access denied' })
+  async bulkImportExpenses(@Body() body: BulkImportExpensesDto, @Req() req) {
+    const entityId = getEffectiveEntityId(req);
+    if (!entityId) throw new UnauthorizedException('Access denied!');
+    const groupId = getEffectiveGroupId(req);
+    if (!groupId) throw new UnauthorizedException('Access denied!');
+    return this.expensesService.bulkImportExpenses(body, entityId, groupId);
   }
 
   @Get('failed/list')

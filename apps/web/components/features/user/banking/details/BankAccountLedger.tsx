@@ -94,13 +94,8 @@ export default function BankAccountLedger() {
 
   return (
     <div className="space-y-4 p-4">
-      {/* Profile Header */}
       <BankProfileHeader profile={profile} />
-
-      {/* Stats Cards */}
       <BankStatsCard stats={stats} currency={profile.currency} />
-
-      {/* Transactions */}
       <BankTransactions
         bankAccountId={accountId}
         transactions={transactions}

@@ -17,9 +17,10 @@ export class CreateExpenseDto {
   @Type(() => Date)
   date: Date;
 
-  @ApiProperty({ example: 'Acme Supplies', description: 'Vendor name' })
+  @ApiPropertyOptional({ example: 'vendor_123', description: 'Vendor ID (optional)' })
+  @IsOptional()
   @IsString()
-  vendorId: string;
+  vendorId?: string;
 
   @ApiProperty({ example: 'Office Supplies', description: 'Expense account ID' })
   @IsString()
@@ -185,4 +186,43 @@ export class ExpenseDto extends CreateExpenseDto {
 
   @ApiProperty({ example: '2025-12-18T00:00:00Z', description: 'Created at' })
   createdAt: string;
+}
+
+export class BulkExpenseItemDto {
+  @ApiProperty({ example: '2025-11-24', description: 'Transaction date (ISO string)' })
+  @IsString()
+  date: string;
+
+  @ApiProperty({ example: 'Office rent payment', description: 'Description / memo' })
+  @IsString()
+  description: string;
+
+  @ApiProperty({ example: 85000, description: 'Amount in smallest currency unit (integer)' })
+  @IsNumber()
+  @Type(() => Number)
+  amount: number;
+
+  @ApiPropertyOptional({ example: 'RENT-NOV-2025', description: 'Reference number' })
+  @IsOptional()
+  @IsString()
+  reference?: string;
+
+  @ApiPropertyOptional({ example: 'Property Management LLC', description: 'Payee / vendor name (freetext)' })
+  @IsOptional()
+  @IsString()
+  payee?: string;
+
+  @ApiProperty({ example: 'acc_abc123', description: 'Expense account ID' })
+  @IsString()
+  expenseAccountId: string;
+}
+
+export class BulkImportExpensesDto {
+  @ApiProperty({ description: 'Bank linked GL account to credit (payment account)', example: 'acc_xyz' })
+  @IsString()
+  paymentAccountId: string;
+
+  @ApiProperty({ type: [BulkExpenseItemDto] })
+  @IsArray()
+  items: BulkExpenseItemDto[];
 }
