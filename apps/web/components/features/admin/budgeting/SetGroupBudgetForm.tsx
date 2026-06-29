@@ -38,7 +38,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   useCreateGroupBudget,
   useUpdateGroupBudget,
-  useGroupBudgetAccounts,
+  useGroupBudgetSubCategories,
   useGroupPreviousPeriodBudget,
 } from '@/lib/api/hooks/useAccounts';
 import { useGroupCurrencySymbol } from '@/lib/api/hooks/useCurrencyFormat';
@@ -64,7 +64,7 @@ function currentYear() {
 }
 
 const lineSchema = z.object({
-  accountId: z.string().min(1, 'Account is required'),
+  subCategoryId: z.string().min(1, 'Sub-category is required'),
   budgetAmount: z.string().min(1, 'Amount is required'),
 });
 
@@ -99,9 +99,8 @@ export function SetGroupBudgetForm({ existingBudget, onSuccess }: Props) {
   const sym = useGroupCurrencySymbol();
   const csvInputRef = useRef<HTMLInputElement>(null);
 
-  // Use group-scoped accounts endpoint — avoids 400 errors from entity-scoped endpoint
-  const { data: accountsData, isLoading: accountsLoading } = useGroupBudgetAccounts();
-  const accounts = useMemo(() => (accountsData as any)?.data ?? [], [accountsData]);
+  const { data: subCatsData, isLoading: accountsLoading } = useGroupBudgetSubCategories();
+  const accounts = useMemo(() => (subCatsData as any)?.data ?? [], [subCatsData]);
 
   const createGroupBudget = useCreateGroupBudget();
   const updateGroupBudget = useUpdateGroupBudget();
@@ -117,8 +116,8 @@ export function SetGroupBudgetForm({ existingBudget, onSuccess }: Props) {
       name: existingBudget?.name ?? '',
       note: existingBudget?.note ?? '',
       lines: existingBudget?.lines?.length
-        ? existingBudget.lines.map((l) => ({ accountId: l.accountId, budgetAmount: String(l.amount) }))
-        : [{ accountId: '', budgetAmount: '' }],
+        ? existingBudget.lines.map((l) => ({ subCategoryId: l.subCategoryId ?? l.accountId ?? '', budgetAmount: String(l.amount) }))
+        : [{ subCategoryId: '', budgetAmount: '' }],
     },
   });
 
@@ -136,7 +135,10 @@ export function SetGroupBudgetForm({ existingBudget, onSuccess }: Props) {
 
   const prevPeriodMap = useMemo(() => {
     const m = new Map<string, number>();
-    prevPeriodData?.lines?.forEach((l) => m.set(l.accountId, l.amount));
+    prevPeriodData?.lines?.forEach((l) => {
+      const key = (l as any).subCategoryId ?? l.accountId;
+      if (key) m.set(key, l.amount);
+    });
     return m;
   }, [prevPeriodData]);
 
@@ -145,11 +147,8 @@ export function SetGroupBudgetForm({ existingBudget, onSuccess }: Props) {
     [watchedLines],
   );
 
-  const getAccount = (id: string) => accounts.find((a: any) => a.id === id);
-  const getCategory = (id: string) => {
-    const acc = getAccount(id);
-    return acc?.categoryName ?? acc?.typeName ?? '';
-  };
+  const getSubCategory = (id: string) => accounts.find((a: any) => a.id === id);
+  const getCategory = (id: string) => getSubCategory(id)?.categoryName ?? '';
 
   const handlePeriodTypeChange = (v: BudgetPeriodTypeEnum) => {
     form.setValue('periodType', v);
@@ -164,13 +163,13 @@ export function SetGroupBudgetForm({ existingBudget, onSuccess }: Props) {
       toast.info('No budget found for the previous period');
       return;
     }
-    form.setValue('lines', prevPeriodData.lines.map((l) => ({ accountId: l.accountId, budgetAmount: String(l.amount) })));
+    form.setValue('lines', prevPeriodData.lines.map((l) => ({ subCategoryId: (l as any).subCategoryId ?? l.accountId ?? '', budgetAmount: String(l.amount) })));
     toast.success(`Copied ${prevPeriodData.lines.length} lines from previous period`);
   };
 
   const handleDownloadTemplate = () => {
-    if (!accounts.length) { toast.info('Accounts are loading'); return; }
-    const csv = `AccountCode,AccountName,BudgetAmount\n${accounts.map((a: any) => `${a.code},${a.name},0`).join('\n')}`;
+    if (!accounts.length) { toast.info('Sub-categories are loading'); return; }
+    const csv = `SubCategoryCode,SubCategoryName,Category,BudgetAmount\n${accounts.map((a: any) => `${a.code},${a.name},${a.categoryName},0`).join('\n')}`;
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -187,15 +186,15 @@ export function SetGroupBudgetForm({ existingBudget, onSuccess }: Props) {
     reader.onload = (evt) => {
       const lines = (evt.target?.result as string).split(/\r?\n/).filter(Boolean);
       if (lines.length < 2) { toast.error('CSV is empty'); return; }
-      const parsed: { accountId: string; budgetAmount: string }[] = [];
+      const parsed: { subCategoryId: string; budgetAmount: string }[] = [];
       for (let i = 1; i < lines.length; i++) {
         const cols = lines[i].split(',');
         const code = cols[0]?.trim();
-        const amt = parseFloat((cols[2]?.trim() ?? cols[1]?.trim() ?? '0').replace(/[^0-9.-]/g, '')) || 0;
-        const acc = accounts.find((a: any) => a.code === code);
-        if (acc) parsed.push({ accountId: acc.id, budgetAmount: String(amt) });
+        const amt = parseFloat((cols[3]?.trim() ?? cols[1]?.trim() ?? '0').replace(/[^0-9.-]/g, '')) || 0;
+        const subCat = accounts.find((a: any) => a.code === code);
+        if (subCat) parsed.push({ subCategoryId: subCat.id, budgetAmount: String(amt) });
       }
-      if (!parsed.length) { toast.error('No matching accounts found in CSV'); return; }
+      if (!parsed.length) { toast.error('No matching sub-categories found in CSV'); return; }
       form.setValue('lines', parsed);
       toast.success(`Imported ${parsed.length} lines`);
     };
@@ -212,7 +211,7 @@ export function SetGroupBudgetForm({ existingBudget, onSuccess }: Props) {
       fiscalYear: values.fiscalYear,
       note: values.note,
       lines: values.lines.map((l) => ({
-        accountId: l.accountId,
+        subCategoryId: l.subCategoryId,
         amount: Math.round(parseFloat(l.budgetAmount) * 100),
       })),
     };
@@ -384,7 +383,7 @@ export function SetGroupBudgetForm({ existingBudget, onSuccess }: Props) {
               type="button"
               size="sm"
               className="gap-1.5 text-xs bg-green-600 hover:bg-green-700 text-white"
-              onClick={() => append({ accountId: '', budgetAmount: '' })}
+              onClick={() => append({ subCategoryId: '', budgetAmount: '' })}
             >
               <Plus className="w-3.5 h-3.5" />
               Add Line
@@ -392,34 +391,35 @@ export function SetGroupBudgetForm({ existingBudget, onSuccess }: Props) {
           </div>
 
           <div className="grid grid-cols-[2fr_1fr_1fr_1fr_auto] gap-3 px-5 py-2 bg-gray-50 border-b border-gray-100">
-            {['Account', 'Type', `Budget Amount (${sym})`, 'Last Period', ''].map((h, i) => (
+            {['Sub-Category', 'Type', `Budget Amount (${sym})`, 'Last Period', ''].map((h, i) => (
               <span key={i} className="text-xs font-medium text-gray-500 uppercase tracking-wide">{h}</span>
             ))}
           </div>
 
           <div className="divide-y divide-gray-50">
             {fields.map((field, i) => {
-              const accountId = watchedLines[i]?.accountId ?? '';
-              const category = getCategory(accountId);
+              const subCategoryId = watchedLines[i]?.subCategoryId ?? '';
+              const category = getCategory(subCategoryId);
               const badgeClass = CATEGORY_BADGE[category] ?? 'bg-gray-100 text-gray-700';
-              const lastAmt = prevPeriodMap.get(accountId);
+              const lastAmt = prevPeriodMap.get(subCategoryId);
 
               return (
                 <div key={field.id} className="grid grid-cols-[2fr_1fr_1fr_1fr_auto] gap-3 items-center px-5 py-3">
                   <FormField
                     control={form.control}
-                    name={`lines.${i}.accountId`}
+                    name={`lines.${i}.subCategoryId`}
                     render={({ field: f }) => (
                       <FormItem className="mb-0">
                         <FormControl>
                           <Select onValueChange={f.onChange} value={f.value} disabled={accountsLoading}>
                             <SelectTrigger className="h-9 text-xs w-full">
-                              <SelectValue placeholder={accountsLoading ? 'Loading...' : 'Select account'} />
+                              <SelectValue placeholder={accountsLoading ? 'Loading...' : 'Select sub-category'} />
                             </SelectTrigger>
                             <SelectContent className="max-h-60">
                               {accounts.map((acc: any) => (
                                 <SelectItem key={acc.id} value={acc.id} className="text-xs">
-                                  {acc.code} - {acc.name}
+                                  {acc.name}
+                                  <span className="text-gray-400 ml-1">({acc.categoryName})</span>
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -453,7 +453,7 @@ export function SetGroupBudgetForm({ existingBudget, onSuccess }: Props) {
                   />
 
                   <span className="text-xs text-gray-500">
-                    {accountId && lastAmt !== undefined
+                    {subCategoryId && lastAmt !== undefined
                       ? `${sym}${lastAmt.toLocaleString('en-US', { minimumFractionDigits: 2 })}`
                       : '—'}
                   </span>
@@ -487,7 +487,7 @@ export function SetGroupBudgetForm({ existingBudget, onSuccess }: Props) {
             </div>
             <div className="text-right">
               <p className="text-xs text-gray-400">Budget Lines</p>
-              <p className="text-sm font-medium text-gray-700">{fields.length} account{fields.length !== 1 ? 's' : ''}</p>
+              <p className="text-sm font-medium text-gray-700">{fields.length} sub-categor{fields.length !== 1 ? 'ies' : 'y'}</p>
             </div>
           </div>
         </div>

@@ -227,8 +227,73 @@ export class PayrollController {
   ) {
     const entityId = getEffectiveEntityId(req);
     if (!entityId) throw new UnauthorizedException('Access denied');
+    const groupId = getEffectiveGroupId(req) ?? '';
     const userId = req.user?.id ?? null;
-    return this.payrollService.changeStatus(id, dto.status, entityId, userId);
+    return this.payrollService.changeStatus(id, dto.status, entityId, groupId, userId);
+  }
+
+  @Get('paye-report')
+  async getPayeReport(
+    @Req() req: any,
+    @Query('year') year?: string,
+  ) {
+    const entityId = getEffectiveEntityId(req);
+    if (!entityId) throw new UnauthorizedException('Access denied');
+    return this.payrollService.getPayeReport(entityId, year ? Number(year) : undefined);
+  }
+
+  @Get('paye-report/csv')
+  async exportPayeReportCsv(
+    @Req() req: any,
+    @Res() res: Response,
+    @Query('year') year?: string,
+  ) {
+    const entityId = getEffectiveEntityId(req);
+    if (!entityId) throw new UnauthorizedException('Access denied');
+    const targetYear = year ? Number(year) : new Date().getFullYear();
+    const { data } = await this.payrollService.getPayeReport(entityId, targetYear);
+    const { employees, allowableDeductionNames, taxBands } = data;
+
+    const bandHeaders = taxBands.map((b: any) => {
+      if (b.to == null) return `Excess@${b.rate}%`;
+      const fromM = b.from / 1000000;
+      const rangeM = (b.to - b.from) / 1000000;
+      return fromM === 0 ? `${b.to / 1000}k@${b.rate}%` : `${rangeM}M@${b.rate}%`;
+    });
+
+    const headers = [
+      'S/N', 'Employee Name', 'TIN', 'FCT Taxpayer ID', 'Annual Gross',
+      'Annual Rent', ...allowableDeductionNames, 'Rent Relief',
+      'Total Deductions', 'Chargeable Income',
+      ...bandHeaders,
+      'Annual Tax Due', 'Monthly Tax Due', 'Remittance Status',
+    ];
+
+    const rows = employees.map((emp: any) => {
+      const dedAmounts = allowableDeductionNames.map((name: string) => {
+        const found = emp.deductionLines.find((d: any) => d.name === name);
+        return found?.amount ?? 0;
+      });
+      const bandAmounts = taxBands.map((b: any) => {
+        const found = emp.taxBandBreakdown.find((bd: any) => bd.rate === b.rate && bd.from === b.from);
+        return found?.amount ?? 0;
+      });
+      return [
+        emp.sn, emp.name, emp.tin, emp.fctTaxpayerId, emp.annualGross,
+        emp.annualRentPaid, ...dedAmounts, emp.rentRelief,
+        emp.totalAllowable, emp.chargeableIncome,
+        ...bandAmounts,
+        emp.annualTax, emp.monthlyTax, emp.remittanceStatus,
+      ];
+    });
+
+    const csv = [headers, ...rows]
+      .map((row) => row.map((v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename=PAYE_Computation_${targetYear}.csv`);
+    res.send(csv);
   }
 
   @Delete(':id')

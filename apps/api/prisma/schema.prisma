@@ -696,6 +696,8 @@ model AccountSubCategory {
   updatedAt   DateTime        @default(now()) @updatedAt
   category    AccountCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   accounts    Account[]
+  groupBudgets GroupBudget[]
+  forecasts    Forecast[]
 
   @@unique([code, categoryId])
   @@index([categoryId])
@@ -893,45 +895,51 @@ model GroupBudgetHeader {
 }
 
 model GroupBudget {
-  id                  String             @id @default(cuid())
+  id                  String              @id @default(cuid())
   name                String
   amount              Int
   periodType          String
   period              String
   fiscalYear          String
   note                String?
-  accountId           String
+  accountId           String?
+  subCategoryId       String?
   groupId             String
   groupBudgetHeaderId String?
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @default(now()) @updatedAt
-  account             Account            @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  header              GroupBudgetHeader? @relation(fields: [groupBudgetHeaderId], references: [id], onDelete: Cascade)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @default(now()) @updatedAt
+  account             Account?            @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  subCategory         AccountSubCategory? @relation(fields: [subCategoryId], references: [id], onDelete: Cascade)
+  header              GroupBudgetHeader?  @relation(fields: [groupBudgetHeaderId], references: [id], onDelete: Cascade)
 
   @@index([groupId])
   @@index([accountId])
+  @@index([subCategoryId])
   @@index([groupBudgetHeaderId])
 }
 
 model Forecast {
-  id              String   @id @default(cuid())
+  id              String              @id @default(cuid())
   name            String
   amount          Int
   periodType      String
   period          String
   fiscalYear      String
-  confidenceLevel String   @default("Medium")
-  forecastMethod  String   @default("manual")
+  confidenceLevel String              @default("Medium")
+  forecastMethod  String              @default("manual")
   growthRate      Float?
   note            String?
-  accountId       String
+  accountId       String?
+  subCategoryId   String?
   groupId         String
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @default(now()) @updatedAt
-  account         Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @default(now()) @updatedAt
+  account         Account?            @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  subCategory     AccountSubCategory? @relation(fields: [subCategoryId], references: [id], onDelete: Cascade)
 
   @@index([groupId])
   @@index([accountId])
+  @@index([subCategoryId])
 }
 
 model Employee {
@@ -960,6 +968,9 @@ model Employee {
   addressInfo        Json?
   emergencyContact   Json?
   note               String?
+  tin                String?
+  fctTaxpayerId      String?
+  annualRent         Int?
   asdraft            Boolean              @default(false)
   entityId           String
   groupId            String // denormalized — extraction handle
@@ -1131,9 +1142,10 @@ model PayrollRecord {
   allowances   Float        @default(0)
   bonus        Float        @default(0)
   overtime     Float        @default(0)
-  statutoryDed Float        @default(0)
-  otherDed     Float        @default(0)
-  grossPay     Float
+  statutoryDed       Float        @default(0)
+  otherDed           Float        @default(0)
+  grossPay           Float
+  deductionBreakdown Json?
   netPay       Float
   entityId     String
   groupId      String

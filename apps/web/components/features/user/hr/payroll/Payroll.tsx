@@ -6,6 +6,7 @@ import { Download } from "lucide-react";
 import PayrollBadges from "./PayrollBadges";
 import PayrollRecords from "./PayrollRecords";
 import ProcessPayrollForm from "./ProcessPayrollForm";
+import PAYEReport from "./PAYEReport";
 import { usePayrollPrefill, useProcessPayroll } from "@/lib/api/hooks/useHR";
 
 export default function Payroll() {
@@ -55,6 +56,11 @@ export default function Payroll() {
             title: "Payroll Records",
             value: "records",
             content: <PayrollRecords />,
+          },
+          {
+            title: "PAYE Report",
+            value: "paye",
+            content: <PAYEReport />,
           },
         ]}
       />

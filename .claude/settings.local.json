@@ -29,7 +29,12 @@
       "PowerShell(Get-ChildItem \"C:\\\\Users\\\\Edeh JayCee\\\\Desktop\\\\projects\\\\xfinance\\\\xfinance\\\\apps\\\\web\\\\lib\\\\api\" -Recurse | Where-Object { $_.Name -match \"auth\" } | Select-Object FullName)",
       "PowerShell(New-Item *)",
       "Bash(npm install *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(node_modules/.bin/tsc --noEmit -p apps/api/tsconfig.json)",
+      "Bash(apps/api/node_modules/.bin/tsc --noEmit -p apps/api/tsconfig.json)",
+      "Bash(apps/web/node_modules/.bin/tsc --noEmit -p apps/web/tsconfig.json)",
+      "Bash(apps/api/node_modules/.bin/tsc -p apps/api/tsconfig.json --noEmit)",
+      "Bash(apps/web/node_modules/.bin/tsc -p apps/web/tsconfig.json --noEmit)"
     ]
   }
 }

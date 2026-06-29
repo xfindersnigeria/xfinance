@@ -197,3 +197,9 @@ export const downloadBatchPdf = async (id: string): Promise<Blob> =>
 
 export const exportBatchCsv = async (id: string): Promise<Blob> =>
   apiBlobClient(`hr-payroll/payroll/${id}/csv`, { method: "GET" });
+
+export const getPayeReport = async (year?: number) =>
+  apiClient(year ? `hr-payroll/payroll/paye-report?year=${year}` : "hr-payroll/payroll/paye-report", { method: "GET" });
+
+export const downloadPayeReportCsv = async (year?: number): Promise<Blob> =>
+  apiBlobClient(year ? `hr-payroll/payroll/paye-report/csv?year=${year}` : "hr-payroll/payroll/paye-report/csv", { method: "GET" });

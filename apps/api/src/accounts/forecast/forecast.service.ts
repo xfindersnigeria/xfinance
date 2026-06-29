@@ -18,30 +18,30 @@ export class ForecastService {
       throw new BadRequestException('At least one forecast line is required');
     }
 
-    const accountIds = dto.lines.map((l) => l.accountId);
-    const validAccounts = await this.prisma.account.findMany({
-      where: { id: { in: accountIds }, groupId },
-      select: { id: true },
-    });
+    const subCatLines = dto.lines.filter((l) => l.subCategoryId);
+    const acctLines = dto.lines.filter((l) => !l.subCategoryId && l.accountId);
 
-    const validIds = new Set(validAccounts.map((a) => a.id));
-    const invalid = accountIds.filter((id) => !validIds.has(id));
-    if (invalid.length) {
-      throw new BadRequestException(
-        `Accounts not found or access denied: ${invalid.join(', ')}`,
-      );
+    if (subCatLines.length) {
+      const ids = subCatLines.map((l) => l.subCategoryId!);
+      const valid = await this.prisma.accountSubCategory.findMany({ where: { id: { in: ids }, groupId }, select: { id: true } });
+      const validSet = new Set(valid.map((s) => s.id));
+      const invalid = ids.filter((id) => !validSet.has(id));
+      if (invalid.length) throw new BadRequestException(`Sub-categories not found: ${invalid.join(', ')}`);
+    }
+
+    if (acctLines.length) {
+      const ids = acctLines.map((l) => l.accountId!);
+      const valid = await this.prisma.account.findMany({ where: { id: { in: ids }, groupId }, select: { id: true } });
+      const validSet = new Set(valid.map((a) => a.id));
+      const invalid = ids.filter((id) => !validSet.has(id));
+      if (invalid.length) throw new BadRequestException(`Accounts not found or access denied: ${invalid.join(', ')}`);
     }
 
     const period = dto.period ?? dto.fiscalYear;
 
     const result = await this.prisma.$transaction(async (tx) => {
       await tx.forecast.deleteMany({
-        where: {
-          groupId,
-          periodType: dto.periodType,
-          period,
-          fiscalYear: dto.fiscalYear,
-        },
+        where: { groupId, periodType: dto.periodType, period, fiscalYear: dto.fiscalYear },
       });
 
       return tx.forecast.createMany({
@@ -55,7 +55,8 @@ export class ForecastService {
           growthRate: line.growthRate ?? null,
           note: dto.note ?? null,
           groupId,
-          accountId: line.accountId,
+          accountId: line.accountId ?? null,
+          subCategoryId: line.subCategoryId ?? null,
           amount: line.amount,
         })),
       });
@@ -110,6 +111,13 @@ export class ForecastService {
               },
             },
           },
+          subCategory: {
+            select: {
+              id: true,
+              name: true,
+              category: { select: { name: true } },
+            },
+          },
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -140,7 +148,9 @@ export class ForecastService {
 
     for (const f of forecasts) {
       const key = `${f.periodType}|${f.period}|${f.fiscalYear}|${f.name}`;
-      const cat = f.account.subCategory?.category?.name ?? '';
+      const cat = f.subCategoryId
+        ? (f.subCategory?.category?.name ?? '')
+        : (f.account?.subCategory?.category?.name ?? '');
       const amountDollars = f.amount / 100;
 
       if (!periodMap.has(key)) {
@@ -214,22 +224,24 @@ export class ForecastService {
             id: true,
             name: true,
             code: true,
-            subCategory: {
-              select: { category: { select: { name: true } } },
-            },
+            subCategory: { select: { category: { select: { name: true } } } },
           },
         },
+        subCategory: {
+          select: { id: true, name: true, code: true, category: { select: { name: true } } },
+        },
       },
-      orderBy: { account: { code: 'asc' } },
+      orderBy: { createdAt: 'asc' },
     });
 
     return {
       lines: lines.map((f) => ({
         id: f.id,
-        accountId: f.accountId,
-        accountCode: f.account.code,
-        accountName: f.account.name,
-        accountCategory: f.account.subCategory?.category?.name ?? '',
+        accountId: f.subCategoryId ?? f.accountId,
+        subCategoryId: f.subCategoryId,
+        accountCode: f.subCategory?.code ?? f.account?.code ?? '',
+        accountName: f.subCategory?.name ?? f.account?.name ?? '',
+        accountCategory: f.subCategory?.category?.name ?? f.account?.subCategory?.category?.name ?? '',
         amount: f.amount / 100,
         growthRate: f.growthRate,
         forecastMethod: f.forecastMethod,

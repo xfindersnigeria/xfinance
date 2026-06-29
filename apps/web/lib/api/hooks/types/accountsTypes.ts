@@ -116,7 +116,8 @@ export interface BudgetHeaderListResponse {
 
 export interface BudgetHeaderLine {
   id: string;
-  accountId: string;
+  accountId?: string;
+  subCategoryId?: string;
   accountCode: string;
   accountName: string;
   accountCategory: string;
@@ -175,7 +176,8 @@ export interface BudgetListResponse {
 // Budget vs Actual (from GET /budget/vs-actual)
 export interface BudgetVsActualItem {
   accountId: string;
-  account: string;      // "6000 – Payroll Expenses"
+  subCategoryId?: string;
+  account: string;
   accountCode: string;
   accountName: string;
   accountCategory: string;
@@ -253,7 +255,7 @@ export interface CreateForecastInput {
   confidenceLevel?: string;
   forecastMethod?: string;
   note?: string;
-  lines: { accountId: string; amount: number; growthRate?: number }[];
+  lines: { accountId?: string; subCategoryId?: string; amount: number; growthRate?: number }[];
 }
 
 // Journal Line Interface

@@ -8,14 +8,13 @@ import { SubscriptionService } from '@/subscription/subscription.service';
 import { MenuService } from '@/menu/menu.service';
 import { PubsubService } from '@/cache/pubsub.service';
 import { EmailService } from '@/email/email.service';
-
-
 import { BullmqModule } from '@/bullmq/bullmq.module';
+import { BullmqService } from '@/bullmq/bullmq.service';
 import { PdfModule } from '@/pdf/pdf.module';
 
 @Module({
   imports: [PrismaModule, BullmqModule, PdfModule],
-  providers: [PayrollService, AuthService, MenuService, SubscriptionService, CacheService, PubsubService, EmailService],
+  providers: [PayrollService, AuthService, MenuService, SubscriptionService, CacheService, PubsubService, EmailService, BullmqService],
   controllers: [PayrollController],
 })
 export class PayrollModule {}

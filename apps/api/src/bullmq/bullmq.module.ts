@@ -7,6 +7,7 @@ import { EmailService } from '@/email/email.service';
 import { OpeningBalanceModule } from '@/accounts/opening-balance/opening-balance.module';
 import { JournalModule } from '@/accounts/journal/journal.module';
 import { CacheService } from '@/cache/cache.service';
+import { PdfModule } from '@/pdf/pdf.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { CacheService } from '@/cache/cache.service';
     }),
     BullModule.registerQueue({ name: 'default' }),
     PrismaModule,
+    PdfModule,
     forwardRef(() => OpeningBalanceModule),
     forwardRef(() => JournalModule),
   ],

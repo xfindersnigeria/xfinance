@@ -177,6 +177,14 @@ export class BudgetController {
     return this.budgetService.getGroupPreviousPeriod(groupId, { periodType, period: period ?? '', fiscalYear });
   }
 
+  @Get('group/sub-categories')
+  @ApiOperation({ summary: 'Get all account sub-categories for the group (for group budget/forecast form)' })
+  async getGroupSubCategories(@Req() req: Request) {
+    const groupId = getEffectiveGroupId(req);
+    if (!groupId) throw new BadRequestException('Group ID is required');
+    return this.budgetService.getGroupSubCategories(groupId);
+  }
+
   @Get('group/accounts')
   @ApiOperation({ summary: 'Get all accounts for the group (for group budget form)' })
   async getGroupAccounts(@Req() req: Request) {

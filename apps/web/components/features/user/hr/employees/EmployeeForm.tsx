@@ -92,6 +92,9 @@ export default function EmployeeForm({
       emergencyContactPhone: employee?.emergencyContactPhone || "",
       emergencyContactRelationship:
         employee?.emergencyContactRelationship || "",
+      tin: employee?.tin || "",
+      fctTaxpayerId: employee?.fctTaxpayerId || "",
+      annualRent: employee?.annualRent || 0,
       note: employee?.note || "",
     },
   });
@@ -130,6 +133,9 @@ export default function EmployeeForm({
         emergencyContactPhone: employee?.emergencyContactPhone || "",
         emergencyContactRelationship:
           employee?.emergencyContactRelationship || "",
+        tin: employee?.tin || "",
+        fctTaxpayerId: employee?.fctTaxpayerId || "",
+        annualRent: employee?.annualRent || 0,
         note: employee?.note || "",
       });
     }
@@ -172,6 +178,9 @@ export default function EmployeeForm({
       formData.append("acountType", values.accountType || "");
       formData.append("accountNumber", values.accountNumber || "");
       formData.append("routingNumber", values.routingNumber || "");
+      formData.append("tin", values.tin || "");
+      formData.append("fctTaxpayerId", values.fctTaxpayerId || "");
+      formData.append("annualRent", String(Math.round(Number(values.annualRent) || 0)));
       formData.append("note", values.note || "");
 
       // Address Info as JSON
@@ -607,6 +616,55 @@ export default function EmployeeForm({
                     <FormControl>
                       <Input placeholder="Routing number" {...field} />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </div>
+
+          {/* Tax Information (PAYE) */}
+          <div className="bg-green-50 p-4 rounded-xl">
+            <h6 className="font-medium text-sm mb-2 flex items-center gap-2">
+              <span className="text-lg">🧾</span> Tax Information (PAYE)
+            </h6>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <FormField
+                control={form.control}
+                name="tin"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tax Identification Number (TIN)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. 12345678" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="fctTaxpayerId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>FCT Taxpayer ID</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. FCT-12345" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="annualRent"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Annual Rent Paid (₦)</FormLabel>
+                    <FormControl>
+                      <Input type="number" min={0} max={500000} step="1" placeholder="0.00" {...field} />
+                    </FormControl>
+                    <div className="text-xs text-muted-foreground">Used for rent relief (max ₦500,000)</div>
                     <FormMessage />
                   </FormItem>
                 )}

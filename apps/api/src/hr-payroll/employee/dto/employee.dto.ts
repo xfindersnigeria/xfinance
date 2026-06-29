@@ -165,6 +165,20 @@ export class CreateEmployeeDto {
   @IsOptional()
   emergencyContact?: EmergencyContactDto;
 
+  @ApiProperty({ example: '12345678', description: 'Tax Identification Number' })
+  @IsString()
+  @IsOptional()
+  tin?: string;
+
+  @ApiProperty({ example: 'FCT-12345', description: 'FCT Taxpayer ID' })
+  @IsString()
+  @IsOptional()
+  fctTaxpayerId?: string;
+
+  @ApiProperty({ example: 300000, description: 'Annual rent paid (used for rent relief, max ₦500,000)' })
+  @IsOptional()
+  annualRent?: number;
+
   @ApiProperty({ example: 'Additional notes', description: 'Notes' })
   @IsString()
   @IsOptional()

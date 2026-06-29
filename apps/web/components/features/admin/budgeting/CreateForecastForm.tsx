@@ -38,7 +38,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { useGroupBudgetAccounts, useCreateForecast } from "@/lib/api/hooks/useAccounts";
+import { useGroupBudgetSubCategories, useCreateForecast } from "@/lib/api/hooks/useAccounts";
 import { useGroupCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -86,7 +86,7 @@ type ForecastMethod = "manual" | "growth_rate" | "ai";
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
 const lineSchema = z.object({
-  accountId: z.string().min(1, "Account is required"),
+  subCategoryId: z.string().min(1, "Sub-category is required"),
   amount: z.string().min(1, "Amount is required"),
   growthRate: z.string().optional(),
 });
@@ -145,7 +145,7 @@ function MethodCard({
       }`}
     >
       <div
-        className={`mt-0.5 w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
+        className={`mt-0.5 w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${
           selected ? "border-purple-600" : "border-gray-300"
         }`}
       >
@@ -168,10 +168,10 @@ export function CreateForecastForm() {
   const sym = useGroupCurrencySymbol();
   const [method, setMethod] = useState<ForecastMethod>("manual");
 
-  const { data: accountsData, isLoading: accountsLoading } = useGroupBudgetAccounts();
-  const accounts = useMemo<{ id: string; name: string; code: string; categoryName: string; subCategoryName: string }[]>(
-    () => (accountsData as any)?.data ?? [],
-    [accountsData],
+  const { data: subCatsData, isLoading: accountsLoading } = useGroupBudgetSubCategories();
+  const accounts = useMemo<{ id: string; name: string; code: string; categoryName: string }[]>(
+    () => (subCatsData as any)?.data ?? [],
+    [subCatsData],
   );
 
   const createForecast = useCreateForecast();
@@ -185,7 +185,7 @@ export function CreateForecastForm() {
       name: "",
       confidenceLevel: "Medium",
       note: "",
-      lines: [{ accountId: "", amount: "", growthRate: "" }],
+      lines: [{ subCategoryId: "", amount: "", growthRate: "" }],
     },
   });
 
@@ -202,10 +202,8 @@ export function CreateForecastForm() {
     [watchedLines],
   );
 
-  const getAccountCategory = (id: string) => {
-    const acc = accounts.find((a) => a.id === id);
-    return acc?.categoryName ?? "";
-  };
+  const getAccountCategory = (id: string) =>
+    accounts.find((a) => a.id === id)?.categoryName ?? "";
 
   const handlePeriodTypeChange = (v: string) => {
     form.setValue("periodType", v);
@@ -232,7 +230,7 @@ export function CreateForecastForm() {
         forecastMethod: method,
         note: values.note,
         lines: values.lines.map((l) => ({
-          accountId: l.accountId,
+          subCategoryId: l.subCategoryId,
           amount: Math.round(parseFloat(l.amount) * 100),
           growthRate: l.growthRate ? parseFloat(l.growthRate) : undefined,
         })),
@@ -482,7 +480,7 @@ export function CreateForecastForm() {
                 size="sm"
                 className="gap-1.5 text-xs bg-purple-600 hover:bg-purple-700 text-white"
                 onClick={() =>
-                  append({ accountId: "", amount: "", growthRate: "" })
+                  append({ subCategoryId: "", amount: "", growthRate: "" })
                 }
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -499,7 +497,7 @@ export function CreateForecastForm() {
               }`}
             >
               {[
-                "Account",
+                "Sub-Category",
                 "Type",
                 `Forecast Amount (${sym})`,
                 ...(method === "growth_rate" ? ["Growth Rate (%)"] : []),
@@ -516,8 +514,8 @@ export function CreateForecastForm() {
 
             <div className="divide-y divide-gray-50">
               {fields.map((field, i) => {
-                const accountId = watchedLines[i]?.accountId ?? "";
-                const category = getAccountCategory(accountId);
+                const subCategoryId = watchedLines[i]?.subCategoryId ?? "";
+                const category = getAccountCategory(subCategoryId);
                 const badgeClass =
                   CATEGORY_BADGE[category] ?? "bg-gray-100 text-gray-700";
 
@@ -532,7 +530,7 @@ export function CreateForecastForm() {
                   >
                     <FormField
                       control={form.control}
-                      name={`lines.${i}.accountId`}
+                      name={`lines.${i}.subCategoryId`}
                       render={({ field: f }) => (
                         <FormItem className="mb-0">
                           <FormControl>
@@ -546,7 +544,7 @@ export function CreateForecastForm() {
                                   placeholder={
                                     accountsLoading
                                       ? "Loading..."
-                                      : "Select account"
+                                      : "Select sub-category"
                                   }
                                 />
                               </SelectTrigger>
@@ -557,7 +555,8 @@ export function CreateForecastForm() {
                                     value={acc.id}
                                     className="text-xs"
                                   >
-                                    {acc.code} - {acc.name}
+                                    {acc.name}
+                                    <span className="text-gray-400 ml-1">({acc.categoryName})</span>
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -664,7 +663,7 @@ export function CreateForecastForm() {
               <div className="text-right">
                 <p className="text-xs text-gray-400">Forecast Lines</p>
                 <p className="text-sm font-medium text-gray-700">
-                  {fields.length} account{fields.length !== 1 ? "s" : ""}
+                  {fields.length} sub-categor{fields.length !== 1 ? "ies" : "y"}
                 </p>
               </div>
             </div>

@@ -10,10 +10,15 @@ import {
 import { ApiProperty, PartialType } from '@nestjs/swagger';
 
 export class BudgetLineDto {
-  @ApiProperty({ example: 'clxyzacc001', description: 'Account ID' })
+  @ApiProperty({ example: 'clxyzacc001', description: 'Account ID (entity budgets)', required: false })
   @IsString()
-  @IsNotEmpty()
-  accountId: string;
+  @IsOptional()
+  accountId?: string;
+
+  @ApiProperty({ example: 'clxyzsub001', description: 'Sub-category ID (group budgets)', required: false })
+  @IsString()
+  @IsOptional()
+  subCategoryId?: string;
 
   @ApiProperty({
     example: 250000,

@@ -43,6 +43,11 @@ export const employeeSchema = z.object({
   emergencyContactPhone: z.string().optional(),
   emergencyContactRelationship: z.string().optional(),
 
+  // Tax Information (PAYE)
+  tin: z.string().optional(),
+  fctTaxpayerId: z.string().optional(),
+  annualRent: z.coerce.number().min(0).max(500000).optional(),
+
   // Additional Information
   note: z.string().optional(),
 });

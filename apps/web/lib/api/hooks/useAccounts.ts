@@ -383,6 +383,14 @@ export const useGroupBudgetAccounts = () => {
   });
 };
 
+export const useGroupBudgetSubCategories = () => {
+  return useQuery({
+    queryKey: ["budget", "group", "sub-categories"],
+    queryFn: () => accountsService.getGroupBudgetSubCategories() as Promise<{ data: { id: string; name: string; code: string; categoryName: string }[] }>,
+    staleTime: 5 * 60 * 1000,
+  });
+};
+
 export const useGroupBudgetVsActual = (params?: {
   periodType?: string;
   period?: string;

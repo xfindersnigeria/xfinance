@@ -14,6 +14,7 @@ import { BadRequestException } from '@nestjs/common';
 import { OpeningBalanceService } from '@/accounts/opening-balance/opening-balance.service';
 import { generateJournalReference } from '@/auth/utils/helper';
 import { CacheService } from '@/cache/cache.service';
+import { PdfService } from '@/pdf/pdf.service';
 
 @Processor('default')
 @Injectable()
@@ -25,6 +26,7 @@ export class BullmqProcessor extends WorkerHost {
     private readonly emailService: EmailService,
     private readonly openingBalanceService: OpeningBalanceService,
     private cacheService: CacheService,
+    private readonly pdfService: PdfService,
   ) {
     super();
   }
@@ -102,6 +104,8 @@ export class BullmqProcessor extends WorkerHost {
       return this.handleAssignTierModules(job);
     } else if (job.name === 'mark-attendance-batch') {
       return this.handleMarkAttendanceBatch(job);
+    } else if (job.name === 'send-payslip-emails') {
+      return this.handleSendPayslipEmails(job);
     } else {
       this.logger.warn(`[Job ${job.id}] Unknown job type: ${job.name}`);
     }
@@ -2421,5 +2425,85 @@ export class BullmqProcessor extends WorkerHost {
       );
       throw error; // Rethrow to trigger retry
     }
+  }
+
+  async handleSendPayslipEmails(job: Job) {
+    const { batchId, entityId } = job.data as { batchId: string; entityId: string; groupId: string };
+    this.logger.log(`[Job ${job.id}] Sending payslip emails for batch ${batchId}`);
+
+    const batch = await this.prisma.payrollBatch.findFirst({
+      where: { id: batchId },
+      include: {
+        records: {
+          include: {
+            employee: {
+              select: {
+                id: true, firstName: true, lastName: true, position: true,
+                employeeId: true, email: true, bankName: true, acountType: true,
+                accountNumber: true, currency: true, dept: { select: { name: true } },
+              },
+            },
+            entity: { select: { name: true, logo: true, address: true, email: true, currency: true } },
+          },
+        },
+      },
+    });
+
+    if (!batch) {
+      this.logger.warn(`[Job ${job.id}] Batch ${batchId} not found, skipping`);
+      return;
+    }
+
+    const primaryColor = (
+      await this.prisma.groupCustomization.findFirst({
+        where: { groupId: batch.groupId },
+        select: { primaryColor: true },
+      })
+    )?.primaryColor ?? '#4152B6';
+
+    let sent = 0;
+    for (const record of batch.records) {
+      const employeeEmail = record.employee?.email;
+      if (!employeeEmail) continue;
+
+      try {
+        const recordData = {
+          ...record,
+          batch: { batchName: batch.batchName, period: batch.period, paymentDate: batch.paymentDate, paymentMethod: batch.paymentMethod, status: batch.status },
+        };
+        const pdfBuffer = await this.pdfService.generate('payslip', { record: recordData, primaryColor });
+
+        const employeeName = `${record.employee.firstName} ${record.employee.lastName}`;
+        const entityName = (record.entity as any)?.name ?? 'Your Employer';
+        const period = batch.period ?? '';
+
+        const html = `
+          <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1a1a1a">
+            <h2 style="color:${primaryColor};margin-bottom:8px">Payslip — ${period}</h2>
+            <p>Dear ${employeeName},</p>
+            <p>Please find attached your payslip for the period <strong>${period}</strong> from <strong>${entityName}</strong>.</p>
+            <p>Your net pay for this period is <strong>${record.employee.currency ?? ''} ${Number(record.netPay).toLocaleString('en-NG', { minimumFractionDigits: 2 })}</strong>.</p>
+            <p style="margin-top:24px;color:#666;font-size:12px">This is an automatically generated email. Please contact HR if you have any questions.</p>
+          </div>`;
+
+        await this.emailService.sendEmailWithAttachment({
+          to: employeeEmail,
+          toName: employeeName,
+          senderName: entityName,
+          subject: `Your Payslip for ${period} — ${entityName}`,
+          html,
+          attachment: pdfBuffer,
+          attachmentName: `payslip-${record.employee.employeeId ?? record.employee.id}-${period.replace(/\s+/g, '-')}.pdf`,
+        });
+
+        sent++;
+        this.logger.log(`[Job ${job.id}] ✓ Payslip sent to ${employeeEmail}`);
+      } catch (err) {
+        this.logger.error(`[Job ${job.id}] ✗ Failed to send payslip to ${employeeEmail}: ${err}`);
+      }
+    }
+
+    this.logger.log(`[Job ${job.id}] Payslip emails done: ${sent}/${batch.records.length} sent`);
+    return { sent, total: batch.records.length };
   }
 }

@@ -113,7 +113,7 @@ export class BudgetService {
       throw new BadRequestException('At least one budget line is required');
     }
 
-    const accountIds = dto.lines.map((l) => l.accountId);
+    const accountIds = dto.lines.map((l) => l.accountId!).filter(Boolean);
     const validAccounts = await this.prisma.account.findMany({
       where: { id: { in: accountIds }, entityId },
       select: { id: true },
@@ -152,7 +152,7 @@ export class BudgetService {
           note: dto.note ?? null,
           entityId,
           groupId,
-          accountId: line.accountId,
+          accountId: line.accountId!,
           amount: line.amount,
           budgetHeaderId: header.id,
         })),
@@ -280,7 +280,7 @@ export class BudgetService {
         const name = dto.name ?? existing.name;
 
         // Validate accounts
-        const accountIds = dto.lines.map((l) => l.accountId);
+        const accountIds = dto.lines.map((l) => l.accountId!).filter(Boolean);
         const validAccounts = await tx.account.findMany({
           where: { id: { in: accountIds }, entityId },
           select: { id: true },
@@ -302,7 +302,7 @@ export class BudgetService {
             note: dto.note ?? existing.note ?? null,
             entityId,
             groupId,
-            accountId: line.accountId,
+            accountId: line.accountId!,
             amount: line.amount,
             budgetHeaderId: headerId,
           })),
@@ -549,16 +549,34 @@ export class BudgetService {
       throw new BadRequestException('At least one budget line is required');
     }
 
-    const accountIds = dto.lines.map((l) => l.accountId);
-    const validAccounts = await this.prisma.account.findMany({
-      where: { id: { in: accountIds }, groupId },
-      select: { id: true },
-    });
+    // Validate: each line must have either subCategoryId or accountId
+    const subCatLines = dto.lines.filter((l) => l.subCategoryId);
+    const acctLines = dto.lines.filter((l) => !l.subCategoryId && l.accountId);
 
-    const validIds = new Set(validAccounts.map((a) => a.id));
-    const invalid = accountIds.filter((id) => !validIds.has(id));
-    if (invalid.length) {
-      throw new BadRequestException(`Accounts not found or access denied: ${invalid.join(', ')}`);
+    if (subCatLines.length) {
+      const subCatIds = subCatLines.map((l) => l.subCategoryId!);
+      const valid = await this.prisma.accountSubCategory.findMany({
+        where: { id: { in: subCatIds }, groupId },
+        select: { id: true },
+      });
+      const validSet = new Set(valid.map((s) => s.id));
+      const invalid = subCatIds.filter((id) => !validSet.has(id));
+      if (invalid.length) {
+        throw new BadRequestException(`Sub-categories not found: ${invalid.join(', ')}`);
+      }
+    }
+
+    if (acctLines.length) {
+      const accountIds = acctLines.map((l) => l.accountId!);
+      const valid = await this.prisma.account.findMany({
+        where: { id: { in: accountIds }, groupId },
+        select: { id: true },
+      });
+      const validSet = new Set(valid.map((a) => a.id));
+      const invalid = accountIds.filter((id) => !validSet.has(id));
+      if (invalid.length) {
+        throw new BadRequestException(`Accounts not found or access denied: ${invalid.join(', ')}`);
+      }
     }
 
     const period = dto.month ?? dto.fiscalYear;
@@ -583,7 +601,8 @@ export class BudgetService {
           fiscalYear: dto.fiscalYear,
           note: dto.note ?? null,
           groupId,
-          accountId: line.accountId,
+          accountId: line.accountId ?? null,
+          subCategoryId: line.subCategoryId ?? null,
           amount: line.amount,
           groupBudgetHeaderId: header.id,
         })),
@@ -613,7 +632,7 @@ export class BudgetService {
       this.prisma.groupBudgetHeader.count({ where }),
       this.prisma.groupBudgetHeader.findMany({
         where,
-        include: { lines: { select: { amount: true, accountId: true } } },
+        include: { lines: { select: { amount: true, accountId: true, subCategoryId: true } } },
         orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
@@ -629,7 +648,7 @@ export class BudgetService {
         fiscalYear: h.fiscalYear,
         note: h.note,
         totalAmount: h.lines.reduce((s, l) => s + l.amount / 100, 0),
-        accountCount: new Set(h.lines.map((l) => l.accountId)).size,
+        accountCount: new Set(h.lines.map((l) => l.subCategoryId ?? l.accountId)).size,
         createdAt: h.createdAt,
       })),
       total,
@@ -644,8 +663,10 @@ export class BudgetService {
       where: { id: headerId, groupId },
       include: {
         lines: {
-          include: { account: { select: ACCOUNT_SELECT } },
-          orderBy: { account: { code: 'asc' } },
+          include: {
+            account: { select: ACCOUNT_SELECT },
+            subCategory: { select: { id: true, code: true, name: true, category: { select: { name: true } } } },
+          },
         },
       },
     });
@@ -662,9 +683,10 @@ export class BudgetService {
       lines: header.lines.map((l) => ({
         id: l.id,
         accountId: l.accountId,
-        accountCode: l.account.code,
-        accountName: l.account.name,
-        accountCategory: l.account.subCategory?.category?.name ?? '',
+        subCategoryId: l.subCategoryId,
+        accountCode: l.subCategory?.code ?? l.account?.code ?? '',
+        accountName: l.subCategory?.name ?? l.account?.name ?? '',
+        accountCategory: l.subCategory?.category?.name ?? l.account?.subCategory?.category?.name ?? '',
         amount: l.amount / 100,
       })),
     };
@@ -692,14 +714,24 @@ export class BudgetService {
         const fiscalYear = dto.fiscalYear ?? existing.fiscalYear;
         const name = dto.name ?? existing.name;
 
-        const accountIds = dto.lines.map((l) => l.accountId);
-        const validAccounts = await tx.account.findMany({
-          where: { id: { in: accountIds }, groupId },
-          select: { id: true },
-        });
-        const validIds = new Set(validAccounts.map((a) => a.id));
-        const invalid = accountIds.filter((id) => !validIds.has(id));
-        if (invalid.length) throw new BadRequestException(`Accounts not found: ${invalid.join(', ')}`);
+        const subCatLines = dto.lines.filter((l) => l.subCategoryId);
+        const acctLines = dto.lines.filter((l) => !l.subCategoryId && l.accountId);
+
+        if (subCatLines.length) {
+          const ids = subCatLines.map((l) => l.subCategoryId!);
+          const valid = await tx.accountSubCategory.findMany({ where: { id: { in: ids }, groupId }, select: { id: true } });
+          const validSet = new Set(valid.map((s) => s.id));
+          const invalid = ids.filter((id) => !validSet.has(id));
+          if (invalid.length) throw new BadRequestException(`Sub-categories not found: ${invalid.join(', ')}`);
+        }
+
+        if (acctLines.length) {
+          const ids = acctLines.map((l) => l.accountId!);
+          const valid = await tx.account.findMany({ where: { id: { in: ids }, groupId }, select: { id: true } });
+          const validSet = new Set(valid.map((a) => a.id));
+          const invalid = ids.filter((id) => !validSet.has(id));
+          if (invalid.length) throw new BadRequestException(`Accounts not found: ${invalid.join(', ')}`);
+        }
 
         await tx.groupBudget.deleteMany({ where: { groupBudgetHeaderId: headerId } });
         await tx.groupBudget.createMany({
@@ -710,7 +742,8 @@ export class BudgetService {
             fiscalYear,
             note: dto.note ?? existing.note ?? null,
             groupId,
-            accountId: line.accountId,
+            accountId: line.accountId ?? null,
+            subCategoryId: line.subCategoryId ?? null,
             amount: line.amount,
             groupBudgetHeaderId: headerId,
           })),
@@ -751,6 +784,9 @@ export class BudgetService {
             subCategory: { select: { category: { select: { name: true } } } },
           },
         },
+        subCategory: {
+          select: { id: true, name: true, code: true, category: { select: { name: true } } },
+        },
       },
     });
 
@@ -758,39 +794,99 @@ export class BudgetService {
       return { data: [], summary: { totalBudgeted: 0, totalActual: 0, totalVariance: 0 }, periodType, period, fiscalYear };
     }
 
-    const budgetMap = new Map<string, { accountId: string; accountCode: string; accountName: string; categoryName: string; budgetedCents: number }>();
-    for (const b of budgets) {
-      const cat = b.account.subCategory?.category?.name ?? '';
-      const existing = budgetMap.get(b.accountId);
-      if (existing) { existing.budgetedCents += b.amount; }
-      else { budgetMap.set(b.accountId, { accountId: b.accountId, accountCode: b.account.code, accountName: b.account.name, categoryName: cat, budgetedCents: b.amount }); }
-    }
-
     const { start, end } = showAll ? getDateRange('Yearly', '', fiscalYear) : getDateRange(periodType, period, fiscalYear);
 
-    const txGroups = await this.prisma.accountTransaction.groupBy({
-      by: ['accountId'],
-      where: { groupId, accountId: { in: [...budgetMap.keys()] }, date: { gte: start, lte: end } },
-      _sum: { debitAmount: true, creditAmount: true },
-    });
+    // ── Subcategory-based budgets ──────────────────────────────────────────────
+    const subCatBudgets = budgets.filter((b) => b.subCategoryId);
+    const subCatMap = new Map<string, { subCategoryId: string; name: string; code: string; categoryName: string; budgetedCents: number }>();
+    for (const b of subCatBudgets) {
+      const cat = b.subCategory?.category?.name ?? '';
+      const existing = subCatMap.get(b.subCategoryId!);
+      if (existing) { existing.budgetedCents += b.amount; }
+      else { subCatMap.set(b.subCategoryId!, { subCategoryId: b.subCategoryId!, name: b.subCategory?.name ?? '', code: b.subCategory?.code ?? '', categoryName: cat, budgetedCents: b.amount }); }
+    }
 
-    const txMap = new Map(txGroups.map((g) => [g.accountId, { debit: g._sum.debitAmount ?? 0, credit: g._sum.creditAmount ?? 0 }]));
+    // ── Account-based budgets (legacy) ─────────────────────────────────────────
+    const acctBudgets = budgets.filter((b) => !b.subCategoryId && b.accountId);
+    const acctMap = new Map<string, { accountId: string; accountCode: string; accountName: string; categoryName: string; budgetedCents: number }>();
+    for (const b of acctBudgets) {
+      const cat = b.account?.subCategory?.category?.name ?? '';
+      const existing = acctMap.get(b.accountId!);
+      if (existing) { existing.budgetedCents += b.amount; }
+      else { acctMap.set(b.accountId!, { accountId: b.accountId!, accountCode: b.account?.code ?? '', accountName: b.account?.name ?? '', categoryName: cat, budgetedCents: b.amount }); }
+    }
 
     let totalBudgeted = 0;
     let totalActual = 0;
+    const data: any[] = [];
 
-    const data = [...budgetMap.values()].map((b) => {
-      const tx = txMap.get(b.accountId) ?? { debit: 0, credit: 0 };
-      const isCreditNormal = CREDIT_NORMAL.has(b.categoryName);
-      const actualCents = Math.max(0, isCreditNormal ? tx.credit - tx.debit : tx.debit - tx.credit);
-      const budgeted = b.budgetedCents / 100;
-      const actual = actualCents / 100;
-      const variance = budgeted - actual;
-      const variancePercentage = budgeted !== 0 ? parseFloat(((variance / budgeted) * 100).toFixed(2)) : 0;
-      totalBudgeted += budgeted;
-      totalActual += actual;
-      return { accountId: b.accountId, account: `${b.accountCode} – ${b.accountName}`, accountCode: b.accountCode, accountName: b.accountName, accountCategory: b.categoryName, budgeted, actual, variance, variancePercentage };
-    });
+    // ── Resolve actuals for subcategory-based budgets ─────────────────────────
+    if (subCatMap.size > 0) {
+      const subCategoryIds = [...subCatMap.keys()];
+      const accountsInSubCats = await this.prisma.account.findMany({
+        where: { subCategoryId: { in: subCategoryIds }, groupId },
+        select: { id: true, subCategoryId: true },
+      });
+
+      const subCatToAccounts = new Map<string, string[]>();
+      for (const acc of accountsInSubCats) {
+        const arr = subCatToAccounts.get(acc.subCategoryId) ?? [];
+        arr.push(acc.id);
+        subCatToAccounts.set(acc.subCategoryId, arr);
+      }
+
+      const allSubCatAccountIds = accountsInSubCats.map((a) => a.id);
+      const subCatTxGroups = await this.prisma.accountTransaction.groupBy({
+        by: ['accountId'],
+        where: { groupId, accountId: { in: allSubCatAccountIds }, date: { gte: start, lte: end } },
+        _sum: { debitAmount: true, creditAmount: true },
+      });
+
+      const acctTxMap = new Map(subCatTxGroups.map((g) => [g.accountId, { debit: g._sum.debitAmount ?? 0, credit: g._sum.creditAmount ?? 0 }]));
+
+      for (const b of subCatMap.values()) {
+        const accountIds = subCatToAccounts.get(b.subCategoryId) ?? [];
+        let totalDebit = 0, totalCredit = 0;
+        for (const aid of accountIds) {
+          const tx = acctTxMap.get(aid) ?? { debit: 0, credit: 0 };
+          totalDebit += tx.debit;
+          totalCredit += tx.credit;
+        }
+        const isCreditNormal = CREDIT_NORMAL.has(b.categoryName);
+        const actualCents = Math.max(0, isCreditNormal ? totalCredit - totalDebit : totalDebit - totalCredit);
+        const budgeted = b.budgetedCents / 100;
+        const actual = actualCents / 100;
+        const variance = budgeted - actual;
+        const variancePercentage = budgeted !== 0 ? parseFloat(((variance / budgeted) * 100).toFixed(2)) : 0;
+        totalBudgeted += budgeted;
+        totalActual += actual;
+        data.push({ subCategoryId: b.subCategoryId, accountId: b.subCategoryId, account: b.name, accountCode: b.code, accountName: b.name, accountCategory: b.categoryName, budgeted, actual, variance, variancePercentage });
+      }
+    }
+
+    // ── Resolve actuals for legacy account-based budgets ──────────────────────
+    if (acctMap.size > 0) {
+      const txGroups = await this.prisma.accountTransaction.groupBy({
+        by: ['accountId'],
+        where: { groupId, accountId: { in: [...acctMap.keys()] }, date: { gte: start, lte: end } },
+        _sum: { debitAmount: true, creditAmount: true },
+      });
+
+      const txMap = new Map(txGroups.map((g) => [g.accountId, { debit: g._sum.debitAmount ?? 0, credit: g._sum.creditAmount ?? 0 }]));
+
+      for (const b of acctMap.values()) {
+        const tx = txMap.get(b.accountId) ?? { debit: 0, credit: 0 };
+        const isCreditNormal = CREDIT_NORMAL.has(b.categoryName);
+        const actualCents = Math.max(0, isCreditNormal ? tx.credit - tx.debit : tx.debit - tx.credit);
+        const budgeted = b.budgetedCents / 100;
+        const actual = actualCents / 100;
+        const variance = budgeted - actual;
+        const variancePercentage = budgeted !== 0 ? parseFloat(((variance / budgeted) * 100).toFixed(2)) : 0;
+        totalBudgeted += budgeted;
+        totalActual += actual;
+        data.push({ subCategoryId: null, accountId: b.accountId, account: `${b.accountCode} – ${b.accountName}`, accountCode: b.accountCode, accountName: b.accountName, accountCategory: b.categoryName, budgeted, actual, variance, variancePercentage });
+      }
+    }
 
     return { data, summary: { totalBudgeted, totalActual, totalVariance: totalBudgeted - totalActual }, periodType, period, fiscalYear };
   }
@@ -801,14 +897,39 @@ export class BudgetService {
 
     const budgets = await this.prisma.groupBudget.findMany({
       where: { groupId, periodType, period: prev.period, fiscalYear: prev.fiscalYear },
-      include: { account: { select: { id: true, name: true, code: true } } },
-      orderBy: { account: { code: 'asc' } },
+      include: {
+        account: { select: { id: true, name: true, code: true } },
+        subCategory: { select: { id: true, name: true, code: true } },
+      },
     });
 
     return {
       period: prev.period,
       fiscalYear: prev.fiscalYear,
-      lines: budgets.map((b) => ({ accountId: b.accountId, accountCode: b.account.code, accountName: b.account.name, amount: b.amount / 100 })),
+      lines: budgets.map((b) => ({
+        accountId: b.subCategoryId ?? b.accountId,
+        subCategoryId: b.subCategoryId,
+        accountCode: b.subCategory?.code ?? b.account?.code ?? '',
+        accountName: b.subCategory?.name ?? b.account?.name ?? '',
+        amount: b.amount / 100,
+      })),
+    };
+  }
+
+  /** Sub-categories scoped to a group (for group budget/forecast form) */
+  async getGroupSubCategories(groupId: string) {
+    const subCats = await this.prisma.accountSubCategory.findMany({
+      where: { groupId },
+      include: { category: { select: { name: true } } },
+      orderBy: [{ category: { name: 'asc' } }, { name: 'asc' }],
+    });
+    return {
+      data: subCats.map((s) => ({
+        id: s.id,
+        code: s.code,
+        name: s.name,
+        categoryName: s.category.name,
+      })),
     };
   }
 

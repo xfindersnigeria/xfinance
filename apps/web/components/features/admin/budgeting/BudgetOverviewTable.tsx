@@ -13,6 +13,16 @@ import { CustomTable, Column } from '@/components/local/custom/custom-table';
 import { useGroupBudgetVsActual } from '@/lib/api/hooks/useAccounts';
 import { useGroupCurrencySymbol, fmtAmountCompact } from '@/lib/api/hooks/useCurrencyFormat';
 import type { BudgetVsActualItem } from '@/lib/api/hooks/types/accountsTypes';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -54,7 +64,7 @@ export function BudgetOverviewTable() {
 
   const rows: BudgetRow[] = (vsActualResponse?.data ?? []).map((item) => ({
     ...item,
-    id: item.accountId,
+    id: item.subCategoryId ?? item.accountId,
   }));
 
   const summary = vsActualResponse?.summary;
@@ -69,7 +79,7 @@ export function BudgetOverviewTable() {
   const columns: Column<BudgetRow>[] = [
     {
       key: 'account',
-      title: 'Account',
+      title: 'Sub-Category',
       render: (v: string) => <span className="text-sm font-medium">{v}</span>,
     },
     {
@@ -162,8 +172,48 @@ export function BudgetOverviewTable() {
     </div>
   );
 
+  const chartData = rows.map((r) => ({
+    name: r.accountName.length > 20 ? r.accountName.slice(0, 18) + '…' : r.accountName,
+    fullName: r.accountName,
+    Budgeted: r.budgeted,
+    Actual: r.actual,
+  }));
+
   return (
     <div className="space-y-4">
+      {/* Comparison Bar Chart */}
+      {rows.length > 0 && (
+        <div className="bg-white border rounded-xl p-4">
+          <div className="text-sm font-semibold text-gray-700 mb-1">Budget vs Actual — Sub-Category Comparison</div>
+          <div className="text-xs text-muted-foreground mb-3">
+            Budgeted amounts compared to actual utilisation across all entities
+          </div>
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 60 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis
+                dataKey="name"
+                tick={{ fontSize: 10 }}
+                angle={-35}
+                textAnchor="end"
+                interval={0}
+              />
+              <YAxis
+                tick={{ fontSize: 10 }}
+                tickFormatter={(v) => fmtAmountCompact(v, sym)}
+              />
+              <Tooltip
+                formatter={(value: number, name: string) => [fmtAmountCompact(value, sym), name]}
+                labelFormatter={(label, payload) => payload?.[0]?.payload?.fullName ?? label}
+              />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Bar dataKey="Budgeted" fill="#22c55e" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="Actual" fill="#3b82f6" radius={[3, 3, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
       {/* Summary cards */}
       {summary && rows.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

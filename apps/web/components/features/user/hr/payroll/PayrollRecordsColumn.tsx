@@ -20,7 +20,11 @@ function PayslipModal({ row }: { row: any }) {
   const downloadPdf = useDownloadPayslip();
 
   const sym = useEntityCurrencySymbol();
-  const fmt = (n?: number) => n !== undefined ? `${sym}${n.toLocaleString()}` : "—";
+  const fmt = (n?: number | null) => (n != null ? `${sym}${Number(n).toLocaleString("en-NG", { minimumFractionDigits: 2 })}` : "—");
+
+  const breakdown = record?.deductionBreakdown as { statutory?: any[]; other?: any[] } | undefined;
+  const statutoryLines: any[] = breakdown?.statutory ?? [];
+  const otherLines: any[] = breakdown?.other ?? [];
 
   return (
     <>
@@ -35,106 +39,125 @@ function PayslipModal({ row }: { row: any }) {
         open={isOpen(key)}
         onOpenChange={(open) => open ? openModal(key) : closeModal(key)}
         module={MODULES.HR_PAYROLL}
-        width="sm:max-w-2xl"
+        width="sm:max-w-lg"
       >
         {isLoading ? (
           <div className="py-12 text-center"><Loader2 className="animate-spin mx-auto text-primary w-8 h-8" /></div>
         ) : record ? (
-          <div className="pb-4">
-            {/* Header */}
-            <div className="flex justify-between items-start bg-gradient-to-r from-primary to-primary/70 rounded-xl p-5 mb-4 text-white">
+          <div className="pb-4 text-sm">
+            {/* Period header */}
+            <div className="text-center text-xs text-gray-500 mb-3 border-b pb-2">
+              <span className="font-medium">Period: {record.batch?.period}</span>
+              {record.batch?.paymentDate && (
+                <span className="ml-2">| Pay Date: {new Date(record.batch.paymentDate).toLocaleDateString("en-GB")}</span>
+              )}
+            </div>
+
+            {/* Company + Employee Info */}
+            <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
-                <div className="text-lg font-bold">{record.entity?.name}</div>
-                <div className="text-xs opacity-75 mt-1">{record.entity?.address}</div>
+                <div className="text-xs font-semibold text-gray-500 uppercase mb-1">Company Information</div>
+                <div className="text-sm font-semibold">{record.entity?.name}</div>
+                {record.entity?.address && <div className="text-xs text-gray-500">{record.entity.address}</div>}
+                {record.entity?.email && <div className="text-xs text-gray-500">{record.entity.email}</div>}
               </div>
-              <div className="text-right">
-                <div className="text-sm font-semibold">PAYSLIP</div>
-                <div className="text-xs opacity-80">{record.batch?.period}</div>
-                <Badge className="mt-1 bg-white/20 text-white border-white/30 text-xs">{record.batch?.status}</Badge>
-              </div>
-            </div>
-
-            {/* Employee + Payment */}
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <div className="bg-gray-50 rounded-xl p-4">
-                <div className="text-xs font-semibold text-gray-500 uppercase mb-2">Employee</div>
-                <div className="font-semibold text-gray-900">{record.employee?.firstName} {record.employee?.lastName}</div>
-                <div className="text-xs text-gray-500 mt-1">{record.employee?.position}</div>
-                <div className="text-xs text-gray-500">{record.employee?.dept?.name}</div>
-                <div className="text-xs text-gray-400 mt-1">ID: {record.employee?.employeeId}</div>
-              </div>
-              <div className="bg-gray-50 rounded-xl p-4">
-                <div className="text-xs font-semibold text-gray-500 uppercase mb-2">Payment</div>
-                <div className="text-xs text-gray-700">
-                  <div className="flex justify-between py-1"><span>Date</span><span className="font-medium">{record.batch?.paymentDate ? new Date(record.batch.paymentDate).toLocaleDateString("en-NG") : "—"}</span></div>
-                  <div className="flex justify-between py-1"><span>Method</span><span className="font-medium">{record.batch?.paymentMethod}</span></div>
-                  <div className="flex justify-between py-1"><span>Bank</span><span className="font-medium">{record.employee?.bankName || "—"}</span></div>
-                  <div className="flex justify-between py-1"><span>Account</span><span className="font-medium">****{record.employee?.accountNumber?.slice(-4) || "—"}</span></div>
-                </div>
+              <div>
+                <div className="text-xs font-semibold text-gray-500 uppercase mb-1">Employee Information</div>
+                <div className="text-sm font-semibold">{record.employee?.firstName} {record.employee?.lastName}</div>
+                <div className="text-xs text-gray-500">{record.employee?.position}</div>
+                {record.employee?.employeeId && <div className="text-xs text-gray-400">ID: {record.employee.employeeId}</div>}
               </div>
             </div>
 
-            {/* Earnings */}
-            <div className="mb-3">
+            <div className="border-t pt-3 mb-3">
+              {/* Earnings */}
               <div className="text-xs font-semibold text-gray-500 uppercase mb-2">Earnings</div>
-              <div className="bg-green-50 rounded-xl overflow-hidden">
-                {[
-                  ["Basic Salary", record.basicSalary],
-                  record.allowances > 0 && ["Allowances", record.allowances],
-                  record.bonus > 0 && ["Bonus", record.bonus],
-                  record.overtime > 0 && ["Overtime", record.overtime],
-                ].filter(Boolean).map(([label, amount]: any) => (
-                  <div key={label} className="flex justify-between px-4 py-2 text-xs border-b border-green-100 last:border-0">
-                    <span className="text-gray-600">{label}</span>
-                    <span className="font-medium text-green-700">{fmt(amount)}</span>
-                  </div>
-                ))}
-                <div className="flex justify-between px-4 py-2 text-xs bg-green-100 font-bold">
-                  <span>Gross Pay</span><span className="text-green-800">{fmt(record.grossPay)}</span>
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs"><span>Basic Salary</span><span className="font-medium">{fmt(record.basicSalary)}</span></div>
+                {(record.allowances ?? 0) > 0 && (
+                  <div className="flex justify-between text-xs text-gray-600"><span className="pl-2">Allowances</span><span>+{fmt(record.allowances)}</span></div>
+                )}
+                {(record.bonus ?? 0) > 0 && (
+                  <div className="flex justify-between text-xs text-gray-600"><span className="pl-2">Bonus</span><span>+{fmt(record.bonus)}</span></div>
+                )}
+                {(record.overtime ?? 0) > 0 && (
+                  <div className="flex justify-between text-xs text-gray-600"><span className="pl-2">Overtime</span><span>+{fmt(record.overtime)}</span></div>
+                )}
+                <div className="flex justify-between text-xs font-bold border-t pt-1 mt-1">
+                  <span>Gross Pay</span><span>{fmt(record.grossPay)}</span>
                 </div>
               </div>
             </div>
 
             {/* Deductions */}
-            <div className="mb-4">
+            <div className="border-t pt-3 mb-3">
               <div className="text-xs font-semibold text-gray-500 uppercase mb-2">Deductions</div>
-              <div className="bg-red-50 rounded-xl overflow-hidden">
-                {record.statutoryDed > 0 && (
-                  <div className="flex justify-between px-4 py-2 text-xs border-b border-red-100">
-                    <span className="text-gray-600">Statutory Deductions</span>
-                    <span className="font-medium text-red-600">- {fmt(record.statutoryDed)}</span>
+
+              {statutoryLines.length > 0 ? (
+                <>
+                  <div className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Statutory Deductions</div>
+                  <div className="space-y-1 mb-2">
+                    {statutoryLines.map((d: any) => (
+                      <div key={d.name} className="flex justify-between text-xs">
+                        <div>
+                          <span>{d.name}</span>
+                          {d.type === 'TIERED' && <div className="text-gray-400 text-[10px]">Progressive tax per FIRS bands</div>}
+                          {d.type === 'PERCENTAGE' && d.rate && <div className="text-gray-400 text-[10px]">{d.rate}% of gross salary</div>}
+                        </div>
+                        <span className="text-red-600 font-medium">-{fmt(d.amount)}</span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between text-xs font-semibold border-t pt-1">
+                      <span>Total Statutory Deductions</span>
+                      <span className="text-red-600">-{fmt(statutoryLines.reduce((s: number, d: any) => s + (d.amount ?? 0), 0))}</span>
+                    </div>
                   </div>
-                )}
-                {record.otherDed > 0 && (
-                  <div className="flex justify-between px-4 py-2 text-xs border-b border-red-100">
-                    <span className="text-gray-600">Other Deductions</span>
-                    <span className="font-medium text-red-600">- {fmt(record.otherDed)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between px-4 py-2 text-xs bg-red-100 font-bold">
-                  <span>Total Deductions</span>
-                  <span className="text-red-700">- {fmt((record.statutoryDed ?? 0) + (record.otherDed ?? 0))}</span>
+                </>
+              ) : (record.statutoryDed ?? 0) > 0 ? (
+                <div className="flex justify-between text-xs mb-2">
+                  <span>Statutory Deductions</span>
+                  <span className="text-red-600 font-medium">-{fmt(record.statutoryDed)}</span>
                 </div>
+              ) : null}
+
+              {otherLines.length > 0 ? (
+                <>
+                  <div className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Other Deductions</div>
+                  <div className="space-y-1">
+                    {otherLines.map((d: any) => (
+                      <div key={d.name} className="flex justify-between text-xs">
+                        <span>{d.name}</span>
+                        <span className="text-red-600 font-medium">-{fmt(d.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (record.otherDed ?? 0) > 0 ? (
+                <div className="flex justify-between text-xs mb-2">
+                  <span>Other Deductions</span>
+                  <span className="text-red-600 font-medium">-{fmt(record.otherDed)}</span>
+                </div>
+              ) : null}
+
+              <div className="flex justify-between text-xs font-bold border-t pt-1 mt-1">
+                <span>Total Deductions</span>
+                <span className="text-red-700">-{fmt((record.statutoryDed ?? 0) + (record.otherDed ?? 0))}</span>
               </div>
             </div>
 
             {/* Net Pay */}
-            <div className="bg-gradient-to-r from-primary to-primary/70 rounded-xl p-5 text-center text-white mb-4">
-              <div className="text-xs opacity-80 mb-1">NET PAY</div>
-              <div className="text-3xl font-bold">{fmt(record.netPay)}</div>
+            <div className="bg-gradient-to-r from-primary to-primary/70 rounded-xl p-4 text-center text-white mb-4">
+              <div className="text-xs opacity-80 mb-1">Net Pay</div>
+              <div className="text-2xl font-bold">{fmt(record.netPay)}</div>
             </div>
 
             {/* Actions */}
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => closeModal(key)}>Close</Button>
-              <Button
-                className="gap-2"
-                disabled={downloadPdf.isPending}
-                onClick={() => downloadPdf.mutate(row.id)}
-              >
+              <Button variant="outline" size="sm" onClick={() => closeModal(key)}>Close</Button>
+              <Button size="sm" className="gap-1" disabled={downloadPdf.isPending} onClick={() => downloadPdf.mutate(row.id)}>
                 {downloadPdf.isPending
-                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Downloading...</>
-                  : <><Download className="w-4 h-4" /> Download PDF</>
+                  ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Downloading...</>
+                  : <><Download className="w-3.5 h-3.5" /> Download PDF</>
                 }
               </Button>
             </div>

@@ -289,7 +289,7 @@ export const createGroupBudget = async (data: {
   month?: string;
   fiscalYear: string;
   note?: string;
-  lines: Array<{ accountId: string; amount: number }>;
+  lines: Array<{ accountId?: string; subCategoryId?: string; amount: number }>;
 }) => {
   return apiClient("budget/group", {
     method: "POST",
@@ -306,7 +306,7 @@ export const updateGroupBudget = async (id: string, data: {
   month?: string;
   fiscalYear?: string;
   note?: string;
-  lines?: Array<{ accountId: string; amount: number }>;
+  lines?: Array<{ accountId?: string; subCategoryId?: string; amount: number }>;
 }) =>
   apiClient(`budget/group/${id}`, { method: "PUT", body: JSON.stringify(data) });
 
@@ -361,6 +361,9 @@ export const getGroupPreviousPeriodBudget = async (params: {
 export const getGroupBudgetAccounts = async () =>
   apiClient("budget/group/accounts", { method: "GET" });
 
+export const getGroupBudgetSubCategories = async () =>
+  apiClient("budget/group/sub-categories", { method: "GET" });
+
 export const deleteGroupBudget = async (id: string) =>
   apiClient(`budget/group/${id}`, { method: "DELETE" });
 
@@ -375,7 +378,7 @@ export const createForecast = async (data: {
   confidenceLevel?: string;
   forecastMethod?: string;
   note?: string;
-  lines: Array<{ accountId: string; amount: number; growthRate?: number }>;
+  lines: Array<{ accountId?: string; subCategoryId?: string; amount: number; growthRate?: number }>;
 }) => {
   return apiClient("forecast/group", {
     method: "POST",

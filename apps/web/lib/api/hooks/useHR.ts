@@ -404,4 +404,28 @@ export const useDownloadPayslip = () =>
       toast.error(error instanceof Error ? error.message : "Failed to download payslip");
     },
   });
- 
+
+export const usePayeReport = (year?: number) =>
+  useQuery({
+    queryKey: ["paye-report", year],
+    queryFn: () => hrService.getPayeReport(year),
+    staleTime: 5 * 60 * 1000,
+  });
+
+export const useDownloadPayeReportCsv = () =>
+  useMutation({
+    mutationFn: (year?: number) => hrService.downloadPayeReportCsv(year),
+    onSuccess: (data, year) => {
+      const url = window.URL.createObjectURL(new Blob([data], { type: "text/csv" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `PAYE_Computation_${year ?? new Date().getFullYear()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      toast.success("PAYE report exported");
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to export PAYE report");
+    },
+  });
