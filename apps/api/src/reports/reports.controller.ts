@@ -105,4 +105,29 @@ export class ReportsController {
 
     return { data, message: 'Cash Flow Statement generated', statusCode: 200 };
   }
+
+  @Get('trial-balance')
+  @ApiOperation({ summary: 'Get Trial Balance for a date range' })
+  @ApiQuery({ name: 'startDate', required: true, example: '2025-01-01' })
+  @ApiQuery({ name: 'endDate', required: true, example: '2025-01-31' })
+  async getTrialBalance(
+    @Req() req: Request,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    const entityId = getEffectiveEntityId(req);
+    if (!entityId) throw new BadRequestException('Entity ID is required');
+    if (!startDate || !endDate) throw new BadRequestException('startDate and endDate are required');
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      throw new BadRequestException('Invalid date format');
+    }
+
+    const data = await this.reportsService.getTrialBalance(entityId, start, end);
+    return { data, message: 'Trial Balance generated', statusCode: 200 };
+  }
 }

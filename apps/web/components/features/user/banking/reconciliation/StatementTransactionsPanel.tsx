@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Upload, Plus, CheckCircle2 } from "lucide-react";
+import { Upload, CheckCircle2, PlusCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,8 @@ interface StatementTransactionsPanelProps {
   transactions: StatementTransaction[];
   onChange: (transactions: StatementTransaction[]) => void;
   readOnly?: boolean;
+  /** Called when user clicks "+" on an unmatched statement row to create a book entry */
+  onCreateBookEntry?: (tx: StatementTransaction) => void;
 }
 
 function formatAmount(amount: number, sym: string) {
@@ -30,6 +32,7 @@ export default function StatementTransactionsPanel({
   transactions,
   onChange,
   readOnly = false,
+  onCreateBookEntry,
 }: StatementTransactionsPanelProps) {
   const sym = useEntityCurrencySymbol();
   const [addOpen, setAddOpen] = useState(false);
@@ -100,7 +103,7 @@ export default function StatementTransactionsPanel({
           {transactions.map((tx) => (
             <div
               key={tx.id}
-              className={`flex items-start gap-3 px-4 py-3 transition-colors ${
+              className={`flex items-start gap-3 px-4 py-3 transition-colors group ${
                 tx.matched ? "bg-green-50/50" : "hover:bg-gray-50"
               }`}
             >
@@ -136,7 +139,18 @@ export default function StatementTransactionsPanel({
                   {tx.matched ? (
                     <CheckCircle2 className="w-4 h-4 text-green-500" />
                   ) : (
-                    <div className="w-4 h-4 rounded-full border-2 border-gray-300" />
+                    <>
+                      <div className="w-4 h-4 rounded-full border-2 border-gray-300" />
+                      {!readOnly && onCreateBookEntry && (
+                        <button
+                          title="Create book entry for this transaction"
+                          onClick={() => onCreateBookEntry(tx)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-primary hover:text-primary/80"
+                        >
+                          <PlusCircle className="w-4 h-4" />
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>

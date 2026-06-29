@@ -1,15 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { CheckCircle2, Plus, Loader2 } from "lucide-react";
+import { CheckCircle2, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { BookTransaction, AddBookTransactionForm } from "./types";
-import AddBookTransactionModal from "./AddBookTransactionModal";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "@/lib/api/client";
-import { toast } from "sonner";
+import { BookTransaction } from "./types";
 import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 interface BookTransactionsPanelProps {
@@ -36,44 +30,6 @@ export default function BookTransactionsPanel({
   isLoading = false,
 }: BookTransactionsPanelProps) {
   const sym = useEntityCurrencySymbol();
-  const [addOpen, setAddOpen] = useState(false);
-
-  const addMutation = useMutation({
-    mutationFn: (data: { date: Date; description: string; amount: number; type: "credit" | "debit"; reference?: string; payee?: string; method?: string }) =>
-      apiClient<any>(`banking/accounts/${bankAccountId}/transactions`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    onSuccess: (created) => {
-      const amount = (created.debitAmount ?? 0) - (created.creditAmount ?? 0);
-      const newTx: BookTransaction = {
-        id: created.id,
-        date: (created.date as string).split("T")[0],
-        description: created.description,
-        reference: created.reference ?? "",
-        amount,
-        matched: false,
-      };
-      onChange([...transactions, newTx]);
-      toast.success("Transaction added to books");
-      setAddOpen(false);
-    },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Failed to add transaction");
-    },
-  });
-
-  const handleAdd = (data: AddBookTransactionForm) => {
-    addMutation.mutate({
-      date: new Date(data.date),
-      description: data.description,
-      amount: data.amount,
-      type: data.transactionType,
-      reference: data.reference || undefined,
-      payee: data.payee || undefined,
-      method: data.method || undefined,
-    });
-  };
 
   const unmatchedCount = transactions.filter((t) => !t.matched).length;
 
@@ -99,19 +55,7 @@ export default function BookTransactionsPanel({
           </div>
         </div>
 
-        {!readOnly && (
-          <div className="px-4 py-3 border-b border-gray-100">
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full gap-1.5 text-xs"
-              onClick={() => setAddOpen(true)}
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Add Transaction to Books
-            </Button>
-          </div>
-        )}
+        {/* Add Transaction to Books button removed — use the "+" on unmatched statement rows instead */}
 
         <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
           {transactions.map((tx) => (
@@ -183,14 +127,6 @@ export default function BookTransactionsPanel({
         </div>
       </div>
 
-      {!readOnly && (
-        <AddBookTransactionModal
-          open={addOpen}
-          onOpenChange={setAddOpen}
-          onAdd={handleAdd}
-          loading={addMutation.isPending}
-        />
-      )}
     </>
   );
 }

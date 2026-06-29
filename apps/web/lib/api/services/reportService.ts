@@ -96,6 +96,53 @@ export interface CashFlowParams {
   compareEndDate?: string;
 }
 
+// ─── Trial Balance ────────────────────────────────────────────────────────────
+
+export interface TBAccountLine {
+  id: string;
+  name: string;
+  code: string;
+  linkedType: string;
+  typeName: string;
+  subCategoryName: string;
+  openingBalance: number;
+  debitAmount: number;
+  creditAmount: number;
+  closingBalance: number;
+}
+
+export interface TBSection {
+  typeCode: string;
+  typeName: string;
+  linkedType: string;
+  accounts: TBAccountLine[];
+  totalOpeningBalance: number;
+  totalDebit: number;
+  totalCredit: number;
+  totalClosingBalance: number;
+}
+
+export interface TrialBalanceData {
+  period: { startDate: string; endDate: string };
+  sections: TBSection[];
+  totalOpeningBalance: number;
+  grandTotalDebit: number;
+  grandTotalCredit: number;
+  totalClosingBalance: number;
+  isBalanced: boolean;
+  difference: number;
+}
+
+export interface TrialBalanceParams {
+  startDate: string;
+  endDate: string;
+}
+
+export const getTrialBalance = async (params: TrialBalanceParams): Promise<TrialBalanceData> => {
+  const q = new URLSearchParams({ startDate: params.startDate, endDate: params.endDate });
+  return apiClient<TrialBalanceData>(`reports/trial-balance?${q.toString()}`);
+};
+
 export const getCashFlowStatement = async (
   params: CashFlowParams
 ): Promise<CashFlowStatementData> => {

@@ -165,6 +165,7 @@ export class BankingController {
       payee?: string;
       method?: string;
       metadata?: any;
+      offsetAccountId?: string;
     },
 @Req() req: any,) {
         const effectiveEntityId = getEffectiveEntityId(req);

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2, Sparkles } from "lucide-react";
 import { useDebounce } from "use-debounce";
+import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import ReconciliationHeader from "./ReconciliationHeader";
 import ReconciliationSetup from "./ReconciliationSetup";
@@ -12,6 +13,7 @@ import ReconciliationSummaryCards from "./ReconciliationSummaryCards";
 import ReconciliationStatusBanner from "./ReconciliationStatusBanner";
 import StatementTransactionsPanel from "./StatementTransactionsPanel";
 import BookTransactionsPanel from "./BookTransactionsPanel";
+import CreateBookEntryModal, { CreateBookEntryData } from "./CreateBookEntryModal";
 import {
   ReconciliationSetupValues,
   StatementTransaction,
@@ -25,6 +27,7 @@ import {
   useBankAccount,
 } from "@/lib/api/hooks/useBanking";
 import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { apiClient } from "@/lib/api/client";
 
 interface ReconciliationPageProps {
   bankAccountId: string;
@@ -50,6 +53,86 @@ export default function ReconciliationPage({ bankAccountId, reconcileId }: Recon
   const [statementTxs, setStatementTxs] = useState<StatementTransaction[]>([]);
   const [bookTxs, setBookTxs] = useState<BookTransaction[]>([]);
   const [reconInitialized, setReconInitialized] = useState(false);
+
+  // ── Create Book Entry from statement tx ──────────────────────────────────
+  const [bookEntryTx, setBookEntryTx] = useState<StatementTransaction | null>(null);
+
+  const addBookEntryMutation = useMutation({
+    mutationFn: (payload: {
+      date: Date;
+      description: string;
+      reference?: string;
+      amount: number;
+      type: "credit" | "debit";
+      offsetAccountId: string;
+    }) =>
+      apiClient<any>(`banking/accounts/${bankAccountId}/transactions`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: (created, _variables) => {
+      if (!bookEntryTx) return;
+      const stmtTxId = bookEntryTx.id;
+
+      const newBookTx: BookTransaction = {
+        id: created.id,
+        date: (created.date as string).split("T")[0],
+        description: created.description,
+        reference: created.reference ?? "",
+        // Mirror buildBookTxs: debitAmount - creditAmount
+        // credit tx (withdrawal): 0 - amount = negative; debit tx (deposit): amount - 0 = positive
+        amount: (created.debitAmount ?? 0) - (created.creditAmount ?? 0),
+        matched: true,
+        matchedStatementId: stmtTxId,
+      };
+
+      const updatedStatementTxs = statementTxs.map((t) =>
+        t.id === stmtTxId ? { ...t, matched: true, matchedBookId: created.id } : t,
+      );
+      const updatedBookTxs = [...bookTxs, newBookTx];
+
+      setBookTxs(updatedBookTxs);
+      setStatementTxs(updatedStatementTxs);
+
+      // Auto-save draft so the match survives a page reload
+      if (setup.statementEndingDate) {
+        saveDraft.mutate({
+          statementStartDate: setup.statementStartDate || undefined,
+          statementEndDate: setup.statementEndingDate,
+          statementEndingBalance: setup.statementEndingBalance,
+          statementTransactions: updatedStatementTxs.map((t) => ({
+            id: t.id,
+            date: t.date,
+            description: t.description,
+            reference: t.reference || undefined,
+            amount: t.amount,
+            category: t.category || undefined,
+          })),
+          matches: updatedStatementTxs
+            .filter((t) => t.matched && t.matchedBookId)
+            .map((t) => ({ statementTransactionId: t.id, bookTransactionId: t.matchedBookId! })),
+        });
+      }
+
+      toast.success("Book entry created and matched");
+      setBookEntryTx(null);
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to create book entry");
+    },
+  });
+
+  const handleCreateBookEntry = (data: CreateBookEntryData) => {
+    if (!bookEntryTx) return;
+    addBookEntryMutation.mutate({
+      date: new Date(data.date),
+      description: data.description,
+      reference: data.reference || undefined,
+      amount: data.amount,
+      type: data.type,
+      offsetAccountId: data.offsetAccountId,
+    });
+  };
 
   // Debounce dates by 500ms so typing doesn't hammer the API
   const [debouncedStartDate] = useDebounce(setup.statementStartDate, 500);
@@ -283,6 +366,7 @@ export default function ReconciliationPage({ bankAccountId, reconcileId }: Recon
           transactions={statementTxs}
           onChange={setStatementTxs}
           readOnly={isCompleted}
+          onCreateBookEntry={isCompleted ? undefined : (tx) => setBookEntryTx(tx)}
         />
         <BookTransactionsPanel
           bankAccountId={bankAccountId}
@@ -318,6 +402,14 @@ export default function ReconciliationPage({ bankAccountId, reconcileId }: Recon
           </div>
         )}
       </div>
+
+      <CreateBookEntryModal
+        open={!!bookEntryTx}
+        onOpenChange={(v) => { if (!v) setBookEntryTx(null); }}
+        statementTx={bookEntryTx}
+        onAdd={handleCreateBookEntry}
+        loading={addBookEntryMutation.isPending}
+      />
     </div>
   );
 }

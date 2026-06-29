@@ -1,3 +1,42 @@
+// ─── Trial Balance ────────────────────────────────────────────────────────────
+
+export class TBAccountLineDto {
+  id: string;
+  name: string;
+  code: string;
+  linkedType: string;
+  typeName: string;
+  subCategoryName: string;
+  openingBalance: number;
+  debitAmount: number;
+  creditAmount: number;
+  closingBalance: number;
+}
+
+export class TBSectionDto {
+  typeCode: string;
+  typeName: string;
+  linkedType: string;
+  accounts: TBAccountLineDto[];
+  totalOpeningBalance: number;
+  totalDebit: number;
+  totalCredit: number;
+  totalClosingBalance: number;
+}
+
+export class TrialBalanceDto {
+  period: { startDate: string; endDate: string };
+  sections: TBSectionDto[];
+  totalOpeningBalance: number;
+  grandTotalDebit: number;
+  grandTotalCredit: number;
+  totalClosingBalance: number;
+  isBalanced: boolean;
+  difference: number;
+}
+
+// ─── Profit & Loss ────────────────────────────────────────────────────────────
+
 export class PLAccountLineDto {
   id: string;
   name: string;

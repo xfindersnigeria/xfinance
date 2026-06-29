@@ -5,6 +5,8 @@ import {
   ProfitAndLossParams,
   CashFlowStatementData,
   CashFlowParams,
+  TrialBalanceData,
+  TrialBalanceParams,
 } from "../services/reportService";
 
 export const useProfitAndLoss = (params: ProfitAndLossParams) =>
@@ -32,6 +34,15 @@ export const useCashFlowStatement = (params: CashFlowParams) =>
       params.compareEndDate,
     ],
     queryFn: () => reportService.getCashFlowStatement(params),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    enabled: !!params.startDate && !!params.endDate,
+  });
+
+export const useTrialBalance = (params: TrialBalanceParams) =>
+  useQuery<TrialBalanceData>({
+    queryKey: ["trial-balance", params.startDate, params.endDate],
+    queryFn: () => reportService.getTrialBalance(params),
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     enabled: !!params.startDate && !!params.endDate,

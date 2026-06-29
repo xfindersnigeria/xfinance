@@ -356,6 +356,7 @@ export class BankingService {
       payee?: string;
       method?: string;
       metadata?: any;
+      offsetAccountId?: string;
     },
     effectiveEntityId: any,
     groupId: string,
@@ -373,38 +374,89 @@ export class BankingService {
       throw new ForbiddenException('Access denied');
     }
 
-    // Calculate new balance from linked account
     const balanceChange =
       transactionData.type === 'credit'
         ? transactionData.amount
         : -transactionData.amount;
-    const newBalance = bankAccount.linkedAccount.balance + balanceChange;
+    const newBankBalance = bankAccount.linkedAccount.balance + balanceChange;
 
-    // Create account transaction and update linked account balance
+    const commonFields = {
+      date: transactionData.date,
+      description: transactionData.description,
+      reference: transactionData.reference,
+      type: 'BANK' as const,
+      status: 'Success' as const,
+      payee: transactionData.payee,
+      method: transactionData.method,
+      entityId: effectiveEntityId,
+      groupId,
+      metadata: transactionData.metadata || {},
+    };
+
+    if (transactionData.offsetAccountId) {
+      // Double-entry: bank side + offset account side in one transaction
+      const offsetAccount = await this.prisma.account.findUnique({
+        where: { id: transactionData.offsetAccountId },
+        select: { id: true, balance: true, entityId: true },
+      });
+      if (!offsetAccount) throw new NotFoundException('Offset account not found');
+      if (offsetAccount.entityId !== effectiveEntityId) throw new ForbiddenException('Offset account does not belong to this entity');
+
+      // Offset is always the MIRROR of the bank side
+      // Withdrawal (type=credit): CR bank → DR offset (expense)
+      // Deposit    (type=debit):  DR bank → CR offset (income/liability)
+      const offsetDebit  = transactionData.type === 'credit' ? transactionData.amount : 0;
+      const offsetCredit = transactionData.type === 'debit'  ? transactionData.amount : 0;
+      const offsetBalanceChange = offsetDebit - offsetCredit;
+      const newOffsetBalance = offsetAccount.balance + offsetBalanceChange;
+
+      const [bankTx] = await this.prisma.$transaction([
+        this.prisma.accountTransaction.create({
+          data: {
+            ...commonFields,
+            accountId: bankAccount.linkedAccountId,
+            debitAmount: transactionData.type === 'debit' ? transactionData.amount : 0,
+            creditAmount: transactionData.type === 'credit' ? transactionData.amount : 0,
+            runningBalance: newBankBalance,
+          },
+        }),
+        this.prisma.account.update({
+          where: { id: bankAccount.linkedAccountId },
+          data: { balance: newBankBalance },
+        }),
+        this.prisma.accountTransaction.create({
+          data: {
+            ...commonFields,
+            accountId: transactionData.offsetAccountId,
+            debitAmount: offsetDebit,
+            creditAmount: offsetCredit,
+            runningBalance: newOffsetBalance,
+          },
+        }),
+        this.prisma.account.update({
+          where: { id: transactionData.offsetAccountId },
+          data: { balance: newOffsetBalance },
+        }),
+      ]);
+
+      await this.cacheService.invalidateEntityDashboardCache(effectiveEntityId);
+      return bankTx;
+    }
+
+    // Single-sided entry (no offset account — legacy behaviour)
     const [accountTransaction] = await Promise.all([
       this.prisma.accountTransaction.create({
         data: {
-          date: transactionData.date,
-          description: transactionData.description,
-          reference: transactionData.reference,
-          type: 'BANK',
-          status: 'Success',
+          ...commonFields,
           accountId: bankAccount.linkedAccountId,
           debitAmount: transactionData.type === 'debit' ? transactionData.amount : 0,
           creditAmount: transactionData.type === 'credit' ? transactionData.amount : 0,
-          runningBalance: newBalance,
-          payee: transactionData.payee,
-          method: transactionData.method,
-          entityId: effectiveEntityId,
-          groupId,
-          metadata: transactionData.metadata || {},
+          runningBalance: newBankBalance,
         },
       }),
       this.prisma.account.update({
         where: { id: bankAccount.linkedAccountId },
-        data: {
-          balance: newBalance,
-        },
+        data: { balance: newBankBalance },
       }),
     ]);
 

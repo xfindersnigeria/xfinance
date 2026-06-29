@@ -8,6 +8,9 @@ import {
   ProfitAndLossDto,
   CFEntryDto,
   CashFlowStatementDto,
+  TBAccountLineDto,
+  TBSectionDto,
+  TrialBalanceDto,
 } from './dto/reports.dto';
 
 // Category codes from the seeded chart of accounts
@@ -562,6 +565,125 @@ export class ReportsService {
         financingCashFlow: c('netFinancing'),
         netCashIncrease:   c('netCashChange'),
       },
+    };
+  }
+
+  // ─── Trial Balance ────────────────────────────────────────────────────────────
+
+  async getTrialBalance(
+    entityId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<TrialBalanceDto> {
+    const TYPE_ORDER = ['1000', '2000', '3000', '4000', '5000'];
+
+    // 1. All accounts for this entity with full category hierarchy
+    const accounts = await this.prisma.account.findMany({
+      where: { entityId },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        linkedType: true,
+        subCategory: {
+          select: {
+            name: true,
+            category: {
+              select: {
+                type: { select: { code: true, name: true } },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { code: 'asc' },
+    });
+
+    // 2. Pre-period aggregates — opening balance
+    const preAggs = await this.prisma.accountTransaction.groupBy({
+      by: ['accountId'],
+      where: {
+        entityId,
+        status: { not: 'Failed' as any },
+        date: { lt: startDate },
+      },
+      _sum: { debitAmount: true, creditAmount: true },
+    });
+
+    // 3. In-period aggregates
+    const periodAggs = await this.prisma.accountTransaction.groupBy({
+      by: ['accountId'],
+      where: {
+        entityId,
+        status: { not: 'Failed' as any },
+        date: { gte: startDate, lte: endDate },
+      },
+      _sum: { debitAmount: true, creditAmount: true },
+    });
+
+    const preMap = new Map<string, { debit: number; credit: number }>();
+    for (const a of preAggs) preMap.set(a.accountId, { debit: a._sum.debitAmount ?? 0, credit: a._sum.creditAmount ?? 0 });
+
+    const periodMap = new Map<string, { debit: number; credit: number }>();
+    for (const a of periodAggs) periodMap.set(a.accountId, { debit: a._sum.debitAmount ?? 0, credit: a._sum.creditAmount ?? 0 });
+
+    // 4. Build per-account lines grouped by AccountType code
+    const sectionMap = new Map<string, { typeCode: string; typeName: string; linkedType: string; accounts: TBAccountLineDto[] }>();
+
+    for (const acc of accounts) {
+      const typeCode = acc.subCategory.category.type.code;
+      const typeName = acc.subCategory.category.type.name;
+      const linkedType = ['1000', '2000', '3000'].includes(typeCode) ? 'SPP' : 'PAL';
+
+      if (!sectionMap.has(typeCode)) sectionMap.set(typeCode, { typeCode, typeName, linkedType, accounts: [] });
+
+      const pre = preMap.get(acc.id) ?? { debit: 0, credit: 0 };
+      const period = periodMap.get(acc.id) ?? { debit: 0, credit: 0 };
+      const openingBalance = pre.debit - pre.credit;
+      const closingBalance = openingBalance + period.debit - period.credit;
+
+      sectionMap.get(typeCode)!.accounts.push({
+        id: acc.id,
+        name: acc.name,
+        code: acc.code,
+        linkedType,
+        typeName,
+        subCategoryName: acc.subCategory.name,
+        openingBalance,
+        debitAmount: period.debit,
+        creditAmount: period.credit,
+        closingBalance,
+      });
+    }
+
+    // 5. Assemble sections in standard order
+    const sections: TBSectionDto[] = TYPE_ORDER
+      .filter((code) => sectionMap.has(code))
+      .map((code) => {
+        const sec = sectionMap.get(code)!;
+        const totalOpeningBalance = sec.accounts.reduce((s, a) => s + a.openingBalance, 0);
+        const totalDebit = sec.accounts.reduce((s, a) => s + a.debitAmount, 0);
+        const totalCredit = sec.accounts.reduce((s, a) => s + a.creditAmount, 0);
+        const totalClosingBalance = sec.accounts.reduce((s, a) => s + a.closingBalance, 0);
+        return { typeCode: sec.typeCode, typeName: sec.typeName, linkedType: sec.linkedType, accounts: sec.accounts, totalOpeningBalance, totalDebit, totalCredit, totalClosingBalance };
+      });
+
+    // 6. Grand totals
+    const totalOpeningBalance = sections.reduce((s, sec) => s + sec.totalOpeningBalance, 0);
+    const grandTotalDebit = sections.reduce((s, sec) => s + sec.totalDebit, 0);
+    const grandTotalCredit = sections.reduce((s, sec) => s + sec.totalCredit, 0);
+    const totalClosingBalance = sections.reduce((s, sec) => s + sec.totalClosingBalance, 0);
+    const difference = Math.abs(grandTotalDebit - grandTotalCredit);
+
+    return {
+      period: { startDate: startDate.toISOString(), endDate: endDate.toISOString() },
+      sections,
+      totalOpeningBalance,
+      grandTotalDebit,
+      grandTotalCredit,
+      totalClosingBalance,
+      isBalanced: difference < 1,
+      difference,
     };
   }
 }

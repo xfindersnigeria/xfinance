@@ -3,11 +3,13 @@ import { useParams } from "next/navigation";
 import React from "react";
 import ProfitAndLoss from "./profit-and-loss";
 import CashFlowStatement from "./cash-flow-statement";
+import TrialBalance from "./trial-balance";
 import { TriangleAlert } from "lucide-react";
 
 const REPORT_COMPONENTS: Record<string, React.ComponentType> = {
   "profit-and-loss": ProfitAndLoss,
   "cash-flow-statement": CashFlowStatement,
+  "trial-balance": TrialBalance,
 };
 
 export default function ReportsDetails() {

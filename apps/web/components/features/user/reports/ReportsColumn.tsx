@@ -20,6 +20,13 @@ export const reportsData = [
     createdBy: "System Generated",
   },
   {
+    key: "trial-balance",
+    name: "Trial Balance",
+    category: "financial",
+    lastVisited: "-",
+    createdBy: "System Generated",
+  },
+  {
     key: "balance-sheet",
     name: "Balance Sheet",
     category: "financial",
