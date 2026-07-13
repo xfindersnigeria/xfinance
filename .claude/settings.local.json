@@ -35,7 +35,12 @@
       "Bash(apps/web/node_modules/.bin/tsc --noEmit -p apps/web/tsconfig.json)",
       "Bash(apps/api/node_modules/.bin/tsc -p apps/api/tsconfig.json --noEmit)",
       "Bash(apps/web/node_modules/.bin/tsc -p apps/web/tsconfig.json --noEmit)",
-      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(k,':',v\\) for k,v in d.get\\('scripts',{}\\).items\\(\\)]\")"
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(k,':',v\\) for k,v in d.get\\('scripts',{}\\).items\\(\\)]\")",
+      "Bash(node_modules/.bin/tsc -p apps/api/tsconfig.json --noEmit)",
+      "Bash(npx --no-install tsc --noEmit)",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Bash(/home/jaycee/projects/xfinance/apps/api/node_modules/.bin/tsc -p /home/jaycee/projects/xfinance/apps/api/tsconfig.json --noEmit)",
+      "Bash(./node_modules/.bin/tsc --noEmit)"
     ]
   }
 }
