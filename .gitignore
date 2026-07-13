@@ -27,3 +27,5 @@ deploy/standalone/.env.local
 
 note.txt
 styles/
+fix-status.md
+DEPLOYMENT.md

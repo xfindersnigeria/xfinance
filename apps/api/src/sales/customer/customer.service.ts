@@ -22,6 +22,7 @@ export class CustomerService {
       return await this.prisma.customer.create({
         data: {
           ...body,
+          creditLimit: body.creditLimit ?? '',
           entityId,
           groupId,
         },

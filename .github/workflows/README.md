@@ -50,7 +50,9 @@ The client's Watchtower must be configured to watch their specific tag (e.g. `:a
 
 For the SSH key, generate a dedicated deploy key on your server:
 ```bash
-ssh-keygen -t ed25519 -C "github-actions-deploy" -f ~/.ssh/deploy_key
+ssh-keygen -t ed25519 -C "github-actions-deploy" -f ~/.ssh/deploy_key -N ""
 cat ~/.ssh/deploy_key.pub >> ~/.ssh/authorized_keys
 cat ~/.ssh/deploy_key   # copy this into SAAS_SERVER_SSH_KEY secret
+
+# App files live at /home/xfinance/ on the server
 ```

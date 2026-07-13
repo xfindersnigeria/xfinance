@@ -112,7 +112,7 @@ jobs:
           script: |
             echo ${{ secrets.GHCR_TOKEN }} | \
               docker login ghcr.io -u xfindersnigeria --password-stdin
-            cd /app/xfinance
+            cd /home/xfinance
             # docker compose -f deploy/saas/docker-compose.yml pull
             # docker compose -f deploy/saas/docker-compose.yml up -d
             # docker image prune -f

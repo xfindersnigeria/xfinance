@@ -58,6 +58,7 @@ export class EmployeeService {
             anualLeave: Number(employeeData.anualLeave) || 0,
             salary: Number(employeeData.salary) || 0,
             allowances: Number(employeeData.allowances) || 0,
+            annualRent: employeeData.annualRent != null && employeeData.annualRent !== ('' as any) ? Math.round(Number(employeeData.annualRent)) : null,
             employeeId,
             addressInfo: employeeData.addressInfo as any,
             emergencyContact: employeeData.emergencyContact as any,
@@ -136,6 +137,7 @@ export class EmployeeService {
         allowances: updateData.allowances
           ? Number(updateData.allowances)
           : undefined,
+        annualRent: updateData.annualRent != null && updateData.annualRent !== ('' as any) ? Math.round(Number(updateData.annualRent)) : undefined,
         addressInfo: updateData.addressInfo as any,
         emergencyContact: updateData.emergencyContact as any,
       };

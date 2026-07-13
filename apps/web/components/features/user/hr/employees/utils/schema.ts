@@ -46,7 +46,7 @@ export const employeeSchema = z.object({
   // Tax Information (PAYE)
   tin: z.string().optional(),
   fctTaxpayerId: z.string().optional(),
-  annualRent: z.coerce.number().min(0).max(500000).optional(),
+  annualRent: z.coerce.number().min(0).optional(),
 
   // Additional Information
   note: z.string().optional(),

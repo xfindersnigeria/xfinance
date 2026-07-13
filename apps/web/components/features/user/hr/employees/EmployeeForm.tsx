@@ -662,9 +662,9 @@ export default function EmployeeForm({
                   <FormItem>
                     <FormLabel>Annual Rent Paid (₦)</FormLabel>
                     <FormControl>
-                      <Input type="number" min={0} max={500000} step="1" placeholder="0.00" {...field} />
+                      <Input type="number" min={0} step="1" placeholder="0.00" {...field} />
                     </FormControl>
-                    <div className="text-xs text-muted-foreground">Used for rent relief (max ₦500,000)</div>
+                    <div className="text-xs text-muted-foreground">Enter actual rent paid — relief is capped at ₦500,000 during payroll calculation</div>
                     <FormMessage />
                   </FormItem>
                 )}

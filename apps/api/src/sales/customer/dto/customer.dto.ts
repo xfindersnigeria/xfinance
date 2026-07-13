@@ -62,10 +62,10 @@ export class CreateCustomerDto {
   @MaxLength(100)
   paymentTerms: string = '';
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(100)
-  creditLimit: string = '';
+  creditLimit?: string;
 
   @IsOptional()
   @IsString()

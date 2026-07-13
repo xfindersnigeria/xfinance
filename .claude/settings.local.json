@@ -34,7 +34,8 @@
       "Bash(apps/api/node_modules/.bin/tsc --noEmit -p apps/api/tsconfig.json)",
       "Bash(apps/web/node_modules/.bin/tsc --noEmit -p apps/web/tsconfig.json)",
       "Bash(apps/api/node_modules/.bin/tsc -p apps/api/tsconfig.json --noEmit)",
-      "Bash(apps/web/node_modules/.bin/tsc -p apps/web/tsconfig.json --noEmit)"
+      "Bash(apps/web/node_modules/.bin/tsc -p apps/web/tsconfig.json --noEmit)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(k,':',v\\) for k,v in d.get\\('scripts',{}\\).items\\(\\)]\")"
     ]
   }
 }
