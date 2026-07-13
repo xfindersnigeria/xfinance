@@ -502,7 +502,7 @@ export class PayrollService {
         const mult = this.frequencyMultiplier(emp.perFrequency);
         const annualGross = ((emp.salary ?? 0) + (emp.allowances ?? 0)) * mult;
         const annualRentPaid = emp.annualRent ?? 0;
-        const rentRelief = Math.min(annualRentPaid, 500000);
+        const rentRelief = Math.min(annualRentPaid * 0.20, 500000);
 
         const deductionLines: { name: string; amount: number }[] = [];
         let totalAllowable = rentRelief;
