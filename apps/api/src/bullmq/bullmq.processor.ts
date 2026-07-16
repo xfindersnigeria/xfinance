@@ -384,7 +384,7 @@ export class BullmqProcessor extends WorkerHost {
             groupName: groupName || 'Group',
             email,
             password,
-            loginUrl: `https://${groupSlug}.${process.env.DOMAIN}/auth/login`,
+            loginUrl: `https://${groupSlug}.xfinance.ng/auth/login`,
           },
         );
         const subjectSlug = groupSlug || "Xfinance"
@@ -515,7 +515,7 @@ export class BullmqProcessor extends WorkerHost {
         entityName: entityName || '',
         email,
         password,
-        loginUrl: `https://${groupSlug}.${process.env.DOMAIN}/auth/login`,
+        loginUrl: `https://${groupSlug}.xfinance.ng/auth/login`,
       });
 
       const subjectSlug = groupSlug || "Xfinance" 
