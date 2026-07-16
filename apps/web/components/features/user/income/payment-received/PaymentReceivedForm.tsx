@@ -61,6 +61,8 @@ export default function PaymentReceivedForm({
   const { data: invoicesData, isLoading: invoicesLoading } = useInvoices({
     status: "Sent,Overdue,Partial",
   });
+
+  console.log("invoicesData", invoicesData);  
   const { data: accountsData, isLoading: accountsLoading } = useAccounts({
     subCategory: "Cash and Cash Equivalents",
   });

@@ -487,6 +487,8 @@ export class InvoiceService {
     query: GetInvoicesQueryDto,
   ): Promise<any> {
     try {
+
+      // console.log(entityId, query);
       const page = query.page || 1;
       const limit = query.limit || 10;
       const skip = (page - 1) * limit;

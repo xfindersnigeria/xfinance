@@ -27,8 +27,9 @@ export class GetInvoicesQueryDto {
     description: 'Filter by invoice status',
   })
   @IsOptional()
-  @IsEnum(InvoiceStatus)
-  status?: InvoiceStatus;
+  // @IsEnum(InvoiceStatus)
+  @IsString()
+  status?: string;
 
   @ApiPropertyOptional({
     example: 'Acme',
