@@ -331,16 +331,28 @@ export class AgedReceivablesDto {
 export class CustomerBalanceRowDto {
   customerId: string;
   customerName: string;
-  totalInvoiced: number;
-  totalReceived: number;
-  balance: number;
+  email: string;
+  openingBalance: number;
+  invoiced: number;
+  payments: number;
+  closingBalance: number;
+  status: 'Debit' | 'Credit' | 'Zero';
+  lastTransactionDate: string | null;
 }
 
 export class CustomerBalancesDto {
-  asOfDate: string;
+  period: { startDate: string; endDate: string };
+  totalCustomers: number;
+  debitCount: number;
+  creditCount: number;
+  zeroCount: number;
+  totalDebit: number;
+  totalCredit: number;
+  netBalance: number;
+  totalOpeningBalance: number;
   totalInvoiced: number;
-  totalReceived: number;
-  totalBalance: number;
+  totalPayments: number;
+  totalClosingBalance: number;
   rows: CustomerBalanceRowDto[];
 }
 
@@ -351,38 +363,58 @@ export class PaymentMethodRowDto {
   totalAmount: number;
   transactionCount: number;
   percentOfTotal: number;
+  avgTransaction: number;
+  growthPercent: number | null;
+}
+
+export class PaymentTransactionDto {
+  id: string;
+  date: string;
+  customerName: string;
+  invoiceNumber: string;
+  paymentMethod: string;
+  amount: number;
+  reference: string;
 }
 
 export class PaymentMethodSummaryDto {
   period: { startDate: string; endDate: string };
   totalReceived: number;
   transactionCount: number;
+  totalGrowthPercent: number | null;
+  methods: string[];
   rows: PaymentMethodRowDto[];
+  trends: Record<string, number | string>[];
+  recentTransactions: PaymentTransactionDto[];
 }
 
 // ─── Payable Summary ──────────────────────────────────────────────────────────
 
-export class PayableSummaryRowDto {
-  billId: string;
-  billNumber: string;
+export class PayableSummaryVendorRowDto {
+  vendorId: string;
   vendorName: string;
-  billDate: string;
-  dueDate: string;
-  total: number;
-  paid: number;
-  outstanding: number;
-  daysOverdue: number;
-  status: string;
+  paymentTerms: string;
+  totalPayable: number;
+  current: number;
+  overdue: number;
+  billCount: number;
+  lastPaymentDate: string | null;
+  status: 'Good' | 'Warning' | 'Critical';
 }
 
 export class PayableSummaryDto {
   asOfDate: string;
-  totalOutstanding: number;
+  vendorCount: number;
+  totalPayable: number;
   totalCurrent: number;
   totalOverdue: number;
-  totalBilled: number;
+  avgPayable: number;
+  overdueVendorCount: number;
   overduePercentage: number;
-  rows: PayableSummaryRowDto[];
+  goodCount: number;
+  warningCount: number;
+  criticalCount: number;
+  rows: PayableSummaryVendorRowDto[];
 }
 
 // ─── Aged Payables ────────────────────────────────────────────────────────────
@@ -417,16 +449,26 @@ export class AgedPayablesDto {
 export class VendorBalanceRowDto {
   vendorId: string;
   vendorName: string;
+  email: string;
+  openingBalance: number;
   totalBilled: number;
   totalPaid: number;
-  balance: number;
+  debitNotes: number;
+  closingBalance: number;
+  status: 'Debit' | 'Credit' | 'Zero';
+  lastTransactionDate: string | null;
 }
 
 export class VendorBalancesDto {
-  asOfDate: string;
+  startDate: string;
+  endDate: string;
+  vendorCount: number;
+  debitCount: number;
+  totalDebit: number;
+  totalCredit: number;
+  netBalance: number;
   totalBilled: number;
   totalPaid: number;
-  totalBalance: number;
   rows: VendorBalanceRowDto[];
 }
 

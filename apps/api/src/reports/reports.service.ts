@@ -1353,30 +1353,82 @@ export class ReportsService {
 
   // ─── Customer Balances ────────────────────────────────────────────────────────
 
-  async getCustomerBalances(entityId: string, asOfDate: Date): Promise<CustomerBalancesDto> {
+  async getCustomerBalances(entityId: string, startDate: Date, endDate: Date): Promise<CustomerBalancesDto> {
     const invoices = await this.prisma.invoice.findMany({
-      where: { entityId, invoiceDate: { lte: asOfDate }, status: { not: 'Draft' as any } },
-      include: { customer: { select: { name: true } }, paymentReceived: { select: { amount: true } } },
+      where: { entityId, status: { not: 'Draft' as any } },
+      include: {
+        customer: { select: { id: true, name: true, email: true } },
+        paymentReceived: { select: { amount: true, paidAt: true } },
+      },
+      orderBy: { invoiceDate: 'asc' },
     });
 
-    const map = new Map<string, { name: string; invoiced: number; received: number }>();
+    type CustEntry = {
+      name: string; email: string;
+      preInvoiced: number; prePaid: number;
+      periodInvoiced: number; periodPaid: number;
+      lastDate: Date | null;
+    };
+
+    const map = new Map<string, CustEntry>();
+
     for (const inv of invoices) {
-      const paid = inv.paymentReceived.reduce((s, p) => s + p.amount, 0);
-      const existing = map.get(inv.customerId);
-      if (existing) { existing.invoiced += inv.total; existing.received += paid; }
-      else map.set(inv.customerId, { name: inv.customer.name, invoiced: inv.total, received: paid });
+      const cid = inv.customerId;
+      if (!map.has(cid)) {
+        map.set(cid, { name: inv.customer.name, email: inv.customer.email, preInvoiced: 0, prePaid: 0, periodInvoiced: 0, periodPaid: 0, lastDate: null });
+      }
+      const c = map.get(cid)!;
+      const invDate = new Date(inv.invoiceDate);
+
+      if (invDate < startDate) {
+        c.preInvoiced += inv.total;
+      } else if (invDate <= endDate) {
+        c.periodInvoiced += inv.total;
+        if (!c.lastDate || invDate > c.lastDate) c.lastDate = invDate;
+      }
+
+      for (const p of inv.paymentReceived) {
+        const pDate = new Date(p.paidAt);
+        if (pDate < startDate) {
+          c.prePaid += p.amount;
+        } else if (pDate <= endDate) {
+          c.periodPaid += p.amount;
+          if (!c.lastDate || pDate > c.lastDate) c.lastDate = pDate;
+        }
+      }
     }
 
-    const rows = Array.from(map.entries()).map(([customerId, d]) => ({
-      customerId, customerName: d.name,
-      totalInvoiced: d.invoiced, totalReceived: d.received, balance: d.invoiced - d.received,
-    })).sort((a, b) => b.balance - a.balance);
+    const rows = Array.from(map.entries())
+      .map(([customerId, c]) => {
+        const openingBalance = c.preInvoiced - c.prePaid;
+        const closingBalance = openingBalance + c.periodInvoiced - c.periodPaid;
+        const status: 'Debit' | 'Credit' | 'Zero' =
+          closingBalance > 0 ? 'Debit' : closingBalance < 0 ? 'Credit' : 'Zero';
+        return {
+          customerId, customerName: c.name, email: c.email,
+          openingBalance, invoiced: c.periodInvoiced, payments: c.periodPaid,
+          closingBalance, status,
+          lastTransactionDate: c.lastDate?.toISOString() ?? null,
+        };
+      })
+      .filter(r => r.invoiced > 0 || r.openingBalance !== 0)
+      .sort((a, b) => b.closingBalance - a.closingBalance);
+
+    const totalDebit    = rows.filter(r => r.closingBalance > 0).reduce((s, r) => s + r.closingBalance, 0);
+    const totalCredit   = rows.filter(r => r.closingBalance < 0).reduce((s, r) => s + Math.abs(r.closingBalance), 0);
 
     return {
-      asOfDate: asOfDate.toISOString(),
-      totalInvoiced: rows.reduce((s, r) => s + r.totalInvoiced, 0),
-      totalReceived: rows.reduce((s, r) => s + r.totalReceived, 0),
-      totalBalance: rows.reduce((s, r) => s + r.balance, 0),
+      period: { startDate: startDate.toISOString(), endDate: endDate.toISOString() },
+      totalCustomers: rows.length,
+      debitCount:  rows.filter(r => r.status === 'Debit').length,
+      creditCount: rows.filter(r => r.status === 'Credit').length,
+      zeroCount:   rows.filter(r => r.status === 'Zero').length,
+      totalDebit, totalCredit,
+      netBalance: totalDebit - totalCredit,
+      totalOpeningBalance: rows.reduce((s, r) => s + r.openingBalance, 0),
+      totalInvoiced:  rows.reduce((s, r) => s + r.invoiced, 0),
+      totalPayments:  rows.reduce((s, r) => s + r.payments, 0),
+      totalClosingBalance: rows.reduce((s, r) => s + r.closingBalance, 0),
       rows,
     };
   }
@@ -1388,11 +1440,32 @@ export class ReportsService {
     startDate: Date,
     endDate: Date,
   ): Promise<PaymentMethodSummaryDto> {
+    // Current period payments with invoice + customer joins
     const payments = await this.prisma.paymentReceived.findMany({
       where: { entityId, paidAt: { gte: startDate, lte: endDate } },
+      include: {
+        invoice: { select: { invoiceNumber: true, customer: { select: { name: true } } } },
+      },
+      orderBy: { paidAt: 'desc' },
+    });
+
+    // Previous period (same duration) for growth comparison
+    const durationMs = endDate.getTime() - startDate.getTime();
+    const prevEnd   = new Date(startDate.getTime() - 1);
+    const prevStart = new Date(startDate.getTime() - durationMs);
+    const prevPayments = await this.prisma.paymentReceived.findMany({
+      where: { entityId, paidAt: { gte: prevStart, lte: prevEnd } },
       select: { paymentMethod: true, amount: true },
     });
 
+    const prevMap = new Map<string, number>();
+    for (const p of prevPayments) {
+      const key = p.paymentMethod || 'Unknown';
+      prevMap.set(key, (prevMap.get(key) ?? 0) + p.amount);
+    }
+    const prevTotal = prevPayments.reduce((s, p) => s + p.amount, 0);
+
+    // Aggregate by method
     const map = new Map<string, { total: number; count: number }>();
     for (const p of payments) {
       const key = p.paymentMethod || 'Unknown';
@@ -1402,14 +1475,67 @@ export class ReportsService {
     }
 
     const totalReceived = payments.reduce((s, p) => s + p.amount, 0);
-    const rows = Array.from(map.entries()).map(([paymentMethod, d]) => ({
-      paymentMethod, totalAmount: d.total, transactionCount: d.count,
-      percentOfTotal: totalReceived > 0 ? Math.round((d.total / totalReceived) * 10000) / 100 : 0,
-    })).sort((a, b) => b.totalAmount - a.totalAmount);
+
+    const rows = Array.from(map.entries())
+      .map(([paymentMethod, d]) => {
+        const prevAmount = prevMap.get(paymentMethod) ?? 0;
+        const growthPercent = prevAmount > 0
+          ? Math.round(((d.total - prevAmount) / prevAmount) * 1000) / 10
+          : null;
+        return {
+          paymentMethod,
+          totalAmount: d.total,
+          transactionCount: d.count,
+          percentOfTotal: totalReceived > 0 ? Math.round((d.total / totalReceived) * 10000) / 100 : 0,
+          avgTransaction: d.count > 0 ? Math.round(d.total / d.count) : 0,
+          growthPercent,
+        };
+      })
+      .sort((a, b) => b.totalAmount - a.totalAmount);
+
+    const methods = rows.map(r => r.paymentMethod);
+
+    // Weekly trends: split period into 4 equal buckets
+    const bucketMs = durationMs / 4;
+    const trends: Record<string, number | string>[] = Array.from({ length: 4 }, (_, i) => {
+      const bStart = new Date(startDate.getTime() + i * bucketMs);
+      const bEnd   = new Date(startDate.getTime() + (i + 1) * bucketMs - 1);
+      const point: Record<string, number | string> = { label: `Week ${i + 1}` };
+      for (const m of methods) point[m] = 0;
+      for (const p of payments) {
+        const pDate = new Date(p.paidAt);
+        if (pDate >= bStart && pDate <= bEnd) {
+          const key = p.paymentMethod || 'Unknown';
+          point[key] = ((point[key] as number) ?? 0) + p.amount;
+        }
+      }
+      return point;
+    });
+
+    // Recent transactions (up to 20)
+    const recentTransactions = payments.slice(0, 20).map(p => ({
+      id: p.id,
+      date: p.paidAt.toISOString(),
+      customerName: p.invoice.customer.name,
+      invoiceNumber: p.invoice.invoiceNumber,
+      paymentMethod: p.paymentMethod || 'Unknown',
+      amount: p.amount,
+      reference: p.reference,
+    }));
+
+    const totalGrowthPercent = prevTotal > 0
+      ? Math.round(((totalReceived - prevTotal) / prevTotal) * 1000) / 10
+      : null;
 
     return {
       period: { startDate: startDate.toISOString(), endDate: endDate.toISOString() },
-      totalReceived, transactionCount: payments.length, rows,
+      totalReceived,
+      transactionCount: payments.length,
+      totalGrowthPercent,
+      methods,
+      rows,
+      trends,
+      recentTransactions,
     };
   }
 
@@ -1418,26 +1544,71 @@ export class ReportsService {
   async getPayableSummary(entityId: string, asOfDate: Date): Promise<PayableSummaryDto> {
     const bills = await this.prisma.bills.findMany({
       where: { entityId, billDate: { lte: asOfDate }, status: { not: 'draft' as any } },
-      include: { vendor: { select: { name: true } }, paymentRecord: { select: { amount: true } } },
-      orderBy: { dueDate: 'asc' },
+      include: {
+        vendor: { select: { id: true, name: true, paymentTerms: true } },
+        paymentRecord: { select: { amount: true, paidAt: true } },
+      },
     });
 
-    const rows = bills.map((bill) => {
+    type VendorEntry = {
+      vendorId: string; vendorName: string; paymentTerms: string;
+      current: number; overdue: number; billCount: number; lastPaymentDate: Date | null;
+    };
+
+    const vendorMap = new Map<string, VendorEntry>();
+
+    for (const bill of bills) {
       const paid = bill.paymentRecord.reduce((s, p) => s + p.amount, 0);
       const outstanding = bill.total - paid;
-      const daysOverdue = outstanding > 0 ? Math.max(0, Math.floor((asOfDate.getTime() - bill.dueDate.getTime()) / 86400000)) : 0;
-      return { billId: bill.id, billNumber: bill.billNumber, vendorName: bill.vendor.name, billDate: bill.billDate.toISOString(), dueDate: bill.dueDate.toISOString(), total: bill.total, paid, outstanding, daysOverdue, status: bill.status as string };
-    }).filter(r => r.outstanding > 0);
+      if (outstanding <= 0) continue;
 
-    const totalOutstanding = rows.reduce((s, r) => s + r.outstanding, 0);
-    const totalCurrent = rows.filter(r => r.daysOverdue === 0).reduce((s, r) => s + r.outstanding, 0);
-    const totalOverdue = rows.filter(r => r.daysOverdue > 0).reduce((s, r) => s + r.outstanding, 0);
-    const totalBilled = bills.reduce((s, b) => s + b.total, 0);
+      const isOverdue = bill.dueDate < asOfDate;
+      const vid = bill.vendorId;
+
+      if (!vendorMap.has(vid)) {
+        vendorMap.set(vid, {
+          vendorId: vid, vendorName: bill.vendor.name, paymentTerms: bill.vendor.paymentTerms,
+          current: 0, overdue: 0, billCount: 0, lastPaymentDate: null,
+        });
+      }
+      const v = vendorMap.get(vid)!;
+      if (isOverdue) v.overdue += outstanding; else v.current += outstanding;
+      v.billCount++;
+
+      const lastPaid = bill.paymentRecord.reduce<Date | null>(
+        (max, p) => (!max || p.paidAt > max) ? p.paidAt : max, null,
+      );
+      if (lastPaid && (!v.lastPaymentDate || lastPaid > v.lastPaymentDate)) v.lastPaymentDate = lastPaid;
+    }
+
+    const rows = Array.from(vendorMap.values())
+      .map((v) => {
+        const totalPayable = v.current + v.overdue;
+        const overdueRatio = totalPayable > 0 ? v.overdue / totalPayable : 0;
+        const status: 'Good' | 'Warning' | 'Critical' =
+          v.overdue === 0 ? 'Good' : overdueRatio >= 0.5 ? 'Critical' : 'Warning';
+        return {
+          vendorId: v.vendorId, vendorName: v.vendorName, paymentTerms: v.paymentTerms,
+          totalPayable, current: v.current, overdue: v.overdue,
+          billCount: v.billCount, lastPaymentDate: v.lastPaymentDate?.toISOString() ?? null, status,
+        };
+      })
+      .sort((a, b) => b.totalPayable - a.totalPayable);
+
+    const totalPayable  = rows.reduce((s, r) => s + r.totalPayable, 0);
+    const totalCurrent  = rows.reduce((s, r) => s + r.current, 0);
+    const totalOverdue  = rows.reduce((s, r) => s + r.overdue, 0);
 
     return {
       asOfDate: asOfDate.toISOString(),
-      totalOutstanding, totalCurrent, totalOverdue, totalBilled,
-      overduePercentage: totalOutstanding > 0 ? Math.round((totalOverdue / totalOutstanding) * 10000) / 100 : 0,
+      vendorCount: rows.length,
+      totalPayable, totalCurrent, totalOverdue,
+      avgPayable: rows.length > 0 ? Math.round(totalPayable / rows.length) : 0,
+      overdueVendorCount: rows.filter(r => r.overdue > 0).length,
+      overduePercentage: totalPayable > 0 ? Math.round((totalOverdue / totalPayable) * 10000) / 100 : 0,
+      goodCount:     rows.filter(r => r.status === 'Good').length,
+      warningCount:  rows.filter(r => r.status === 'Warning').length,
+      criticalCount: rows.filter(r => r.status === 'Critical').length,
       rows,
     };
   }
@@ -1487,30 +1658,85 @@ export class ReportsService {
 
   // ─── Vendor Balances ──────────────────────────────────────────────────────────
 
-  async getVendorBalances(entityId: string, asOfDate: Date): Promise<VendorBalancesDto> {
-    const bills = await this.prisma.bills.findMany({
-      where: { entityId, billDate: { lte: asOfDate }, status: { not: 'draft' as any } },
-      include: { vendor: { select: { name: true } }, paymentRecord: { select: { amount: true } } },
+  async getVendorBalances(entityId: string, startDate: Date, endDate: Date): Promise<VendorBalancesDto> {
+    // Bills up to end of period (for opening balance computation)
+    const allBills = await this.prisma.bills.findMany({
+      where: { entityId, billDate: { lte: endDate }, status: { not: 'draft' as any } },
+      include: {
+        vendor: { select: { id: true, name: true, email: true } },
+        paymentRecord: { select: { amount: true, paidAt: true } },
+      },
     });
 
-    const map = new Map<string, { name: string; billed: number; paid: number }>();
-    for (const bill of bills) {
-      const paid = bill.paymentRecord.reduce((s, p) => s + p.amount, 0);
-      const existing = map.get(bill.vendorId);
-      if (existing) { existing.billed += bill.total; existing.paid += paid; }
-      else map.set(bill.vendorId, { name: bill.vendor.name, billed: bill.total, paid });
+    type VendorAcc = {
+      name: string; email: string;
+      openingBilled: number; openingPaid: number;
+      periodBilled: number; periodPaid: number;
+      lastDate: Date | null;
+    };
+    const map = new Map<string, VendorAcc>();
+
+    for (const bill of allBills) {
+      const vid = bill.vendorId;
+      if (!map.has(vid)) {
+        map.set(vid, { name: bill.vendor.name, email: bill.vendor.email, openingBilled: 0, openingPaid: 0, periodBilled: 0, periodPaid: 0, lastDate: null });
+      }
+      const acc = map.get(vid)!;
+      const billDate = new Date(bill.billDate);
+      const inPeriod = billDate >= startDate && billDate <= endDate;
+
+      if (inPeriod) {
+        acc.periodBilled += bill.total;
+        if (!acc.lastDate || billDate > acc.lastDate) acc.lastDate = billDate;
+      } else {
+        acc.openingBilled += bill.total;
+      }
+
+      for (const pay of bill.paymentRecord) {
+        const payDate = new Date(pay.paidAt);
+        const payInPeriod = payDate >= startDate && payDate <= endDate;
+        if (payInPeriod) {
+          acc.periodPaid += pay.amount;
+          if (!acc.lastDate || payDate > acc.lastDate) acc.lastDate = payDate;
+        } else if (payDate < startDate) {
+          acc.openingPaid += pay.amount;
+        }
+      }
     }
 
-    const rows = Array.from(map.entries()).map(([vendorId, d]) => ({
-      vendorId, vendorName: d.name,
-      totalBilled: d.billed, totalPaid: d.paid, balance: d.billed - d.paid,
-    })).sort((a, b) => b.balance - a.balance);
+    const rows: VendorBalanceRowDto[] = Array.from(map.entries()).map(([vendorId, d]) => {
+      const openingBalance = d.openingBilled - d.openingPaid;
+      const closingBalance = openingBalance + d.periodBilled - d.periodPaid;
+      const status: 'Debit' | 'Credit' | 'Zero' = closingBalance > 0 ? 'Debit' : closingBalance < 0 ? 'Credit' : 'Zero';
+      return {
+        vendorId,
+        vendorName: d.name,
+        email: d.email,
+        openingBalance,
+        totalBilled: d.periodBilled,
+        totalPaid: d.periodPaid,
+        debitNotes: 0,
+        closingBalance,
+        status,
+        lastTransactionDate: d.lastDate ? d.lastDate.toISOString() : null,
+      };
+    }).sort((a, b) => b.closingBalance - a.closingBalance);
+
+    const debitRows   = rows.filter(r => r.status === 'Debit');
+    const creditRows  = rows.filter(r => r.status === 'Credit');
+    const totalDebit  = debitRows.reduce((s, r) => s + r.closingBalance, 0);
+    const totalCredit = Math.abs(creditRows.reduce((s, r) => s + r.closingBalance, 0));
 
     return {
-      asOfDate: asOfDate.toISOString(),
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      vendorCount: rows.length,
+      debitCount: debitRows.length,
+      totalDebit,
+      totalCredit,
+      netBalance: totalDebit - totalCredit,
       totalBilled: rows.reduce((s, r) => s + r.totalBilled, 0),
       totalPaid: rows.reduce((s, r) => s + r.totalPaid, 0),
-      totalBalance: rows.reduce((s, r) => s + r.balance, 0),
       rows,
     };
   }

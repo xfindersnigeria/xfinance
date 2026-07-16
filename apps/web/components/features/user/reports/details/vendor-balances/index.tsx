@@ -1,67 +1,129 @@
 "use client";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, CalendarDays, Download, Printer } from "lucide-react";
+import { ArrowLeft, Download, Info, Printer, TrendingDown, TrendingUp, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useVendorBalances } from "@/lib/api/hooks/useReports";
 import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 import { VendorBalancesData, VendorBalanceRow } from "@/lib/api/services/reportService";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import { ReportPeriodFilter } from "@/components/features/user/reports/ReportPeriodFilter";
+import { periodToDates, defaultPeriodValue } from "@/lib/period-utils";
+import {
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
+  PieChart, Pie, Cell, Legend,
+} from "recharts";
 
-type DatePreset = "today" | "end-last-month" | "end-last-quarter" | "end-last-year";
-const DATE_PRESETS: { value: DatePreset; label: string }[] = [
-  { value: "today", label: "As of Today" }, { value: "end-last-month", label: "End of Last Month" },
-  { value: "end-last-quarter", label: "End of Last Quarter" }, { value: "end-last-year", label: "End of Last Year" },
-];
-function resolveAsOfDate(p: DatePreset): string {
-  const now = new Date();
-  if (p === "today") return now.toISOString();
-  if (p === "end-last-month") return new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59).toISOString();
-  if (p === "end-last-quarter") {
-    const q = Math.floor(now.getMonth() / 3);
-    return new Date(q === 0 ? now.getFullYear() - 1 : now.getFullYear(), q === 0 ? 9 : (q - 1) * 3 + 2 + 1, 0, 23, 59, 59).toISOString();
-  }
-  return new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59).toISOString();
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function fmtShort(amount: number, sym: string): string {
+  const abs = Math.abs(amount);
+  const s = abs >= 1_000_000 ? `${sym}${(abs / 1_000_000).toFixed(1)}M`
+    : abs >= 1_000 ? `${sym}${(abs / 1_000).toFixed(0)}k`
+    : abs === 0 ? `${sym}0`
+    : `${sym}${abs.toLocaleString("en")}`;
+  return amount < 0 ? `${sym}-${s.slice(sym.length)}` : s;
 }
 
-function fmtShort(v: number, sym: string): string {
+function fmtAxis(v: number, sym: string): string {
   if (v === 0) return `${sym}0`;
-  const a = Math.abs(v);
-  const s = a >= 1_000_000 ? `${sym}${(a / 1_000_000).toFixed(1)}M` : a >= 1_000 ? `${sym}${(a / 1_000).toFixed(0)}K` : `${sym}${a.toLocaleString("en")}`;
-  return v < 0 ? `(${s})` : s;
+  if (v >= 1_000_000) return `${sym}${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `${sym}${(v / 1_000).toFixed(0)}k`;
+  return `${sym}${v}`;
 }
-function fmtAxis(v: number, sym: string) { return v >= 1_000_000 ? `${sym}${(v / 1_000_000).toFixed(1)}M` : v >= 1_000 ? `${sym}${(v / 1_000).toFixed(0)}K` : `${sym}${v}`; }
-const tooltipStyle = { contentStyle: { backgroundColor: "white", border: "1px solid #e2e8f0", borderRadius: "12px", fontSize: "12px" } };
 
-function KPICard({ label, value, valueClassName }: { label: string; value: string; valueClassName?: string }) {
-  return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col gap-1">
-      <p className="text-sm text-slate-500">{label}</p>
-      <p className={`text-2xl font-bold ${valueClassName ?? "text-slate-900"}`}>{value}</p>
-    </div>
-  );
+function fmtDate(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
+
+function statusBadge(status: "Debit" | "Credit" | "Zero") {
+  if (status === "Debit") return "bg-red-100 text-red-700 border border-red-200";
+  if (status === "Credit") return "bg-green-100 text-green-700 border border-green-200";
+  return "bg-gray-100 text-gray-500 border border-gray-200";
+}
+
+const tooltipStyle = {
+  contentStyle: { backgroundColor: "white", border: "1px solid #e2e8f0", borderRadius: "12px", fontSize: "12px" },
+};
+
+const PIE_COLORS = { Debit: "#ef4444", Credit: "#10b981", Zero: "#94a3b8" };
+
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export default function VendorBalances() {
   const router = useRouter();
   const sym = useEntityCurrencySymbol();
-  const [preset, setPreset] = useState<DatePreset>("today");
-  const asOfDate = resolveAsOfDate(preset);
-  const { data: rawData, isLoading } = useVendorBalances({ asOfDate });
+
+  const [period, setPeriod] = useState(defaultPeriodValue());
+  const [balanceFilter, setBalanceFilter] = useState<"all" | "Debit" | "Credit" | "Zero">("all");
+  const [search, setSearch] = useState("");
+
+  const { startDate, endDate } = periodToDates(period);
+  const { data: rawData, isLoading } = useVendorBalances({ startDate, endDate });
   const data: VendorBalancesData | null = (rawData as any)?.data ?? null;
-  const rows = data?.rows ?? [];
-  const top10 = rows.slice(0, 10).map(r => ({ name: r.vendorName.length > 18 ? r.vendorName.slice(0, 18) + "…" : r.vendorName, Billed: r.totalBilled, Paid: r.totalPaid }));
+
+  const allRows = data?.rows ?? [];
+
+  const filtered = useMemo(() => {
+    let r = allRows;
+    if (balanceFilter !== "all") r = r.filter(v => v.status === balanceFilter);
+    if (search.trim()) r = r.filter(v => v.vendorName.toLowerCase().includes(search.toLowerCase()) || v.email.toLowerCase().includes(search.toLowerCase()));
+    return r;
+  }, [allRows, balanceFilter, search]);
+
+  // Top 10 by closing balance for bar chart
+  const top10 = useMemo(() =>
+    [...allRows]
+      .filter(r => r.closingBalance > 0)
+      .sort((a, b) => b.closingBalance - a.closingBalance)
+      .slice(0, 10)
+      .map(r => ({
+        name: r.vendorName.length > 20 ? r.vendorName.slice(0, 20) + "…" : r.vendorName,
+        Balance: r.closingBalance,
+      })),
+  [allRows]);
+
+  // Balance distribution pie
+  const debitCount  = allRows.filter(r => r.status === "Debit").length;
+  const creditCount = allRows.filter(r => r.status === "Credit").length;
+  const zeroCount   = allRows.filter(r => r.status === "Zero").length;
+  const total       = allRows.length;
+
+  const pieData = [
+    { name: "Debit Balance",  value: debitCount,  pct: total > 0 ? Math.round((debitCount / total) * 100) : 0 },
+    { name: "Credit Balance", value: creditCount, pct: total > 0 ? Math.round((creditCount / total) * 100) : 0 },
+    { name: "Zero Balance",   value: zeroCount,   pct: total > 0 ? Math.round((zeroCount / total) * 100) : 0 },
+  ].filter(d => d.value > 0);
+
+  const creditVendors = allRows.filter(r => r.status === "Credit");
+  const totalCredit   = data?.totalCredit ?? 0;
+
+  // Totals for table footer
+  const totals = useMemo(() => ({
+    openingBalance: filtered.reduce((s, r) => s + r.openingBalance, 0),
+    totalBilled:    filtered.reduce((s, r) => s + r.totalBilled, 0),
+    totalPaid:      filtered.reduce((s, r) => s + r.totalPaid, 0),
+    debitNotes:     filtered.reduce((s, r) => s + r.debitNotes, 0),
+    closingBalance: filtered.reduce((s, r) => s + r.closingBalance, 0),
+  }), [filtered]);
 
   return (
     <div className="flex flex-col gap-6 pb-12">
+      {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <button onClick={() => router.back()} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 mb-2 w-fit"><ArrowLeft className="w-4 h-4" /> Back to Reports</button>
+          <button
+            onClick={() => router.back()}
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 mb-2 w-fit"
+          >
+            <ArrowLeft className="w-4 h-4" /> Back to Reports
+          </button>
           <h1 className="text-xl font-semibold text-slate-900">Vendor Balances</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Outstanding balances grouped by vendor</p>
+          <p className="text-sm text-slate-500 mt-0.5">Detailed vendor account balances and transaction summary</p>
         </div>
         <div className="flex items-center gap-2 mt-7 shrink-0">
           <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Printer className="w-4 h-4" /> Print</Button>
@@ -69,80 +131,245 @@ export default function VendorBalances() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 h-9 w-fit">
-        <CalendarDays className="w-4 h-4 text-gray-500 shrink-0" />
-        <Select value={preset} onValueChange={v => setPreset(v as DatePreset)}>
-          <SelectTrigger className="border-0 bg-transparent h-auto p-0 text-sm w-40 focus:ring-0 shadow-none"><SelectValue /></SelectTrigger>
-          <SelectContent>{DATE_PRESETS.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent>
+      {/* Filters */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <ReportPeriodFilter value={period} onChange={setPeriod} />
+        <Select value={balanceFilter} onValueChange={v => setBalanceFilter(v as typeof balanceFilter)}>
+          <SelectTrigger className="h-9 w-36 rounded-xl border-slate-200 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Balances</SelectItem>
+            <SelectItem value="Debit">Debit</SelectItem>
+            <SelectItem value="Credit">Credit</SelectItem>
+            <SelectItem value="Zero">Zero</SelectItem>
+          </SelectContent>
         </Select>
+        <div className="relative flex-1 min-w-48 max-w-80">
+          <Input
+            placeholder="Search vendors..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="h-9 rounded-xl border-slate-200 pl-3 text-sm"
+          />
+        </div>
       </div>
 
+      {/* Skeleton */}
       {isLoading && (
         <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-3 gap-4">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}</div>
-          <Skeleton className="h-72 rounded-2xl" /><Skeleton className="h-64 rounded-2xl" />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Skeleton className="h-80 rounded-2xl" />
+            <Skeleton className="h-80 rounded-2xl" />
+          </div>
+          <Skeleton className="h-96 rounded-2xl" />
         </div>
       )}
+
       {!isLoading && (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <KPICard label="Total Billed" value={fmtShort(data?.totalBilled ?? 0, sym)} />
-            <KPICard label="Total Paid" value={fmtShort(data?.totalPaid ?? 0, sym)} valueClassName="text-green-600 font-bold text-2xl" />
-            <KPICard label="Total Balance" value={fmtShort(data?.totalBalance ?? 0, sym)} valueClassName="text-amber-600 font-bold text-2xl" />
+          {/* KPI Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {/* Total Vendors */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-slate-500">Total Vendors</p>
+                <Users className="w-4 h-4 text-slate-400" />
+              </div>
+              <p className="text-2xl font-bold text-slate-900">{data?.vendorCount ?? 0}</p>
+              <p className="text-xs text-slate-400">{data?.debitCount ?? 0} with debit balance</p>
+            </div>
+            {/* Total Debit */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-slate-500">Total Debit</p>
+                <TrendingUp className="w-4 h-4 text-red-400" />
+              </div>
+              <p className="text-2xl font-bold text-red-600">{fmtShort(data?.totalDebit ?? 0, sym)}</p>
+              <p className="text-xs text-slate-400">Amount payable</p>
+            </div>
+            {/* Total Credit */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-slate-500">Total Credit</p>
+                <TrendingDown className="w-4 h-4 text-green-500" />
+              </div>
+              <p className="text-2xl font-bold text-green-600">{fmtShort(data?.totalCredit ?? 0, sym)}</p>
+              <p className="text-xs text-slate-400">Advance payments</p>
+            </div>
+            {/* Net Balance */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-slate-500">Net Balance</p>
+                <span className="w-2 h-2 rounded-full bg-red-400" />
+              </div>
+              <p className="text-2xl font-bold text-red-600">{fmtShort(data?.netBalance ?? 0, sym)}</p>
+              <p className="text-xs text-slate-400">Net payable</p>
+            </div>
           </div>
 
-          {top10.length > 0 && (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-              <p className="font-semibold text-slate-800 mb-4">Top Vendors</p>
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart layout="vertical" data={top10} margin={{ top: 4, right: 24, left: 8, bottom: 4 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 10, fill: "#94a3b8" }} tickFormatter={v => fmtAxis(v, sym)} axisLine={false} tickLine={false} />
-                  <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                  <Tooltip {...tooltipStyle} formatter={(v: number, name: string) => [fmtShort(v, sym), name]} />
-                  <Bar dataKey="Billed" fill="#6366f1" radius={[0, 4, 4, 0]} maxBarSize={12} />
-                  <Bar dataKey="Paid" fill="#10b981" radius={[0, 4, 4, 0]} maxBarSize={12} />
-                </BarChart>
-              </ResponsiveContainer>
+          {/* Charts row */}
+          {allRows.length > 0 && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Top 10 Vendors horizontal bar */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                <p className="font-semibold text-slate-800 mb-4">Top 10 Vendors by Outstanding Balance</p>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart layout="vertical" data={top10} margin={{ top: 4, right: 24, left: 8, bottom: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+                    <XAxis type="number" tick={{ fontSize: 10, fill: "#94a3b8" }} tickFormatter={v => fmtAxis(v, sym)} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="name" width={150} tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                    <Tooltip {...tooltipStyle} formatter={(v: number) => [fmtShort(v, sym), "Balance"]} />
+                    <Bar dataKey="Balance" fill="#ef4444" radius={[0, 4, 4, 0]} maxBarSize={14} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Balance Distribution pie */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                <p className="font-semibold text-slate-800 mb-2">Balance Distribution</p>
+                <ResponsiveContainer width="100%" height={220}>
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={90}
+                      dataKey="value"
+                      label={({ pct }) => `${pct}%`}
+                      labelLine={false}
+                    >
+                      {pieData.map((entry, i) => (
+                        <Cell key={i} fill={PIE_COLORS[entry.name.split(" ")[0] as keyof typeof PIE_COLORS]} />
+                      ))}
+                    </Pie>
+                    <Legend iconType="square" iconSize={10} wrapperStyle={{ fontSize: 12 }} />
+                    <Tooltip {...tooltipStyle} formatter={(v: number, name: string) => [`${v} vendors`, name]} />
+                  </PieChart>
+                </ResponsiveContainer>
+                {/* Summary rows */}
+                <div className="flex flex-col gap-2 mt-1">
+                  <div className="flex items-center justify-between bg-red-50 rounded-xl px-4 py-2">
+                    <span className="text-sm text-red-700">Debit</span>
+                    <span className="text-sm font-semibold text-red-700">{fmtShort(data?.totalDebit ?? 0, sym)}</span>
+                  </div>
+                  <div className="flex items-center justify-between bg-green-50 rounded-xl px-4 py-2">
+                    <span className="text-sm text-green-700">Credit</span>
+                    <span className="text-sm font-semibold text-green-700">{fmtShort(data?.totalCredit ?? 0, sym)}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
+          {/* Vendor Balance Details Table */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-100"><p className="font-semibold text-slate-900">Vendor Balances</p></div>
+            <div className="px-5 py-4 border-b border-slate-100">
+              <p className="font-semibold text-slate-900">Vendor Balance Details</p>
+            </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[540px]">
+              <table className="w-full min-w-[860px]">
                 <thead>
                   <tr className="border-b border-slate-100">
                     <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Vendor</th>
-                    <th className="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Total Billed</th>
-                    <th className="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Total Paid</th>
-                    <th className="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Balance</th>
+                    <th className="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Opening Balance</th>
+                    <th className="px-5 py-3 text-right text-xs font-semibold text-red-500 uppercase tracking-wide">Billed</th>
+                    <th className="px-5 py-3 text-right text-xs font-semibold text-green-600 uppercase tracking-wide">Payments</th>
+                    <th className="px-5 py-3 text-right text-xs font-semibold text-amber-600 uppercase tracking-wide">Debit Notes</th>
+                    <th className="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Closing Balance</th>
+                    <th className="px-5 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
+                    <th className="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Last Transaction</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.length === 0
-                    ? <tr><td colSpan={4} className="px-5 py-16 text-center text-slate-400 text-sm">No vendor balance data found.</td></tr>
-                    : <>
-                        {rows.map((row: VendorBalanceRow) => (
-                          <tr key={row.vendorId} className="border-t border-slate-50 hover:bg-slate-50/60">
-                            <td className="px-5 py-3 text-sm text-slate-800">{row.vendorName}</td>
-                            <td className="px-5 py-3 text-right text-sm text-slate-700">{fmtShort(row.totalBilled, sym)}</td>
-                            <td className="px-5 py-3 text-right text-sm text-green-600">{fmtShort(row.totalPaid, sym)}</td>
-                            <td className={cn("px-5 py-3 text-right text-sm font-medium", row.balance > 0 ? "text-amber-600" : "text-slate-400")}>{fmtShort(row.balance, sym)}</td>
-                          </tr>
-                        ))}
-                        <tr className="border-t-2 border-slate-200 bg-slate-50/80">
-                          <td className="px-5 py-3 text-sm font-semibold text-slate-900">Total</td>
-                          <td className="px-5 py-3 text-right text-sm font-bold text-slate-900">{fmtShort(data?.totalBilled ?? 0, sym)}</td>
-                          <td className="px-5 py-3 text-right text-sm font-bold text-green-600">{fmtShort(data?.totalPaid ?? 0, sym)}</td>
-                          <td className="px-5 py-3 text-right text-sm font-bold text-amber-600">{fmtShort(data?.totalBalance ?? 0, sym)}</td>
+                  {filtered.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="px-5 py-16 text-center text-slate-400 text-sm">
+                        No vendor balance data found.
+                      </td>
+                    </tr>
+                  ) : (
+                    <>
+                      {filtered.map((row: VendorBalanceRow) => (
+                        <tr key={row.vendorId} className="border-t border-slate-50 hover:bg-slate-50/40">
+                          <td className="px-5 py-3">
+                            <p className="text-sm text-slate-800">{row.vendorName}</p>
+                            <p className="text-xs text-slate-400">{row.email}</p>
+                          </td>
+                          <td className="px-5 py-3 text-right text-sm text-slate-700">
+                            {fmtShort(row.openingBalance, sym)}
+                          </td>
+                          <td className="px-5 py-3 text-right text-sm text-red-600 font-medium">
+                            {fmtShort(row.totalBilled, sym)}
+                          </td>
+                          <td className="px-5 py-3 text-right text-sm text-green-600 font-medium">
+                            {fmtShort(row.totalPaid, sym)}
+                          </td>
+                          <td className="px-5 py-3 text-right text-sm text-amber-600">
+                            {fmtShort(row.debitNotes, sym)}
+                          </td>
+                          <td className={cn("px-5 py-3 text-right text-sm font-semibold",
+                            row.status === "Debit" ? "text-red-600" : row.status === "Credit" ? "text-green-600" : "text-slate-400"
+                          )}>
+                            {fmtShort(row.closingBalance, sym)}
+                          </td>
+                          <td className="px-5 py-3 text-center">
+                            <span className={cn("text-xs font-semibold px-2.5 py-1 rounded-full", statusBadge(row.status))}>
+                              {row.status}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3 text-right text-sm text-slate-500">
+                            {fmtDate(row.lastTransactionDate)}
+                          </td>
                         </tr>
-                      </>
-                  }
+                      ))}
+
+                      {/* Total row */}
+                      <tr className="border-t-2 border-slate-200 bg-slate-50">
+                        <td className="px-5 py-3 text-sm font-bold text-slate-900">
+                          Total ({filtered.length} vendor{filtered.length !== 1 ? "s" : ""})
+                        </td>
+                        <td className="px-5 py-3 text-right text-sm font-bold text-slate-900">
+                          {fmtShort(totals.openingBalance, sym)}
+                        </td>
+                        <td className="px-5 py-3 text-right text-sm font-bold text-red-600">
+                          {fmtShort(totals.totalBilled, sym)}
+                        </td>
+                        <td className="px-5 py-3 text-right text-sm font-bold text-green-600">
+                          {fmtShort(totals.totalPaid, sym)}
+                        </td>
+                        <td className="px-5 py-3 text-right text-sm font-bold text-amber-600">
+                          {fmtShort(totals.debitNotes, sym)}
+                        </td>
+                        <td className="px-5 py-3 text-right text-sm font-bold text-red-600">
+                          {fmtShort(totals.closingBalance, sym)}
+                        </td>
+                        <td />
+                        <td />
+                      </tr>
+                    </>
+                  )}
                 </tbody>
               </table>
             </div>
           </div>
+
+          {/* Credit Balances Detected alert */}
+          {creditVendors.length > 0 && (
+            <div className="bg-teal-50 border border-teal-200 rounded-2xl p-5 flex items-start gap-3">
+              <Info className="w-5 h-5 text-teal-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-teal-800">Credit Balances Detected</p>
+                <p className="text-sm text-teal-700 mt-0.5">
+                  {creditVendors.length} vendor{creditVendors.length !== 1 ? "s" : ""} have credit balances totaling{" "}
+                  <strong>{fmtShort(totalCredit, sym)}</strong>. These represent advance payments or overpayments that can be applied to future bills.
+                </p>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

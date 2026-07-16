@@ -406,21 +406,33 @@ export const getAgedReceivables = async (params: AsOfParams): Promise<AgedReceiv
 export interface CustomerBalanceRow {
   customerId: string;
   customerName: string;
-  totalInvoiced: number;
-  totalReceived: number;
-  balance: number;
+  email: string;
+  openingBalance: number;
+  invoiced: number;
+  payments: number;
+  closingBalance: number;
+  status: 'Debit' | 'Credit' | 'Zero';
+  lastTransactionDate: string | null;
 }
 
 export interface CustomerBalancesData {
-  asOfDate: string;
+  period: { startDate: string; endDate: string };
+  totalCustomers: number;
+  debitCount: number;
+  creditCount: number;
+  zeroCount: number;
+  totalDebit: number;
+  totalCredit: number;
+  netBalance: number;
+  totalOpeningBalance: number;
   totalInvoiced: number;
-  totalReceived: number;
-  totalBalance: number;
+  totalPayments: number;
+  totalClosingBalance: number;
   rows: CustomerBalanceRow[];
 }
 
-export const getCustomerBalances = async (params: AsOfParams): Promise<CustomerBalancesData> => {
-  const q = new URLSearchParams({ asOfDate: params.asOfDate });
+export const getCustomerBalances = async (params: PeriodParams): Promise<CustomerBalancesData> => {
+  const q = new URLSearchParams({ startDate: params.startDate, endDate: params.endDate });
   return apiClient<CustomerBalancesData>(`reports/customer-balances?${q.toString()}`);
 };
 
@@ -431,13 +443,29 @@ export interface PaymentMethodRow {
   totalAmount: number;
   transactionCount: number;
   percentOfTotal: number;
+  avgTransaction: number;
+  growthPercent: number | null;
+}
+
+export interface PaymentTransaction {
+  id: string;
+  date: string;
+  customerName: string;
+  invoiceNumber: string;
+  paymentMethod: string;
+  amount: number;
+  reference: string;
 }
 
 export interface PaymentMethodSummaryData {
   period: { startDate: string; endDate: string };
   totalReceived: number;
   transactionCount: number;
+  totalGrowthPercent: number | null;
+  methods: string[];
   rows: PaymentMethodRow[];
+  trends: Record<string, number | string>[];
+  recentTransactions: PaymentTransaction[];
 }
 
 export const getPaymentMethodSummary = async (params: PeriodParams): Promise<PaymentMethodSummaryData> => {
@@ -448,25 +476,29 @@ export const getPaymentMethodSummary = async (params: PeriodParams): Promise<Pay
 // ─── Payable Summary ──────────────────────────────────────────────────────────
 
 export interface PayableSummaryRow {
-  billId: string;
-  billNumber: string;
+  vendorId: string;
   vendorName: string;
-  billDate: string;
-  dueDate: string;
-  total: number;
-  paid: number;
-  outstanding: number;
-  daysOverdue: number;
-  status: string;
+  paymentTerms: string;
+  totalPayable: number;
+  current: number;
+  overdue: number;
+  billCount: number;
+  lastPaymentDate: string | null;
+  status: 'Good' | 'Warning' | 'Critical';
 }
 
 export interface PayableSummaryData {
   asOfDate: string;
-  totalOutstanding: number;
+  vendorCount: number;
+  totalPayable: number;
   totalCurrent: number;
   totalOverdue: number;
-  totalBilled: number;
+  avgPayable: number;
+  overdueVendorCount: number;
   overduePercentage: number;
+  goodCount: number;
+  warningCount: number;
+  criticalCount: number;
   rows: PayableSummaryRow[];
 }
 
@@ -504,21 +536,31 @@ export const getAgedPayables = async (params: AsOfParams): Promise<AgedPayablesD
 export interface VendorBalanceRow {
   vendorId: string;
   vendorName: string;
+  email: string;
+  openingBalance: number;
   totalBilled: number;
   totalPaid: number;
-  balance: number;
+  debitNotes: number;
+  closingBalance: number;
+  status: 'Debit' | 'Credit' | 'Zero';
+  lastTransactionDate: string | null;
 }
 
 export interface VendorBalancesData {
-  asOfDate: string;
+  startDate: string;
+  endDate: string;
+  vendorCount: number;
+  debitCount: number;
+  totalDebit: number;
+  totalCredit: number;
+  netBalance: number;
   totalBilled: number;
   totalPaid: number;
-  totalBalance: number;
   rows: VendorBalanceRow[];
 }
 
-export const getVendorBalances = async (params: AsOfParams): Promise<VendorBalancesData> => {
-  const q = new URLSearchParams({ asOfDate: params.asOfDate });
+export const getVendorBalances = async (params: PeriodParams): Promise<VendorBalancesData> => {
+  const q = new URLSearchParams({ startDate: params.startDate, endDate: params.endDate });
   return apiClient<VendorBalancesData>(`reports/vendor-balances?${q.toString()}`);
 };
 

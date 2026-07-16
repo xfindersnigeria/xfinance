@@ -281,18 +281,21 @@ export class ReportsController {
   // ─── Customer Balances ────────────────────────────────────────────────────────
 
   @Get('customer-balances')
-  @ApiOperation({ summary: 'Get balance per customer as of a date' })
-  @ApiQuery({ name: 'asOfDate', required: true })
+  @ApiOperation({ summary: 'Get balance per customer for a period' })
+  @ApiQuery({ name: 'startDate', required: true })
+  @ApiQuery({ name: 'endDate', required: true })
   async getCustomerBalances(
     @Req() req: Request,
-    @Query('asOfDate') asOfDate: string,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
   ) {
     const entityId = getEffectiveEntityId(req);
     if (!entityId) throw new BadRequestException('Entity ID is required');
-    if (!asOfDate) throw new BadRequestException('asOfDate is required');
-    const d = new Date(asOfDate);
-    d.setHours(23, 59, 59, 999);
-    const data = await this.reportsService.getCustomerBalances(entityId, d);
+    if (!startDate || !endDate) throw new BadRequestException('startDate and endDate are required');
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+    const data = await this.reportsService.getCustomerBalances(entityId, start, end);
     return { data, message: 'Customer Balances generated', statusCode: 200 };
   }
 
@@ -356,18 +359,21 @@ export class ReportsController {
   // ─── Vendor Balances ──────────────────────────────────────────────────────────
 
   @Get('vendor-balances')
-  @ApiOperation({ summary: 'Get balance per vendor as of a date' })
-  @ApiQuery({ name: 'asOfDate', required: true })
+  @ApiOperation({ summary: 'Get balance per vendor for a period' })
+  @ApiQuery({ name: 'startDate', required: true })
+  @ApiQuery({ name: 'endDate', required: true })
   async getVendorBalances(
     @Req() req: Request,
-    @Query('asOfDate') asOfDate: string,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
   ) {
     const entityId = getEffectiveEntityId(req);
     if (!entityId) throw new BadRequestException('Entity ID is required');
-    if (!asOfDate) throw new BadRequestException('asOfDate is required');
-    const d = new Date(asOfDate);
-    d.setHours(23, 59, 59, 999);
-    const data = await this.reportsService.getVendorBalances(entityId, d);
+    if (!startDate || !endDate) throw new BadRequestException('startDate and endDate are required');
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+    const data = await this.reportsService.getVendorBalances(entityId, start, end);
     return { data, message: 'Vendor Balances generated', statusCode: 200 };
   }
 

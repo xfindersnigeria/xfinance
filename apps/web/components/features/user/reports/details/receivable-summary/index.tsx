@@ -27,7 +27,10 @@ const DATE_PRESETS: { value: DatePreset; label: string }[] = [
 
 function resolveAsOfDate(preset: DatePreset): string {
   const now = new Date();
-  if (preset === "today") return now.toISOString();
+  if (preset === "today") {
+    now.setHours(23, 59, 59, 999);
+    return now.toISOString();
+  }
   if (preset === "end-last-month") {
     return new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59).toISOString();
   }

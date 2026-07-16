@@ -137,13 +137,13 @@ export const useAgedReceivables = (params: AsOfParams) =>
     enabled: !!params.asOfDate,
   });
 
-export const useCustomerBalances = (params: AsOfParams) =>
+export const useCustomerBalances = (params: PeriodParams) =>
   useQuery<CustomerBalancesData>({
-    queryKey: ["customer-balances", params.asOfDate],
+    queryKey: ["customer-balances", params.startDate, params.endDate],
     queryFn: () => reportService.getCustomerBalances(params),
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
-    enabled: !!params.asOfDate,
+    enabled: !!params.startDate && !!params.endDate,
   });
 
 export const usePaymentMethodSummary = (params: PeriodParams) =>
@@ -173,13 +173,13 @@ export const useAgedPayables = (params: AsOfParams) =>
     enabled: !!params.asOfDate,
   });
 
-export const useVendorBalances = (params: AsOfParams) =>
+export const useVendorBalances = (params: PeriodParams) =>
   useQuery<VendorBalancesData>({
-    queryKey: ["vendor-balances", params.asOfDate],
+    queryKey: ["vendor-balances", params.startDate, params.endDate],
     queryFn: () => reportService.getVendorBalances(params),
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
-    enabled: !!params.asOfDate,
+    enabled: !!params.startDate && !!params.endDate,
   });
 
 export const useExpenseByCategory = (params: PeriodParams) =>
