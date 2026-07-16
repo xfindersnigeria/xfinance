@@ -119,14 +119,14 @@ export default function ChartOfAccountsForm({
             <FormField
               control={form.control}
               name="accountType"
-              render={() => (
+              render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-base font-semibold text-gray-900">
                     Account Type <span className="text-red-500">*</span>
                   </FormLabel>
                   <Select
-                    value={typeId}
-                    onValueChange={setTypeId}
+                    value={field.value}
+                    onValueChange={(val) => { field.onChange(val); setTypeId(val); }}
                     disabled={loadingTypes}
                   >
                     <FormControl>
