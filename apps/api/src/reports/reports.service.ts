@@ -26,6 +26,7 @@ import {
   PayableSummaryDto,
   AgedPayablesDto,
   VendorBalancesDto,
+  VendorBalanceRowDto,
   ExpenseByCategoryDto,
   ExpenseByVendorDto,
   BillDetailsDto,

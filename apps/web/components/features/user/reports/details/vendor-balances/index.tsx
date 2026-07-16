@@ -11,7 +11,7 @@ import { useVendorBalances } from "@/lib/api/hooks/useReports";
 import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 import { VendorBalancesData, VendorBalanceRow } from "@/lib/api/services/reportService";
 import { ReportPeriodFilter } from "@/components/features/user/reports/ReportPeriodFilter";
-import { periodToDates, defaultPeriodValue } from "@/lib/period-utils";
+import { ReportPeriodType, periodToDates, defaultPeriodValue } from "@/lib/period-utils";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
   PieChart, Pie, Cell, Legend,
@@ -58,11 +58,15 @@ export default function VendorBalances() {
   const router = useRouter();
   const sym = useEntityCurrencySymbol();
 
-  const [period, setPeriod] = useState(defaultPeriodValue());
+  const [periodType, setPeriodType] = useState<ReportPeriodType>("Quarterly");
+  const [period, setPeriod] = useState(() => defaultPeriodValue("Quarterly"));
+  const [year, setYear] = useState(new Date().getFullYear());
   const [balanceFilter, setBalanceFilter] = useState<"all" | "Debit" | "Credit" | "Zero">("all");
   const [search, setSearch] = useState("");
 
-  const { startDate, endDate } = periodToDates(period);
+  const handlePeriodTypeChange = (t: ReportPeriodType) => { setPeriodType(t); setPeriod(defaultPeriodValue(t)); };
+
+  const { startDate, endDate } = periodToDates(periodType, period, year);
   const { data: rawData, isLoading } = useVendorBalances({ startDate, endDate });
   const data: VendorBalancesData | null = (rawData as any)?.data ?? null;
 
@@ -133,7 +137,7 @@ export default function VendorBalances() {
 
       {/* Filters */}
       <div className="flex items-center gap-3 flex-wrap">
-        <ReportPeriodFilter value={period} onChange={setPeriod} />
+        <ReportPeriodFilter periodType={periodType} period={period} year={year} onPeriodTypeChange={handlePeriodTypeChange} onPeriodChange={setPeriod} onYearChange={setYear} />
         <Select value={balanceFilter} onValueChange={v => setBalanceFilter(v as typeof balanceFilter)}>
           <SelectTrigger className="h-9 w-36 rounded-xl border-slate-200 text-sm">
             <SelectValue />
