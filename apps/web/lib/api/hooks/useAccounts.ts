@@ -144,6 +144,29 @@ export const useUpdateAccount = (
   });
 };
 
+export const useDeleteAccount = (
+  options?: UseMutationOptions<any, Error, string>,
+) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: accountsService.deleteAccount,
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      if (id) {
+        queryClient.invalidateQueries({ queryKey: ["accounts", "detail", id] });
+      }
+      toast.success("Account deleted successfully");
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to delete account",
+      );
+    },
+    ...options,
+  });
+};
+
 export const useSetOpeningBalances = (
   options?: UseMutationOptions<any, Error, { date: string; fiscalYear: string; note?: string; items: any[] }>,
 ) => {

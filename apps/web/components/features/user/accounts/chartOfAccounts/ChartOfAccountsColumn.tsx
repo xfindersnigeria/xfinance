@@ -1,20 +1,9 @@
 "use client";
-import { Button } from "@/components/ui/button";
-import {
-  MoreVertical,
-  Eye,
-  Edit3,
-  FilePlus,
-  FileText,
-  Trash2,
-  Mail,
-  Phone,
-  MapPin,
-} from "lucide-react";
 // ...existing code...
 import { Badge } from "@/components/ui/badge";
 import { Column } from "@/components/local/custom/custom-table";
 import { getInitials } from "@/lib/utils";
+import ChartOfAccountsActions from "./ChartOfAccountsActions";
 
 export const chartOfAccountsColumns: Column<any>[] = [
   {
@@ -77,23 +66,11 @@ export const chartOfAccountsColumns: Column<any>[] = [
       </span>
     ),
   },
-  // {
-  //   key: "actions",
-  //   title: "Actions",
-  //   className: "w-20 text-xs",
-  //   render: (_, row) => (
-  //     <div className="flex gap-2 items-center">
-  //       <Button variant="ghost" size="icon" className="hover:bg-gray-100">
-  //         <Eye className="w-4 h-4" />
-  //       </Button>
-  //       <Button variant="ghost" size="icon" className="hover:bg-gray-100">
-  //         <Edit3 className="w-4 h-4" />
-  //       </Button>
-  //       <Button variant="ghost" size="icon" className="hover:bg-red-100 text-red-600">
-  //         <Trash2 className="w-4 h-4" />
-  //       </Button>
-  //     </div>
-  //   ),
-  //   searchable: false,
-  // },
+  {
+    key: "actions",
+    title: "Actions",
+    className: "w-20 text-xs",
+    render: (_, row) => <ChartOfAccountsActions row={row} />,
+    searchable: false,
+  },
 ];

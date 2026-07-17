@@ -42,7 +42,7 @@ export class AccountCategoryController {
   @ApiBody({ type: CreateAccountCategoryDto })
   @ApiResponse({ status: 201, description: 'Account category created' })
   async create(@Body() dto: CreateAccountCategoryDto, @Req() req: Request) {
-    const groupId = getEffectiveGroupId(req);
+    const groupId = getEffectiveGroupId(req) ?? dto.groupId ?? null;
     if (!groupId) throw new BadRequestException('Group ID is required');
     return this.accountCategoryService.create(dto, groupId);
   }

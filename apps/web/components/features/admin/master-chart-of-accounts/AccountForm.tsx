@@ -16,22 +16,30 @@ import { useAccountTypes } from "@/lib/api/hooks/useAccountTypes";
 import { useAccountCategories } from "@/lib/api/hooks/useAccountCategories";
 import { useCreateAccountCategory } from "@/lib/api/hooks/useAccountCategories";
 import { useCreateSubCategory } from "@/lib/api/hooks/useAccountSubCategories";
+import { useGroups } from "@/lib/api/hooks/useGroup";
+import { useSessionStore } from "@/lib/store/session";
+import { ENUM_ROLE } from "@/lib/types/enums";
 
 
 export function AccountForm() {
   const [mode, setMode] = useState<"category" | "subcategory">("category");
   const [typeId, setTypeId] = useState<string>("");
   const [categoryId, setCategoryId] = useState<string>("");
+  const [groupId, setGroupId] = useState<string>("");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+
+  const whoami = useSessionStore((s) => s.whoami);
+  const isSuperAdmin = whoami?.user?.systemRole === ENUM_ROLE.SUPERADMIN;
 
   // Hooks
   const { data: accountTypes, isLoading: loadingTypes } = useAccountTypes();
   const { data: categories, isLoading: loadingCategories } =
     useAccountCategories();
+  const { data: groupsData, isLoading: loadingGroups } = useGroups({ limit: 100 });
+  const groups = groupsData?.groups ?? [];
   const createCategory = useCreateAccountCategory();
   const createSubCategory = useCreateSubCategory();
-  console.log("AccountForm render", accountTypes, categories);
   // Use correct loading state for submit
   const loading = createCategory.isPending || createSubCategory.isPending;
 
@@ -39,7 +47,8 @@ export function AccountForm() {
     e.preventDefault();
     if (mode === "category") {
       if (!typeId || !name) return;
-      createCategory.mutate({ name, typeId, description });
+      if (isSuperAdmin && !groupId) return;
+      createCategory.mutate({ name, typeId, description, ...(isSuperAdmin ? { groupId } : {}) });
     } else {
       if (!categoryId || !name) return;
       createSubCategory.mutate({ name, categoryId, description });
@@ -53,6 +62,25 @@ export function AccountForm() {
 
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
+      {/* Group selector — superadmin only */}
+      {isSuperAdmin && (
+        <div className="bg-orange-50 p-4 rounded-xl space-y-2">
+          <h6 className="font-medium text-sm mb-2">Group <span className="text-red-500">*</span></h6>
+          <Select value={groupId} onValueChange={setGroupId} disabled={loadingGroups}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder={loadingGroups ? "Loading..." : "Select group"} />
+            </SelectTrigger>
+            <SelectContent>
+              {groups.map((g) => (
+                <SelectItem key={g.id} value={g.id}>
+                  {g.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       {/* Section: Select Account Type (Top Most) */}
       <div className="bg-purple-50 p-4 rounded-xl space-y-2">
         <h6 className="font-medium text-sm mb-2">Account Type</h6>

@@ -34,6 +34,15 @@ export class CreateAccountCategoryDto {
   @IsString()
   @IsOptional()
   code?: string;
+
+  @ApiProperty({
+    example: 'group_123',
+    description: 'Group ID — used by superadmin when not impersonating a group',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  groupId?: string;
 }
 
 export class UpdateAccountCategoryDto extends PartialType(

@@ -5,6 +5,7 @@ import {
   UnauthorizedException,
   BadRequestException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
 import {
   AccountResponseDto,
@@ -427,12 +428,17 @@ console.log(subCategory, entityId, groupId)
         },
       };
     } catch (error) {
-      throw error instanceof HttpException
-        ? error
-        : new HttpException(
-            `${error instanceof Error ? error.message : String(error)}`,
-            HttpStatus.INTERNAL_SERVER_ERROR,
-          );
+      if (error instanceof HttpException) throw error;
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        throw new HttpException(
+          'This account cannot be deleted because it is linked to existing transactions or records. Remove those first.',
+          HttpStatus.CONFLICT,
+        );
+      }
+      throw new HttpException(
+        'Failed to delete account. Please try again.',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 }

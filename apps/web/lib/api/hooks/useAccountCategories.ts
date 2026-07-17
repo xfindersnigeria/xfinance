@@ -45,7 +45,7 @@ export const useCreateAccountCategory = (
   options?: UseMutationOptions<
     any,
     Error,
-    { name: string; typeId: string; description?: string; code?: string }
+    { name: string; typeId: string; description?: string; code?: string; groupId?: string }
   >,
 ) => {
   const queryClient = useQueryClient();

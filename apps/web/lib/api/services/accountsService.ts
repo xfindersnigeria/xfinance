@@ -50,6 +50,7 @@ export const createAccountCategory = async (data: {
   typeId: string;
   description?: string;
   code?: string;
+  groupId?: string;
 }) =>
   apiClient("account-category", {
     method: "POST",
@@ -163,6 +164,9 @@ export const updateAccount = async (
     body: JSON.stringify(data),
   });
 };
+
+export const deleteAccount = async (id: string) =>
+  apiClient(`account/${id}`, { method: "DELETE" });
 
 export const getOpeningBalances = async (params?: {
   search?: string;
