@@ -1,7 +1,13 @@
 "use client";
-import React from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Trash2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
+import { MoreVertical, Trash2 } from "lucide-react";
 import ConfirmationForm from "@/components/local/shared/ConfirmationForm";
 import { CustomModal } from "@/components/local/custom/modal";
 import { MODULES } from "@/lib/types/enums";
@@ -10,13 +16,15 @@ import { useModal } from "@/components/providers/ModalProvider";
 import { MODAL } from "@/lib/data/modal-data";
 
 export default function ChartOfAccountsActions({ row }: { row: any }) {
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const { isOpen, openModal, closeModal } = useModal();
   const deleteAccount = useDeleteAccount();
 
   const deleteKey = MODAL.ACCOUNT_DELETE + "-" + row.id;
 
   const handleDeleteClick = () => {
-    openModal(deleteKey);
+    setDropdownOpen(false);
+    setTimeout(() => openModal(deleteKey), 100);
   };
 
   const handleConfirm = (confirmed: boolean) => {
@@ -32,22 +40,25 @@ export default function ChartOfAccountsActions({ row }: { row: any }) {
 
   return (
     <div onClick={(e) => e.stopPropagation()}>
-      <div className="flex gap-2 items-center">
-        {/* <Button variant="ghost" size="icon" className="hover:bg-gray-100">
-          <Eye className="w-4 h-4" />
-        </Button> */}
-        {/* <Button variant="ghost" size="icon" className="hover:bg-gray-100">
-          <Edit3 className="w-4 h-4" />
-        </Button> */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="hover:bg-red-100 text-red-600"
-          onClick={handleDeleteClick}
-        >
-          <Trash2 className="w-4 h-4" />
-        </Button>
-      </div>
+      <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="hover:bg-gray-100">
+            <MoreVertical className="w-5 h-5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-40">
+          <DropdownMenuItem
+            data-variant="destructive"
+            onSelect={(e) => {
+              e.preventDefault();
+              handleDeleteClick();
+            }}
+          >
+            <Trash2 className="size-4 mr-2" /> Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
       <CustomModal
         title="Confirm Deletion"
         open={isOpen(deleteKey)}

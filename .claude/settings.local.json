@@ -44,7 +44,8 @@
       "Bash(timeout 25 npx nest start)",
       "Bash(pkill -f \"nest start\")",
       "Bash(kill -9 96123)",
-      "Bash(curl *)"
+      "Bash(curl *)",
+      "Bash(npx ts-node *)"
     ]
   }
 }
