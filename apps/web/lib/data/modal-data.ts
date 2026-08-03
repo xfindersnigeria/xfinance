@@ -25,6 +25,8 @@ export const MODAL = {
   JOURNAL_DELETE: "journal-delete",
   JOURNAL_POST: "journal-post",
 
+  OPENING_BALANCE_REVERSE: "opening-balance-reverse",
+
   VENDOR_CREATE: "vendor-create",
   VENDOR_EDIT: "vendor-edit",
   VENDOR_DELETE: "vendor-delete",

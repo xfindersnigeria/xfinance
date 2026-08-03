@@ -5,14 +5,13 @@ import {
   UnauthorizedException,
   BadRequestException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
 import {
   AccountResponseDto,
   CreateAccountDto,
-  OpeningBalanceDto,
   UpdateAccountDto,
 } from './dto/account.dto';
+import { Prisma } from 'prisma/generated/client';
 
 @Injectable()
 export class AccountService {
@@ -259,42 +258,6 @@ console.log(subCategory, entityId, groupId)
     }
   }
 
-  async setOpeningBalances(entityId: string, dto: OpeningBalanceDto) {
-    try {
-      // Validate all accounts belong to this entity
-      const accountIds = dto.lines.map((line) => line.accountId);
-      const accounts = await this.prisma.account.findMany({
-        where: {
-          id: { in: accountIds },
-          entityId,
-        },
-      });
-
-      if (accounts.length !== accountIds.length) {
-        throw new UnauthorizedException(
-          'One or more accounts do not exist or do not belong to this entity',
-        );
-      }
-
-      // Update each account with its balance
-      for (const line of dto.lines) {
-        const { accountId, debit = 0, credit = 0 } = line;
-        const balance = credit - debit;
-
-        await this.prisma.account.update({
-          where: { id: accountId },
-          data: { balance },
-        });
-      }
-
-      return {
-        message: 'Opening balances set successfully for all provided accounts.',
-      };
-    } catch (error) {
-      throw error;
-    }
-  }
-
   async findOne(id: string, entityId?: string) {
     try {
       const account = await this.prisma.account.findUnique({
@@ -429,7 +392,8 @@ console.log(subCategory, entityId, groupId)
       };
     } catch (error) {
       if (error instanceof HttpException) throw error;
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error instanceof Prisma
+        .PrismaClientKnownRequestError) {
         throw new HttpException(
           'This account cannot be deleted because it is linked to existing transactions or records. Remove those first.',
           HttpStatus.CONFLICT,

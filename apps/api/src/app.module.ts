@@ -93,6 +93,11 @@ import { ReportsModule } from './reports/reports.module';
     CollectionsModule,
     InventoryModule,
     AssetModule,
+    // OpeningBalanceModule must be registered before AccountModule: its routes
+    // live under 'account/opening-balances', which AccountController's
+    // 'account/:id' route would otherwise shadow (Express matches in
+    // registration order, so the more specific path must register first).
+    OpeningBalanceModule,
     AccountModule,
     AccountTypeModule,
     AccountCategoryModule,
@@ -101,7 +106,6 @@ import { ReportsModule } from './reports/reports.module';
     LogModule,
     BudgetModule,
     ForecastModule,
-    OpeningBalanceModule,
     AttendanceModule,
     EmployeeModule,
     BullmqModule,

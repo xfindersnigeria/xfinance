@@ -4,7 +4,6 @@ import { BullModule } from '@nestjs/bullmq';
 import { PrismaModule } from '@/prisma/prisma.module';
 import { BullmqProcessor } from './bullmq.processor';
 import { EmailService } from '@/email/email.service';
-import { OpeningBalanceModule } from '@/accounts/opening-balance/opening-balance.module';
 import { JournalModule } from '@/accounts/journal/journal.module';
 import { CacheService } from '@/cache/cache.service';
 import { PdfModule } from '@/pdf/pdf.module';
@@ -20,7 +19,6 @@ import { PdfModule } from '@/pdf/pdf.module';
     BullModule.registerQueue({ name: 'default' }),
     PrismaModule,
     PdfModule,
-    forwardRef(() => OpeningBalanceModule),
     forwardRef(() => JournalModule),
   ],
   providers: [BullmqService, BullmqProcessor, EmailService, CacheService],

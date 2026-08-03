@@ -1,11 +1,10 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useCallback } from "react";
 import { toast } from "sonner";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useSessionStore } from "@/lib/store/session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -30,7 +29,6 @@ import { Account } from "@/lib/api/hooks/types/accountsTypes";
 
 // Zod schema for Opening Balance Line
 const openingBalanceLineSchema = z.object({
-  openingBalanceId: z.string().optional(),
   accountId: z.string().min(1, "Account is required"),
   debit: z.coerce.number().default(0),
   credit: z.coerce.number().default(0),
@@ -51,24 +49,13 @@ const openingBalanceSchema = z.object({
 
 type OpeningBalanceFormData = z.infer<typeof openingBalanceSchema>;
 
-interface OpeningBalance {
-  id: string;
-  accountId: string;
-  debit: number;
-  credit: number;
-}
-
 interface OpeningBalanceFormProps {
   accounts?: Account[];
-  existingBalances?: OpeningBalance[];
-  openingDate?: string;
   onSuccess?: () => void;
 }
 
 export default function OpeningBalanceForm({
   accounts = [],
-  existingBalances = [],
-  openingDate: initialOpeningDate,
   onSuccess,
 }: OpeningBalanceFormProps) {
   const sym = useEntityCurrencySymbol();
@@ -77,39 +64,17 @@ export default function OpeningBalanceForm({
   const form = useForm<OpeningBalanceFormData>({
     resolver: zodResolver(openingBalanceSchema) as any,
     defaultValues: {
-      date: initialOpeningDate || new Date().toISOString().split("T")[0],
+      date: new Date().toISOString().split("T")[0],
       fiscalYear: new Date().getFullYear().toString(),
       note: "",
       items: [{ accountId: "", debit: 0, credit: 0 }],
     },
   });
 
-  const { fields, append, remove, replace } = useFieldArray({
+  const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "items",
   });
-
-  const isInitialized = useRef(false);
-
-  console.log(existingBalances, "Existing Balances");
-
-  // Load existing balances when component mounts or existingBalances changes
-  useEffect(() => {
-    if (isInitialized.current) return;
-
-    if (existingBalances.length > 0) {
-      const mapped = existingBalances.map((balance: any) => ({
-        openingBalanceId: balance.id,
-        accountId: balance.accountId,
-        debit: balance.debit || 0,
-        credit: balance.credit || 0,
-      }));
-      replace(mapped as any[]);
-      isInitialized.current = true;
-    } else if (existingBalances.length === 0 && isInitialized.current === false) {
-      isInitialized.current = true;
-    }
-  }, [existingBalances, replace]);
 
   // Get account type for a specific account
   const getAccountTypeForId = useCallback(
@@ -153,15 +118,11 @@ export default function OpeningBalanceForm({
     }
 
     try {
-      const items: any[] = values.items.map((item: any) => {
-        const out: any = {
-          accountId: item.accountId,
-          debit: Math.round((item.debit || 0)),
-          credit: Math.round((item.credit || 0)),
-        };
-        if (item.openingBalanceId) out.id = item.openingBalanceId;
-        return out;
-      });
+      const items: any[] = values.items.map((item: any) => ({
+        accountId: item.accountId,
+        debit: Math.round(item.debit || 0),
+        credit: Math.round(item.credit || 0),
+      }));
 
       const payload = {
         date: new Date(values.date).toISOString(),

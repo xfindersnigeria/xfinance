@@ -1,0 +1,387 @@
+Updated memory file [](file:///c%3A/Users/netoj/AppData/Roaming/Code/User/workspaceStorage/d10ed9f7329c1bf9f671a9c5c2f1a77b/GitHub.copilot-chat/memory-tool/memories/NmUyZTQ2YjAtNTJkOC00MThiLWI0MzctNGVlMzc0MGYyMmQ0/plan.md)
+
+Perfect! Plan refined with your decisions. Here's the **final architecture plan** ready for implementation:
+
+---
+
+## **Plan: SaaS Backend Architecture Restructure**
+
+### **TL;DR**
+Build 7-layer backend: (1) Subdomain-routed multi-tenancy with row-level isolation, (2) Action-based permission system with linear inheritance, (3) Module-gated subscriptions, (4) Backend-computed menus cached in Redis, (5) Real-time sync via Redis pubsub (~30 users/group drives simple design), (6) Global audit interceptor (all changes logged to DB indefinitely), (7) Redis caching layer. Designed for future resource-level permission filters without refactoring.
+
+---
+
+### **Confirmed Decisions**
+
+| Decision | Resolution |
+|----------|-----------|
+| Multi-tenancy routing | **Subdomain** (`group1.api.example.com`) extracted in middleware → resolved to Group.id |
+| Concurrent users/group | **~30** → Redis pubsub channel per group is efficient |
+| Audit log retention | **In DB indefinitely** (no archival step) |
+| Future extensibility | **Design permission service to accept optional `context` param** for resource-level filters (e.g., "Invoice:Edit where vendorId=X") |
+
+---
+
+### **7 Architecture Layers**
+
+#### **Layer 1: Multi-tenancy & Request Context (Subdomain-based)**
+- Middleware extracts subdomain host, resolves to Group.id via lookup table
+- Injects `@TenantId()` (groupId) and `@EntityId()` (entityId from cookie) into REQUEST scope
+- All Prisma queries automatically scoped by groupId (row-level security)
+- Request context available to all services: audit interceptor, permission checks, logging
+
+**Files**:
+- `src/multitenancy/tenant.middleware.ts` — Extract subdomain, resolve group
+- `src/multitenancy/tenant.decorator.ts` — `@TenantId()`, `@EntityId()` decorators
+- `src/multitenancy/tenant-context.service.ts` — REQUEST-scoped context store
+
+---
+
+#### **Layer 2: Action-Based Permission System**
+**Core Model**: Permission = Module + Action + optional Resource Context
+
+```
+Module (Invoices, Customers, Expenses, etc.)
+├── Action (View, Create, Edit, Delete, Approve, Export, Import)
+├── Permission (Invoices:View, Invoices:Approve, etc.)
+
+Role (GroupRole "Group Admin", UserRole "Manager", etc.)
+├── RolePermission[] (Permissions granted to this role)
+└── Scope: GROUP (controls group-level features) | ENTITY (controls entity features)
+
+User
+├── UserRole[] (which roles they have in entity scope)
+├── ExplicitPermission[] (user-level overrides to role permissions)
+└── GroupRole (if admin, what's their admin role)
+```
+
+**Permission Resolution** (in order):
+1. Check explicit permission at user level → return
+2. Check inherited UserRole permissions → return
+3. Check inherited GroupRole permissions → return
+4. Return false
+
+**Design for Future**: `hasPermission(userId, module, action, context?)` where `context = { vendorId, customerId, ... }` for resource-level checks later.
+
+**Files**:
+- `src/permission/permission.service.ts` — Core `hasPermission()` logic with inheritance
+- `src/permission/require-permission.guard.ts` — NestJS guard: `@RequirePermission('Invoices', 'View')`
+- `src/permission/permission.decorator.ts` — Convenience decorator for routes
+
+---
+
+#### **Layer 3: Subscription & Module Gating**
+- Subscription tied to Group, includes list of available SubscriptionModules
+- Service: `isModuleAvailable(groupId, module)` checks if subscribed
+- **Menu visibility rule**: Menu shows if ≥1 module in menu has BOTH subscription access AND user has View permission
+
+**Example**: User on "Basic" tier (Invoicing, Customers, Basic Accounting included)
+- Has `Invoices:View` permission → **Income menu shows with: Customers, Invoices, Items, Sales Receipt** (Payment Received hidden)
+- Has `Chart of Accounts:View` but NOT `Budget:View` → **Accounting menu shows with: Chart of Accounts** (Budget hidden)
+
+**Files**:
+- `src/subscription/subscription.service.ts` — `isModuleAvailable(groupId, module)`
+
+---
+
+#### **Layer 4: Backend Menu Resolution**
+**On Login**:
+1. Backend returns menu structure with effective modules and available actions
+2. Frontend caches and uses for sidebar rendering + route guards
+3. Menu is backend source of truth (cannot be tampered with)
+
+**Menu Structure Returned**:
+```json
+{
+  "menus": [
+    {
+      "id": "income",
+      "label": "Income",
+      "icon": "trending_up",
+      "modules": [
+        { "id": "customers", "label": "Customers", "actions": ["View", "Create", "Edit", "Delete"] },
+        { "id": "invoices", "label": "Invoices", "actions": ["View", "Create", "Edit", "Approve"] }
+      ]
+    },
+    {
+      "id": "expense",
+      "label": "Expense",
+      "modules": [
+        { "id": "bills", "label": "Bills", "actions": ["View", "Create"] }
+      ]
+    }
+  ]
+}
+```
+
+**Caching Strategy**:
+- Cache key: `menu:{userId}:{groupId}:{entityId}`
+- TTL: 5 minutes (fresh after login)
+- Invalidated immediately on: permission change, role assignment, subscription change
+
+**Files**:
+- `src/menu/menu.service.ts` — Compute menu, cache in Redis
+- auth.controller.ts — Return menu in `/auth/login` response
+- `src/menu/menu.controller.ts` — `GET /menu` endpoint to refetch on demand
+
+---
+
+#### **Layer 5: Real-time Permission Sync (Redis Pubsub)**
+**Flow when admin changes permissions**:
+1. Admin updates Role or User permissions
+2. Backend publishes event: `permission-change:{groupId}`
+3. All connected clients (WebSocket) listening on that channel receive notification
+4. Frontend clears local menu cache, calls `GET /menu`
+5. Sidebar re-renders with new menu
+
+**30 users/group**: Redis pubsub handles this with single channel, minimal latency.
+
+**Files**:
+- `src/gateway/realtime.gateway.ts` — WebSocket gateway, subscribe to `permission-change:{groupId}`
+- Permission service publishes on any change (via `EventEmitter2` or direct Redis publish)
+
+---
+
+#### **Layer 6: Global Audit Interceptor**
+**Captures**: User, Group, Entity, Module, Action, Resource Type/ID, Field Changes (old→new), Timestamp, IP, User-Agent
+
+**Triggers on**: Every POST (Create), PATCH/PUT (Update), DELETE
+
+**Audit Log Structure**:
+```json
+{
+  "id": "uuid",
+  "userId": 5,
+  "groupId": 1,
+  "entityId": 2,
+  "module": "Invoices",
+  "action": "Update",
+  "resourceType": "Invoice",
+  "resourceId": 123,
+  "changes": [
+    { "field": "status", "oldValue": "draft", "newValue": "approved" },
+    { "field": "due_date", "oldValue": "2026-04-01", "newValue": "2026-04-15" }
+  ],
+  "ipAddress": "203.0.113.5",
+  "userAgent": "Mozilla/5.0...",
+  "createdAt": "2026-03-17T10:30:45Z"
+}
+```
+
+**Implementation**:
+- Global interceptor captures request/response
+- Prisma middleware detects DB changes (update, create, delete)
+- Async queue (Bull) logs to DB non-blocking
+- Endpoint: `GET /audit?groupId=X&entityId=Y&module=Z&from=YYYY-MM-DD&to=YYYY-MM-DD` for querying
+
+**Files**:
+- `src/audit/audit.interceptor.ts` — Global request/response capture
+- `src/audit/audit.service.ts` — Queue logic + write to DB
+- `src/audit/prisma-audit.middleware.ts` — Detect DB changes
+- `src/audit/audit.controller.ts` — API to query audit logs
+
+---
+
+#### **Layer 7: Redis Caching**
+**What gets cached**:
+- `menu:{userId}:{groupId}:{entityId}` — Menu structure (TTL: 5 min)
+- `permissions:{userId}:{entityId}` — Flattened permission list for quick checks (TTL: 2 min)
+- `subscription:{groupId}` — Available modules for group (TTL: 1 hour)
+- `roles:{groupId}` — List of roles for dropdowns (TTL: 10 min)
+
+**Invalidation**: TTL-based (automatic) + Event-based (on change via pubsub)
+
+**Files**:
+- `src/cache/cache.service.ts` — Redis wrapper with TTL defaults
+- `src/cache/cache-invalidation.service.ts` — Central invalidation logic (called by permission/subscription/role services)
+
+---
+
+### **Prisma Schema Changes**
+
+**New Models**:
+```prisma
+model Module {
+  id String @id @default(cuid())
+  moduleKey String @unique  // "invoices", "customers", etc.
+  displayName String  // "Invoices", "Customers", etc.
+  actions Action[]
+  subscriptionModules SubscriptionModule[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Action {
+  id String @id @default(cuid())
+  actionName String  // "View", "Create", "Edit", "Delete", "Approve", "Export", "Import"
+  module Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  moduleId String
+  permissions Permission[]
+  @@unique([moduleId, actionName])
+}
+
+model Permission {
+  id String @id @default(cuid())
+  action Action @relation(fields: [actionId], references: [id], onDelete: Cascade)
+  actionId String
+  rolePermissions RolePermission[]
+  userExplicitPermissions ExplicitPermission[]
+  @@unique([actionId])  // "Invoices:View" implicitly unique via action
+}
+
+model Role {
+  id String @id @default(cuid())
+  name String
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId String
+  scope String  // "GROUP" or "ENTITY"
+  rolePermissions RolePermission[]
+  userRoles UserRole[]
+  users User[] @relation("GroupRole")  // Only if scope=GROUP
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([groupId, name, scope])
+}
+
+model RolePermission {
+  id String @id @default(cuid())
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  roleId String
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  permissionId String
+  @@unique([roleId, permissionId])
+}
+
+model UserRole {
+  id String @id @default(cuid())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  roleId String
+  entity Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  entityId String
+  createdAt DateTime @default(now())
+  @@unique([userId, roleId, entityId])
+}
+
+model ExplicitPermission {
+  id String @id @default(cuid())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  permissionId String
+  entity Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  entityId String
+  allowed Boolean  // true = grant, false = revoke (explicit deny over role)
+  createdAt DateTime @default(now())
+  @@unique([userId, permissionId, entityId])
+}
+
+model SubscriptionTier {
+  id String @id @default(cuid())
+  name String  // "Basic", "Pro", "Enterprise"
+  subscriptions Subscription[]
+  subscriptionModules SubscriptionModule[]
+  createdAt DateTime @default(now())
+}
+
+model SubscriptionModule {
+  id String @id @default(cuid())
+  subscriptionTier SubscriptionTier @relation(fields: [subscriptionTierId], references: [id], onDelete: Cascade)
+  subscriptionTierId String
+  module Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  moduleId String
+  createdAt DateTime @default(now())
+  @@unique([subscriptionTierId, moduleId])
+}
+
+model Subscription {
+  id String @id @default(cuid())
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId String @unique
+  tier SubscriptionTier @relation(fields: [subscriptionTierId], references: [id])
+  subscriptionTierId String
+  startDate DateTime @default(now())
+  endDate DateTime?
+  isActive Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id String @id @default(cuid())
+  user User @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId String?
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId String
+  entity Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  entityId String
+  module String  // "Invoices", "Customers", etc.
+  action String  // "Create", "Update", "Delete", "Approve", etc.
+  resourceType String  // "Invoice", "Customer", etc.
+  resourceId String  // ID of the resource that changed
+  changes Json  // [{ field, oldValue, newValue }, ...]
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  
+  @@index([groupId, entityId, createdAt])
+  @@index([userId, createdAt])
+  @@index([module, action])
+}
+```
+
+**Existing Model Updates**:
+- `User`: Add `User @relation("GroupRole")` if scope=GROUP, keep existing `groupRoleId`
+- `Group`: Add `roles Role[]`, `subscriptions Subscription[]`, `auditLogs AuditLog[]`
+- `Entity`: Add `userRoles UserRole[]`, `auditLogs AuditLog[]`
+
+---
+
+### **Implementation Phases (Sequential)**
+
+| Phase | Duration | Dependency | Deliverable |
+|-------|----------|-----------|-------------|
+| **Phase 1: Foundation** | 1-2 weeks | None | Prisma schema, tenant middleware, permission service with tests |
+| **Phase 2: Menu & Caching** | 1 week | Phase 1 | Menu resolution, Redis caching, integrate with `/auth/login` |
+| **Phase 3: Real-time Sync** | 1 week | Phase 2 | WebSocket gateway, permission change broadcasts |
+| **Phase 4: Audit Logging** | 1 week | Phase 1 | Global interceptor, audit service, audit API endpoint |
+| **Phase 5: Polish & Testing** | 1-2 weeks | All | Load testing, edge cases, monitoring, cache warming |
+
+---
+
+### **Verification Checklist**
+
+**Phase 1**:
+- [ ] New Prisma models created and migrated
+- [ ] Tenant middleware extracts subdomain correctly
+- [ ] Permission service resolves inheritance correctly (test all 3 levels)
+- [ ] Row-level isolation verified (Group A user cannot see Group B data)
+
+**Phase 2**:
+- [ ] Menu service computes correct modules based on subscription
+- [ ] Menu hides if no module has View permission
+- [ ] Menu shows if ≥1 module has permission + subscription
+- [ ] Redis cache hit rate > 90% on repeated menu fetches
+- [ ] `/auth/login` returns menu structure
+
+**Phase 3**:
+- [ ] WebSocket connection established per user
+- [ ] Admin changes permission → all connected users receive event
+- [ ] Frontend refetches menu and re-renders
+
+**Phase 4**:
+- [ ] Every create/update/delete logged with full context
+- [ ] Audit log shows before/after field values
+- [ ] `/audit` endpoint filters correctly by date range, module, action
+
+**Phase 5**:
+- [ ] Load test: 30 concurrent users, 10 permission changes/min
+- [ ] Cache warming on app startup completes in <2 sec
+- [ ] Graceful fallback if Redis unavailable
+
+---
+
+### **Start Point: Phase 1**
+
+Ready to begin with Prisma schema updates + tenant middleware? Or any questions first?

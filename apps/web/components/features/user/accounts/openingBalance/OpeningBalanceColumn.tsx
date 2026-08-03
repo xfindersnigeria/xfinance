@@ -1,6 +1,7 @@
 "use client";
 import { Badge } from "@/components/ui/badge";
 import { Column } from "@/components/local/custom/custom-table";
+import OpeningBalanceReverseAction from "./OpeningBalanceReverseAction";
 
 export function createOpeningBalanceColumns(sym: string): Column<any>[] {
   return [
@@ -68,12 +69,25 @@ export function createOpeningBalanceColumns(sym: string): Column<any>[] {
             </Badge>
           );
         }
+        if (value === "Reversed") {
+          return (
+            <Badge className="bg-red-100 text-red-700 px-3 py-1 rounded-full font-medium">
+              Reversed
+            </Badge>
+          );
+        }
         return (
           <Badge className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full font-medium">
             {value}
           </Badge>
         );
       },
+    },
+    {
+      key: "actions",
+      title: "Actions",
+      className: "text-xs",
+      render: (_value, row) => <OpeningBalanceReverseAction row={row} />,
     },
   ];
 }

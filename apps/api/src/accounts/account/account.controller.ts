@@ -15,7 +15,6 @@ import { AccountService } from './account.service';
 import {
   AccountResponseDto,
   CreateAccountDto,
-  OpeningBalanceDto,
   UpdateAccountDto,
 } from './dto/account.dto';
 import { getEffectiveEntityId, getEffectiveGroupId } from '@/auth/utils/context.util';
@@ -76,49 +75,6 @@ export class AccountController {
     const pageSizeNum = Math.max(1, parseInt(limit));
     
     return this.accountService.findAll(entityId, subCategory, type, search, groupId, pageNum, pageSizeNum);
-  }
-
-  @Post(':entityId/opening-balances')
-  @ApiOperation({
-    summary: 'Set opening balances for multiple accounts in bulk',
-  })
-  @ApiBody({
-    description:
-      'Payload for bulk opening balances, where each line is a separate record for a different account',
-    type: OpeningBalanceDto,
-    examples: {
-      bulkExample: {
-        summary: 'Example bulk payload with two separate records',
-        value: {
-          lines: [
-            {
-              accountId: 'example-account-id-1',
-              debit: 1000,
-              credit: 500,
-            },
-            {
-              accountId: 'example-account-id-2',
-              debit: 0,
-              credit: 2000,
-            },
-          ],
-        },
-      },
-    },
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'Opening balances set successfully.',
-  })
-  @ApiResponse({ status: 401, description: 'Unauthorized access to account.' })
-  @ApiResponse({ status: 500, description: 'Internal server error.' })
-  async setOpeningBalances(
-    @Body() dto: OpeningBalanceDto,
-    @Req() req: Request,
-  ) {
-    const entityId = getEffectiveEntityId(req);
-    if (!entityId) throw new BadRequestException('Entity ID is required');
-    return this.accountService.setOpeningBalances(entityId, dto);
   }
 
   @Get(':id')

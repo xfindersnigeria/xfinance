@@ -1,4 +1,4 @@
-import { IsString, IsDate, IsArray, IsOptional, IsInt, ValidateNested, Min, Max } from 'class-validator';
+import { IsString, IsDate, IsArray, IsOptional, IsInt, IsNotEmpty, ValidateNested, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional, ApiProperty } from '@nestjs/swagger';
 
@@ -32,6 +32,12 @@ export class CreateOpeningBalanceDto {
   items!: CreateOpeningBalanceItemDto[];
 }
 
+export class ReverseOpeningBalanceDto {
+  @IsString()
+  @IsNotEmpty({ message: 'A reason is required to reverse an opening balance' })
+  reason!: string;
+}
+
 export class UpdateOpeningBalanceDto {
   @IsDate()
   @Type(() => Date)
@@ -53,6 +59,12 @@ export class UpdateOpeningBalanceDto {
   items?: CreateOpeningBalanceItemDto[];
 }
 
+export class OpeningBalanceRefDto {
+  id!: string;
+  date!: Date;
+  status!: string;
+}
+
 export class OpeningBalanceDto {
   id!: string;
   entityId!: string;
@@ -63,6 +75,10 @@ export class OpeningBalanceDto {
   difference!: number;
   status!: string;
   note?: string;
+  reversalReason?: string;
+  reversalOfId?: string;
+  reversalOf?: OpeningBalanceRefDto | null;
+  reversedBy?: OpeningBalanceRefDto | null;
   createdAt!: Date;
   updatedAt!: Date;
 }

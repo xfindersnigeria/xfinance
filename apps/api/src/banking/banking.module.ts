@@ -16,6 +16,9 @@ import { EmailService } from '@/email/email.service';
 
 
 @Module({
+  // BullmqModule is not needed by BankingService itself anymore — it's still
+  // required here because SubscriptionService, provided locally in this module,
+  // depends on BullmqService.
   imports: [PrismaModule, AccountModule, forwardRef(() => OpeningBalanceModule), forwardRef(() => BullmqModule)],
   providers: [BankingService, AuthService, MenuService, SubscriptionService, CacheService, PubsubService, EmailService],
   controllers: [BankingController],

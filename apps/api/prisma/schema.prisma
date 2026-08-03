@@ -1689,22 +1689,26 @@ model BankReconciliationMatch {
 }
 
 model OpeningBalance {
-  id          String               @id @default(cuid())
-  entityId    String
-  groupId     String // denormalized — extraction handle
-  fiscalYear  String?
-  date        DateTime
-  totalCredit Int                  @default(0)
-  totalDebit  Int                  @default(0)
-  difference  Int                  @default(0)
-  status      OpeningBalanceStatus @default(Draft)
-  note        String?
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @default(now()) @updatedAt
-  entity      Entity               @relation(fields: [entityId], references: [id], onDelete: Cascade)
-  items       OpeningBalanceItem[]
+  id             String               @id @default(cuid())
+  entityId       String
+  groupId        String // denormalized — extraction handle
+  fiscalYear     String?
+  date           DateTime
+  totalCredit    Int                  @default(0)
+  totalDebit     Int                  @default(0)
+  difference     Int                  @default(0)
+  status         OpeningBalanceStatus @default(Draft)
+  note           String?
+  reversalReason String?
+  reversalOfId   String?              @unique
+  reversalOf     OpeningBalance?      @relation("OpeningBalanceReversal", fields: [reversalOfId], references: [id], onDelete: SetNull)
+  reversedBy     OpeningBalance?      @relation("OpeningBalanceReversal")
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @default(now()) @updatedAt
+  entity         Entity               @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  items          OpeningBalanceItem[]
 
-  @@unique([entityId, fiscalYear])
+  @@index([entityId, fiscalYear])
   @@index([entityId, date])
   @@index([groupId])
 }
@@ -1918,6 +1922,7 @@ enum JournalPostingStatus {
 enum OpeningBalanceStatus {
   Draft
   Finalized
+  Reversed
 }
 
 enum JournalStatus {

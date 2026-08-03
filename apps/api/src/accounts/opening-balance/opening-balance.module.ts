@@ -13,6 +13,9 @@ import { EmailService } from '@/email/email.service';
 
 
 @Module({
+  // BullmqModule is not needed by OpeningBalanceService itself (posting is now
+  // synchronous) — it's still required here because SubscriptionService, which
+  // this module also provides locally, depends on BullmqService.
   imports: [PrismaModule, forwardRef(() => BullmqModule)],
   providers: [OpeningBalanceService, AuthService, MenuService, SubscriptionService, CacheService, PubsubService, EmailService],
   controllers: [OpeningBalanceController],

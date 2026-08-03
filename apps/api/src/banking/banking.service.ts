@@ -7,7 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { AccountService } from '../accounts/account/account.service';
 import { OpeningBalanceService } from '../accounts/opening-balance/opening-balance.service';
-import { BullmqService } from '../bullmq/bullmq.service';
+import { CreateOpeningBalanceDto } from '../accounts/opening-balance/dto/opening-balance.dto';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
 import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
 import { CacheService } from '../cache/cache.service';
@@ -18,7 +18,6 @@ export class BankingService {
     private readonly prisma: PrismaService,
     private readonly accountService: AccountService,
     private readonly openingBalanceService: OpeningBalanceService,
-    private readonly bullmqService: BullmqService,
     private readonly cacheService: CacheService,
   ) {}
 
@@ -99,71 +98,29 @@ export class BankingService {
       },
     });
 
-    // If opening balance is provided, set Account balance and post to journal
-    if (createBankAccountDto.openingBalance > 0) {
-      // Update linked account balance
-      await this.prisma.account.update({
-        where: { id: linkedAccount.id },
-        data: { balance: createBankAccountDto.openingBalance },
-      });
-
-      // Create opening balance record with single item (this bank account)
-      const openingBalanceRecord = await this.prisma.openingBalance.create({
-        data: {
-          entityId: effectiveEntityId,
-          groupId,
-          date: new Date(),
-          // fiscalYear: new Date().getFullYear().toString(),
-          totalDebit: createBankAccountDto.openingBalance,
-          totalCredit: 0,
-          difference: createBankAccountDto.openingBalance,
-          status: 'Draft',
-          note: `Opening balance for bank account: ${createBankAccountDto.accountName}`,
-        },
-      });
-
-      // Create opening balance item
-      const openingBalanceItem = await this.prisma.openingBalanceItem.create({
-        data: {
-          openingBalanceId: openingBalanceRecord.id,
-          accountId: linkedAccount.id,
-          debit: createBankAccountDto.openingBalance,
-          credit: 0,
-        },
-      });
-
-      // Queue opening balance posting to journal (async via BullMQ)
-      const accounts = await this.prisma.account.findMany({
-        where: {
-          id: linkedAccount.id,
-          entityId: effectiveEntityId,
-        },
-        include: {
-          subCategory: {
-            include: {
-              category: {
-                include: {
-                  type: true,
-                },
-              },
-            },
+    // If an opening balance is provided, route it through OpeningBalanceService —
+    // the single place allowed to create OpeningBalance records and post them to
+    // the journal, so validation and balance posting can never drift out of sync
+    // between this flow and the dedicated Opening Balance screen.
+    const openingBalance = createBankAccountDto.openingBalance ?? 0;
+    if (openingBalance > 0) {
+      const openingBalanceDto: CreateOpeningBalanceDto = {
+        date: new Date(),
+        note: `Opening balance for bank account: ${createBankAccountDto.accountName}`,
+        items: [
+          {
+            accountId: linkedAccount.id,
+            debit: openingBalance,
+            credit: 0,
           },
-        },
-      });
+        ],
+      };
 
-      const accountMap = new Map(accounts.map((acc) => [acc.id, acc]));
-
-      await this.bullmqService.addJob('post-opening-balance-journal', {
-        openingBalanceId: openingBalanceRecord.id,
-        entityId: effectiveEntityId,
+      await this.openingBalanceService.createOpeningBalance(
+        effectiveEntityId,
         groupId,
-        items: [openingBalanceItem],
-        validItems: [openingBalanceItem],
-        accountMap: Array.from(accountMap.entries()).map(([id, acc]) => ({
-          id,
-          account: acc,
-        })),
-      });
+        openingBalanceDto,
+      );
     }
 
     // Fetch fresh bankAccount with updated linkedAccount data

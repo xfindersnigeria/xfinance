@@ -11,7 +11,6 @@ import { seedDefaultCurrencies } from '../../seeders/seed-currency';
 import { seedDefaultEntityAccounts } from '../../seeders/seed-entity-accounts';
 import { ItemsType, InvoiceActivityType } from 'prisma/generated/enums';
 import { BadRequestException } from '@nestjs/common';
-import { OpeningBalanceService } from '@/accounts/opening-balance/opening-balance.service';
 import { generateJournalReference } from '@/auth/utils/helper';
 import { CacheService } from '@/cache/cache.service';
 import { PdfService } from '@/pdf/pdf.service';
@@ -24,7 +23,6 @@ export class BullmqProcessor extends WorkerHost {
   constructor(
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
-    private readonly openingBalanceService: OpeningBalanceService,
     private cacheService: CacheService,
     private readonly pdfService: PdfService,
   ) {
@@ -96,8 +94,6 @@ export class BullmqProcessor extends WorkerHost {
       return this.handleExpenseJournalPosting(job);
     } else if (job.name === 'post-payment-made-journal') {
       return this.handlePaymentMadeJournalPosting(job);
-    } else if (job.name === 'post-opening-balance-journal') {
-      return this.handleOpeningBalanceJournalPosting(job);
     } else if (job.name === 'post-manual-journal') {
       return this.handleManualJournalPosting(job);
     } else if (job.name === 'assign-tier-modules') {
@@ -2112,66 +2108,6 @@ export class BullmqProcessor extends WorkerHost {
       } catch (updateError) {
         this.logger.error(
           `[Job ${job.id}] Failed to update payment made status to Failed: ${updateError instanceof Error ? updateError.message : String(updateError)}`,
-        );
-      }
-
-      throw error; // Rethrow to trigger retry
-    }
-  }
-
-  async handleOpeningBalanceJournalPosting(job: Job): Promise<any> {
-    const { openingBalanceId, entityId, groupId, items, validItems, accountMap } =
-      job.data as {
-        openingBalanceId: string;
-        entityId: string;
-        groupId: string;
-        items: any[];
-        validItems: any[];
-        accountMap: any[];
-      };
-
-    this.logger.log(
-      `[Job ${job.id}] Processing opening balance journal posting for opening balance: ${openingBalanceId}`,
-    );
-
-    try {
-      // Call the opening balance service to post to journal
-      await this.openingBalanceService.postOpeningBalanceJournal(
-        openingBalanceId,
-        entityId,
-        groupId,
-        items,
-        validItems,
-        accountMap,
-      );
-
-      this.logger.log(
-        `[Job ${job.id}] Opening balance ${openingBalanceId} posted to journal successfully`,
-      );
-
-      return { success: true, openingBalanceId };
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-
-      this.logger.error(
-        `[Job ${job.id}] Failed to post opening balance journal: ${errorMessage}`,
-      );
-
-      // Mark opening balance as failed if needed
-      try {
-        await this.prisma.openingBalance.update({
-          where: { id: openingBalanceId },
-          data: {
-            status: 'Draft', // Keep as Draft on failure
-          },
-        });
-        this.logger.log(
-          `[Job ${job.id}] Opening balance ${openingBalanceId} status kept as Draft due to posting failure`,
-        );
-      } catch (updateError) {
-        this.logger.error(
-          `[Job ${job.id}] Failed to update opening balance status: ${updateError instanceof Error ? updateError.message : String(updateError)}`,
         );
       }
 

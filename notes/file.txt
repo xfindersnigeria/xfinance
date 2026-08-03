@@ -1,0 +1,2 @@
+ON CREATE entity user ensure the email is fit for the group ny editing template to chane xfinxanr to company name based on standalone or saas
+on create group call the create group user job instrad of a new job as now

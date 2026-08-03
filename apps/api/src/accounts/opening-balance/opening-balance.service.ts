@@ -9,12 +9,11 @@ import { PrismaService } from '@/prisma/prisma.service';
 import {
   CreateOpeningBalanceDto,
   UpdateOpeningBalanceDto,
+  ReverseOpeningBalanceDto,
   GetOpeningBalanceResponseDto,
   GetOpeningBalancesQueryDto,
   GetOpeningBalancesResponseDto,
 } from './dto/opening-balance.dto';
-import { OpeningBalanceStatus } from 'prisma/generated/enums';
-import { BullmqService } from '@/bullmq/bullmq.service';
 import { generateJournalReference } from '@/auth/utils/helper';
 
 interface AccountValidationResult {
@@ -23,47 +22,32 @@ interface AccountValidationResult {
   account?: any;
 }
 
-interface OpeningBalanceCreationResult extends GetOpeningBalanceResponseDto {
-  validationSummary?: {
-    successCount: number;
-    failureCount: number;
-    failedAccounts: Array<{ accountId: string; error: string }>;
-  };
-}
+const OPEN_BALANCE_INCLUDE = {
+  items: true,
+  reversalOf: { select: { id: true, date: true, status: true } },
+  reversedBy: { select: { id: true, date: true, status: true } },
+} as const;
 
 @Injectable()
 export class OpeningBalanceService {
-  constructor(
-    private prisma: PrismaService,
-    private bullmqService: BullmqService,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
   /**
-   * Create opening balance with validation and automatic journal posting
+   * Create opening balance with validation and synchronous journal posting.
    *
    * Rules:
    * 1. Account balance must be 0
-   * 2. No existing opening balance for the account
-   * 3. Automatically posts to journal when created
-   * 4. Supports partial success (succeeds where possible, reports failures)
+   * 2. No existing (non-reversed) opening balance item for the account
+   * 3. Posts to the journal and updates account balances in the same transaction —
+   *    the record is created already Finalized, there is no separate async step.
+   * 4. All-or-nothing: the whole submission is rejected if any line fails validation.
    */
   async createOpeningBalance(
     entityId: string,
     groupId: string,
     dto: CreateOpeningBalanceDto,
-  ): Promise<OpeningBalanceCreationResult> {
+  ): Promise<GetOpeningBalanceResponseDto> {
     try {
-      // Check if entity exists
-      // const entity = await this.prisma.entity.findUnique({
-      //   where: { id: entityId },
-      //   select: { id: true, groupId: true },
-      // });
-
-      // if (!entity) {
-      //   throw new UnauthorizedException('Entity not found or access denied');
-      // }
-
-      // Get all accounts with their types for validation
       const accountIds = dto.items.map((item) => item.accountId);
       const accounts = await this.prisma.account.findMany({
         where: {
@@ -85,7 +69,6 @@ export class OpeningBalanceService {
 
       const accountMap = new Map(accounts.map((acc) => [acc.id, acc]));
 
-      // Validate each account and check for duplicates/balance issues
       const validationResults = new Map<string, AccountValidationResult>();
       const failedAccounts: Array<{ accountId: string; error: string }> = [];
 
@@ -99,7 +82,13 @@ export class OpeningBalanceService {
           continue;
         }
 
-        // Check if account balance is not 0
+        // account.balance is the sole source of truth for eligibility: a fresh
+        // account is at 0, and a previously-opened account only returns to 0
+        // once its opening balance has been reversed via reverseOpeningBalance().
+        // (A separate "does an OpeningBalanceItem already exist" check was removed —
+        // it would incorrectly flag the reversal's own offsetting item as a
+        // pre-existing opening balance, permanently blocking re-entry after a
+        // legitimate reversal even though the balance is correctly back at 0.)
         if (account.balance !== 0) {
           const error = `Cannot set opening balance. Account balance is ${account.balance}. Only accounts with balance 0 are allowed.`;
           validationResults.set(item.accountId, { valid: false, error });
@@ -107,100 +96,72 @@ export class OpeningBalanceService {
           continue;
         }
 
-        // Check if opening balance already exists for this account (across all opening balances for this entity)
-        const existingOpeningBalance =
-          await this.prisma.openingBalanceItem.findFirst({
-            where: { 
-              accountId: item.accountId,
-              openingBalance: {
-                entityId: entityId,
-              }
-            },
-          });
-
-        if (existingOpeningBalance) {
-          const error = `Opening balance already exists for this account`;
-          validationResults.set(item.accountId, { valid: false, error });
-          failedAccounts.push({ accountId: item.accountId, error });
-          continue;
-        }
-
-        // Account passed all validations
         validationResults.set(item.accountId, { valid: true, account });
       }
 
-      // If ANY accounts failed validation, reject the entire request (all-or-nothing approach)
       if (failedAccounts.length > 0) {
         throw new BadRequestException(
           `Cannot create opening balance. All accounts must pass validation. Failed accounts: ${failedAccounts.map((f) => `${f.accountId}: ${f.error}`).join('; ')}`,
         );
       }
 
-      // Filter items to only valid accounts (all items are valid at this point due to all-or-nothing validation)
-      const validItems = dto.items;
-
-      // Calculate totals from all items (since validation passed)
       let totalDebit = 0;
       let totalCredit = 0;
-
-      for (const item of validItems) {
+      for (const item of dto.items) {
         totalDebit += item.debit;
         totalCredit += item.credit;
       }
-
       const difference = totalCredit - totalDebit;
 
-      // Create opening balance and items in a transaction (no journal posting yet)
-      const result = await this.prisma.$transaction(async (tx) => {
-        const openingBalance = await tx.openingBalance.create({
-          data: {
-            entityId,
-            groupId,
-            date: dto.date,
-            fiscalYear: dto.fiscalYear || null,
-            totalDebit,
-            totalCredit,
-            difference,
-            status: 'Draft',
-            note: dto.note || null,
-          },
-        });
+      const result = await this.prisma.$transaction(
+        async (tx) => {
+          const openingBalance = await tx.openingBalance.create({
+            data: {
+              entityId,
+              groupId,
+              date: dto.date,
+              fiscalYear: dto.fiscalYear || null,
+              totalDebit,
+              totalCredit,
+              difference,
+              status: 'Finalized',
+              note: dto.note || null,
+            },
+          });
 
-        // Create opening balance items (without posting to journal yet)
-        const items = await Promise.all(
-          validItems.map((item) =>
-            tx.openingBalanceItem.create({
-              data: {
-                openingBalanceId: openingBalance.id,
-                accountId: item.accountId,
-                debit: item.debit,
-                credit: item.credit,
-              },
-            }),
-          ),
-        );
+          const items = await Promise.all(
+            dto.items.map((item) =>
+              tx.openingBalanceItem.create({
+                data: {
+                  openingBalanceId: openingBalance.id,
+                  accountId: item.accountId,
+                  debit: item.debit,
+                  credit: item.credit,
+                },
+              }),
+            ),
+          );
 
-        return {
-          ...openingBalance,
-          items,
-        };
-      });
+          for (const item of items) {
+            await this.postOpeningBalanceLineToJournal(
+              tx,
+              openingBalance.id,
+              item.accountId,
+              item.debit,
+              item.credit,
+              accountMap.get(item.accountId)!,
+              entityId,
+              groupId,
+              `Opening Balance - ${accountMap.get(item.accountId)!.name}`,
+            );
+          }
 
-      // Queue journal posting to BullMQ (async)
-      await this.bullmqService.addJob('post-opening-balance-journal', {
-        openingBalanceId: result.id,
-        entityId,
-        groupId,
-        items: result.items,
-        validItems: result.items, // All items are valid due to all-or-nothing validation
-        accountMap: Array.from(accountMap.entries()).map(([id, acc]) => ({
-          id,
-          account: acc,
-        })),
-      });
+          return { ...openingBalance, items };
+        },
+        { timeout: 15000 },
+      );
 
-      // Return the created opening balance (all items succeeded)
-      return result as OpeningBalanceCreationResult;
+      return this.getOpeningBalance(result.id, entityId);
     } catch (error) {
       if (
         error instanceof UnauthorizedException ||
@@ -216,67 +177,149 @@ export class OpeningBalanceService {
   }
 
   /**
-   * Post opening balance to journal (called asynchronously from BullMQ)
-   * Creates journal entries and updates account balances
+   * Reverse a Finalized opening balance with an equal-and-opposite posting.
+   * This is the only supported way to correct a mistake once posted — the
+   * original record and its journal are never edited or deleted, a new
+   * offsetting entry is posted and linked back to it instead.
    */
-  async postOpeningBalanceJournal(
-    openingBalanceId: string,
+  async reverseOpeningBalance(
+    id: string,
     entityId: string,
     groupId: string,
-    items: any[],
-    validItems: any[],
-    accountMapData: any[],
-  ): Promise<void> {
+    dto: ReverseOpeningBalanceDto,
+  ): Promise<GetOpeningBalanceResponseDto> {
     try {
-      // Reconstruct account map from data
-      const accountMap = new Map(
-        accountMapData.map((item) => [item.id, item.account]),
-      );
+      const existing = await this.prisma.openingBalance.findFirst({
+        where: { id, entityId },
+        include: { items: true, reversedBy: { select: { id: true } } },
+      });
 
-      // Process all items in a SINGLE transaction (more efficient than separate transactions per item)
-      await this.prisma.$transaction(
+      if (!existing) {
+        throw new HttpException(
+          'Opening balance not found',
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      if (existing.status !== 'Finalized') {
+        throw new BadRequestException(
+          `Only a Finalized opening balance can be reversed (current status: ${existing.status}).`,
+        );
+      }
+
+      if (existing.reversedBy) {
+        throw new BadRequestException(
+          'This opening balance has already been reversed.',
+        );
+      }
+
+      if (existing.items.length === 0) {
+        throw new BadRequestException(
+          'Opening balance has no items to reverse.',
+        );
+      }
+
+      const accountIds = existing.items.map((item) => item.accountId);
+      const accounts = await this.prisma.account.findMany({
+        where: { id: { in: accountIds }, entityId },
+        include: {
+          subCategory: {
+            include: { category: { include: { type: true } } },
+          },
+        },
+      });
+      const accountMap = new Map(accounts.map((acc) => [acc.id, acc]));
+
+      const result = await this.prisma.$transaction(
         async (tx) => {
-          for (const item of items) {
-            const validItem = validItems.find((vi) => vi.accountId === item.accountId);
-            if (!validItem) continue;
+          const reversal = await tx.openingBalance.create({
+            data: {
+              entityId,
+              groupId,
+              date: new Date(),
+              fiscalYear: existing.fiscalYear,
+              totalDebit: existing.totalCredit,
+              totalCredit: existing.totalDebit,
+              difference: existing.totalDebit - existing.totalCredit,
+              status: 'Finalized',
+              note: `Reversal of Opening Balance ${existing.id}`,
+              reversalReason: dto.reason,
+              reversalOfId: existing.id,
+            },
+          });
 
-            await this.postOpeningBalanceToJournalInternal(
+          const items = await Promise.all(
+            existing.items.map((item) =>
+              tx.openingBalanceItem.create({
+                data: {
+                  openingBalanceId: reversal.id,
+                  accountId: item.accountId,
+                  debit: item.credit,
+                  credit: item.debit,
+                },
+              }),
+            ),
+          );
+
+          for (const item of items) {
+            const account = accountMap.get(item.accountId);
+            if (!account) {
+              throw new BadRequestException(
+                `Account ${item.accountId} not found or access denied`,
+              );
+            }
+            await this.postOpeningBalanceLineToJournal(
               tx,
-              openingBalanceId,
+              reversal.id,
               item.accountId,
               item.debit,
               item.credit,
-              accountMap.get(item.accountId)!,
+              account,
               entityId,
               groupId,
+              `Reversal of Opening Balance - ${account.name}`,
             );
           }
+
+          await tx.openingBalance.update({
+            where: { id: existing.id },
+            data: { status: 'Reversed' },
+          });
+
+          return reversal;
         },
-        { timeout: 15000 }, // Increase timeout to 15 seconds for opening balance posting with multiple items
+        { timeout: 15000 },
       );
 
-      // Update opening balance status to completed
-      await this.prisma.openingBalance.update({
-        where: { id: openingBalanceId },
-        data: { status: 'Finalized' },
-      });
+      return this.getOpeningBalance(result.id, entityId);
     } catch (error) {
+      if (
+        error instanceof HttpException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
       throw new HttpException(
-        `Failed to post opening balance to journal: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to reverse opening balance: ${error instanceof Error ? error.message : String(error)}`,
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }
 
   /**
-   * Post single opening balance item to journal
-   * Uses the posting rules:
+   * Post a single opening-balance line to the journal, update the account's
+   * cached balance and write the audit-trail AccountTransaction row.
+   *
+   * This is the ONLY place in the opening-balance module allowed to mutate
+   * Account.balance — both creation and reversal route through it, so the
+   * cached balance can never drift out of sync with the ledger.
+   *
+   * Posting rules:
    * - Assets/Expenses: Debit increases balance (normal balance = debit)
    * - Liabilities/Equity/Revenue: Credit increases balance (normal balance = credit)
-   *
-   * The offsetting entry goes to "Opening Balance Equity" account
+   * The offsetting entry always goes to "Opening Balance Equity".
    */
-  private async postOpeningBalanceToJournalInternal(
+  private async postOpeningBalanceLineToJournal(
     tx: any,
     openingBalanceId: string,
     accountId: string,
@@ -285,138 +328,101 @@ export class OpeningBalanceService {
     account: any,
     entityId: string,
     groupId: string,
+    lineDescription: string,
   ): Promise<void> {
-    try {
-      // Get Opening Balance Equity account
-      const openingBalanceEquityAccount =
-        await this.getOrCreateOpeningBalanceEquityAccount(tx, entityId);
+    const openingBalanceEquityAccount =
+      await this.getOpeningBalanceEquityAccount(tx, entityId);
 
-      if (!openingBalanceEquityAccount) {
-        throw new Error('Failed to get Opening Balance Equity account');
-      }
-
-      // Determine account type for proper debit/credit assignment
-      const accountType = account.subCategory?.category?.type?.name;
-
-      // Create journal lines based on account type and debit/credit
-      const lines: any[] = [
-        {
-          accountId,
-          debit,
-          credit,
-          description: `Opening Balance - ${account.name}`,
-        },
-      ];
-
-      // Add offsetting line to Opening Balance Equity
-      lines.push({
+    const lines: any[] = [
+      {
+        accountId,
+        debit,
+        credit,
+        description: lineDescription,
+      },
+      {
         accountId: openingBalanceEquityAccount.id,
         debit: credit,
         credit: debit,
         description: `Opening Balance Equity - ${account.name}`,
-      });
+      },
+    ];
 
-      // Verify journal balances
-      const totalDebits = lines.reduce((sum, line) => sum + line.debit, 0);
-      const totalCredits = lines.reduce((sum, line) => sum + line.credit, 0);
+    const totalDebits = lines.reduce((sum, line) => sum + line.debit, 0);
+    const totalCredits = lines.reduce((sum, line) => sum + line.credit, 0);
 
-      if (totalDebits !== totalCredits) {
-        throw new Error(
-          `Opening balance journal unbalanced for account ${accountId}: Debits ${totalDebits} != Credits ${totalCredits}`,
-        );
-      }
+    if (totalDebits !== totalCredits) {
+      throw new Error(
+        `Opening balance journal unbalanced for account ${accountId}: Debits ${totalDebits} != Credits ${totalCredits}`,
+      );
+    }
 
-      // Create journal entry
-      const journal = await tx.journal.create({
-        data: {
-          description: `Opening Balance - ${openingBalanceId} posted`,
-          date: new Date(),
-          reference: generateJournalReference('OB'),
-          entityId,
-          groupId,
-          lines: lines as any,
+    const journal = await tx.journal.create({
+      data: {
+        description: `Opening Balance - ${openingBalanceId} posted`,
+        date: new Date(),
+        reference: generateJournalReference('OB'),
+        entityId,
+        groupId,
+        lines: lines as any,
+      },
+    });
+
+    for (const line of lines) {
+      const accountDetail = await tx.account.findUnique({
+        where: { id: line.accountId },
+        include: {
+          subCategory: { include: { category: { include: { type: true } } } },
         },
       });
 
-      // Update account balances and create account transactions
-      for (const line of lines) {
-        const accountDetail = await tx.account.findUnique({
-          where: { id: line.accountId },
-          include: {
-            subCategory: {
-              include: {
-                category: {
-                  include: {
-                    type: true,
-                  },
-                },
-              },
-            },
+      if (!accountDetail) continue;
+
+      const accType = accountDetail.subCategory?.category?.type?.name;
+      const balanceChange =
+        accType === 'Assets' || accType === 'Expenses'
+          ? line.debit - line.credit
+          : line.credit - line.debit;
+
+      const newBalance = accountDetail.balance + balanceChange;
+      await tx.account.update({
+        where: { id: line.accountId },
+        data: { balance: newBalance },
+      });
+
+      await tx.accountTransaction.create({
+        data: {
+          date: new Date(),
+          description: `Opening Balance posted - ${line.description}`,
+          reference: journal.reference,
+          type: 'OPENING_BALANCE',
+          status: 'Success',
+          accountId: line.accountId,
+          debitAmount: line.debit,
+          creditAmount: line.credit,
+          runningBalance: newBalance,
+          entityId,
+          groupId,
+          relatedEntityId: openingBalanceId,
+          relatedEntityType: 'OpeningBalance',
+          metadata: {
+            journalReference: journal.reference,
+            accountCode: accountDetail.code,
+            accountName: accountDetail.name,
           },
-        });
-
-        if (accountDetail) {
-          // Calculate balance change based on account type
-          const accType = accountDetail.subCategory?.category?.type?.name;
-          let balanceChange = 0;
-
-          if (accType === 'Assets' || accType === 'Expenses') {
-            // Assets/Expenses: Debit increases, Credit decreases
-            balanceChange = line.debit - line.credit;
-          } else {
-            // Liabilities/Equity/Revenue: Credit increases, Debit decreases
-            balanceChange = line.credit - line.debit;
-          }
-
-          // Update account balance
-          const newBalance = accountDetail.balance + balanceChange;
-          await tx.account.update({
-            where: { id: line.accountId },
-            data: { balance: newBalance },
-          });
-
-          // Create account transaction record for audit trail
-          await tx.accountTransaction.create({
-            data: {
-              date: new Date(),
-              description: `Opening Balance posted - ${line.description}`,
-              reference: journal.reference,
-              type: 'OPENING_BALANCE',
-              status: 'Success',
-              accountId: line.accountId,
-              debitAmount: line.debit,
-              creditAmount: line.credit,
-              runningBalance: newBalance,
-              entityId,
-              groupId,
-              relatedEntityId: openingBalanceId,
-              relatedEntityType: 'OpeningBalance',
-              metadata: {
-                journalReference: journal.reference,
-                accountCode: accountDetail.code,
-                accountName: accountDetail.name,
-              },
-            },
-          });
-        }
-      }
-    } catch (error) {
-      throw new Error(
-        `Failed to post opening balance: ${error instanceof Error ? error.message : String(error)}`,
-      );
+        },
+      });
     }
   }
 
   /**
-   * Get the Opening Balance Equity account (code: 3140-01)
-   * This account must exist for the entity (created during entity setup via seeder)
-   * Fails if account doesn't exist
+   * Get the Opening Balance Equity account (code: 3140-01).
+   * Must exist for the entity (created during entity setup via seeder).
    */
-  private async getOrCreateOpeningBalanceEquityAccount(
+  private async getOpeningBalanceEquityAccount(
     tx: any,
     entityId: string,
   ): Promise<any> {
-    // Look for account with code "3140-01" for this entity
     const account = await tx.account.findFirst({
       where: {
         entityId,
@@ -424,11 +430,10 @@ export class OpeningBalanceService {
       },
     });
 
-    // If account not found, fail with clear error
     if (!account) {
       throw new BadRequestException(
         `Opening Balance Equity account (code: 3140-01) not found for entity. ` +
-        `Please ensure the account has been created in Chart of Accounts during entity setup.`,
+          `Please ensure the account has been created in Chart of Accounts during entity setup.`,
       );
     }
 
@@ -442,9 +447,7 @@ export class OpeningBalanceService {
     try {
       const openingBalance = await this.prisma.openingBalance.findFirst({
         where: { id, entityId },
-        include: {
-          items: true,
-        },
+        include: OPEN_BALANCE_INCLUDE,
       });
 
       if (!openingBalance) {
@@ -454,7 +457,7 @@ export class OpeningBalanceService {
         );
       }
 
-      return openingBalance as GetOpeningBalanceResponseDto;
+      return openingBalance as unknown as GetOpeningBalanceResponseDto;
     } catch (error) {
       if (error instanceof HttpException) {
         throw error;
@@ -475,7 +478,6 @@ export class OpeningBalanceService {
       const limit = query.limit || 10;
       const skip = (page - 1) * limit;
 
-      // Check if entity exists
       const entity = await this.prisma.entity.findUnique({
         where: { id: entityId },
         select: { id: true },
@@ -485,7 +487,6 @@ export class OpeningBalanceService {
         throw new UnauthorizedException('Entity not found or access denied');
       }
 
-      // Build where clause for filtering
       const whereClause: any = { entityId };
       if (query.search) {
         whereClause.OR = [
@@ -494,18 +495,14 @@ export class OpeningBalanceService {
         ];
       }
 
-      // Fetch paginated opening balances
       const openingBalances = await this.prisma.openingBalance.findMany({
         where: whereClause,
-        include: {
-          items: true,
-        },
+        include: OPEN_BALANCE_INCLUDE,
         skip,
         take: Number(limit),
         orderBy: { createdAt: 'desc' },
       });
 
-      // Get total count for pagination
       const totalCount = await this.prisma.openingBalance.count({
         where: whereClause,
       });
@@ -513,7 +510,7 @@ export class OpeningBalanceService {
       const totalPages = Math.ceil(totalCount / limit);
 
       return {
-        data: openingBalances as GetOpeningBalanceResponseDto[],
+        data: openingBalances as unknown as GetOpeningBalanceResponseDto[],
         totalCount,
         totalPages,
         currentPage: page,
@@ -530,13 +527,17 @@ export class OpeningBalanceService {
     }
   }
 
+  /**
+   * Only metadata (note) may be edited, and only before the entry has been
+   * posted. Once Finalized or Reversed, nothing here is mutable — use
+   * reverseOpeningBalance() to correct a posted mistake.
+   */
   async updateOpeningBalance(
     id: string,
     entityId: string,
     dto: UpdateOpeningBalanceDto,
   ): Promise<GetOpeningBalanceResponseDto> {
     try {
-      // Get existing opening balance
       const existing = await this.prisma.openingBalance.findFirst({
         where: { id, entityId },
       });
@@ -548,51 +549,41 @@ export class OpeningBalanceService {
         );
       }
 
-      // Prevent updating finalized opening balance
-      if (existing.status === 'Finalized') {
+      if (existing.status === 'Finalized' || existing.status === 'Reversed') {
         throw new BadRequestException(
-          'Cannot update a finalized opening balance',
+          `Cannot update a ${existing.status.toLowerCase()} opening balance. Use the reverse action to correct a posted entry.`,
         );
       }
 
-      // Calculate new totals if items are provided
-      let totalDebit = existing.totalDebit;
-      let totalCredit = existing.totalCredit;
-
       if (dto.items && dto.items.length > 0) {
-        totalDebit = 0;
-        totalCredit = 0;
-
         for (const item of dto.items) {
-          // Verify account belongs to this entity
           const account = await this.prisma.account.findFirst({
             where: { id: item.accountId, entityId },
             select: { id: true },
           });
-
           if (!account) {
             throw new UnauthorizedException(
               `Account ${item.accountId} not found or access denied`,
             );
           }
-
-          totalDebit += item.debit;
-          totalCredit += item.credit;
         }
       }
 
+      let totalDebit = existing.totalDebit;
+      let totalCredit = existing.totalCredit;
+      if (dto.items && dto.items.length > 0) {
+        totalDebit = dto.items.reduce((sum, i) => sum + i.debit, 0);
+        totalCredit = dto.items.reduce((sum, i) => sum + i.credit, 0);
+      }
       const difference = totalCredit - totalDebit;
 
-      // Update in transaction
       const result = await this.prisma.$transaction(async (tx) => {
-        // Delete existing items if new items provided
         if (dto.items && dto.items.length > 0) {
           await tx.openingBalanceItem.deleteMany({
             where: { openingBalanceId: id },
           });
         }
 
-        // Update opening balance
         const updated = await tx.openingBalance.update({
           where: { id },
           data: {
@@ -608,7 +599,6 @@ export class OpeningBalanceService {
           },
         });
 
-        // Create new items if provided
         let items: any[] = [];
         if (dto.items && dto.items.length > 0) {
           items = await Promise.all(
@@ -629,13 +619,10 @@ export class OpeningBalanceService {
           });
         }
 
-        return {
-          ...updated,
-          items,
-        };
+        return { ...updated, items };
       });
 
-      return result as GetOpeningBalanceResponseDto;
+      return result as unknown as GetOpeningBalanceResponseDto;
     } catch (error) {
       if (
         error instanceof HttpException ||
@@ -663,22 +650,17 @@ export class OpeningBalanceService {
         );
       }
 
-      // Prevent deleting finalized opening balance
-      if (existing.status === 'Finalized') {
+      if (existing.status === 'Finalized' || existing.status === 'Reversed') {
         throw new BadRequestException(
-          'Cannot delete a finalized opening balance',
+          `Cannot delete a ${existing.status.toLowerCase()} opening balance. Use the reverse action to correct a posted entry.`,
         );
       }
 
-      // Delete in transaction (items will be deleted due to CASCADE)
       await this.prisma.$transaction(async (tx) => {
         await tx.openingBalanceItem.deleteMany({
           where: { openingBalanceId: id },
         });
-
-        await tx.openingBalance.delete({
-          where: { id },
-        });
+        await tx.openingBalance.delete({ where: { id } });
       });
     } catch (error) {
       if (
@@ -689,44 +671,6 @@ export class OpeningBalanceService {
       }
       throw new HttpException(
         `Failed to delete opening balance: ${error instanceof Error ? error.message : String(error)}`,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-  }
-
-  async finalizeOpeningBalance(
-    id: string,
-    entityId: string,
-  ): Promise<GetOpeningBalanceResponseDto> {
-    try {
-      const existing = await this.prisma.openingBalance.findFirst({
-        where: { id, entityId },
-      });
-
-      if (!existing) {
-        throw new HttpException(
-          'Opening balance not found',
-          HttpStatus.NOT_FOUND,
-        );
-      }
-
-      const updated = await this.prisma.openingBalance.update({
-        where: { id },
-        data: {
-          status: 'Finalized',
-        },
-        include: {
-          items: true,
-        },
-      });
-
-      return updated as GetOpeningBalanceResponseDto;
-    } catch (error) {
-      if (error instanceof HttpException) {
-        throw error;
-      }
-      throw new HttpException(
-        `Failed to finalize opening balance: ${error instanceof Error ? error.message : String(error)}`,
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }

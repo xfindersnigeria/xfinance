@@ -188,6 +188,27 @@ export const useSetOpeningBalances = (
   });
 };
 
+export const useReverseOpeningBalance = (
+  options?: UseMutationOptions<any, Error, { id: string; reason: string }>,
+) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, reason }) => accountsService.reverseOpeningBalance(id, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["openingBalances"] });
+      toast.success("Opening balance reversed successfully");
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to reverse opening balance",
+      );
+    },
+    ...options,
+  });
+};
+
 export const useOpeningBalances = (params?: { search?: string; page?: number; limit?: number }) => {
   return useQuery<any>({
     queryKey: ["openingBalances", params?.search, params?.page, params?.limit],

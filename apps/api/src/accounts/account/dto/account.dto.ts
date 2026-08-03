@@ -94,39 +94,3 @@ export class AccountResponseDto {
   updatedAt: Date;
 }
 
-export class OpeningBalanceLineDto {
-  @ApiProperty({
-    example: 'acc_abc123',
-    description: 'Account ID',
-  })
-  @IsString()
-  @IsNotEmpty()
-  accountId: string;
-
-  @ApiProperty({
-    example: 1000,
-    description: 'Debit amount',
-  })
-  @IsInt()
-  @IsOptional()
-  @Min(0)
-  debit?: number;
-
-  @ApiProperty({
-    example: 500,
-    description: 'Credit amount',
-  })
-  @IsInt()
-  @IsOptional()
-  @Min(0)
-  credit?: number;
-}
-
-export class OpeningBalanceDto {
-  @ApiProperty({
-    type: [OpeningBalanceLineDto],
-    description: 'Array of opening balance lines',
-  })
-  @IsNotEmpty()
-  lines: OpeningBalanceLineDto[];
-}

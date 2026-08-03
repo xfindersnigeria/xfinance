@@ -199,6 +199,13 @@ export const setOpeningBalances = async (data: {
   });
 };
 
+export const reverseOpeningBalance = async (id: string, reason: string) => {
+  return apiClient(`account/opening-balances/${id}/reverse`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
+};
+
 /**
  * Budgets Endpoints
  */

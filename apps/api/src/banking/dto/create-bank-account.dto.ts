@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, IsNumber, IsEnum } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsEnum, Min } from 'class-validator';
 
 export enum BankAccountType {
   CHECKING = 'checking',
@@ -35,7 +35,9 @@ export class CreateBankAccountDto {
   @IsString()
   routingNumber?: string;
 
-  @ApiProperty({ example: 50000 })
+  @ApiProperty({ example: 50000, required: false })
+  @IsOptional()
   @IsNumber()
-  openingBalance: number;
+  @Min(0)
+  openingBalance?: number;
 }

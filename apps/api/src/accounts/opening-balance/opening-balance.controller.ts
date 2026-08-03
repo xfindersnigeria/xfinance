@@ -15,7 +15,7 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiOkResponse, ApiBearerAuth, ApiCookieAuth } from '@nestjs/swagger';
 import { OpeningBalanceService } from './opening-balance.service';
-import { CreateOpeningBalanceDto, UpdateOpeningBalanceDto, GetOpeningBalanceResponseDto, GetOpeningBalancesQueryDto, GetOpeningBalancesResponseDto } from './dto/opening-balance.dto';
+import { CreateOpeningBalanceDto, UpdateOpeningBalanceDto, ReverseOpeningBalanceDto, GetOpeningBalanceResponseDto, GetOpeningBalancesQueryDto, GetOpeningBalancesResponseDto } from './dto/opening-balance.dto';
 import { AuthGuard } from '@/auth/guards/auth.guard';
 import { getEffectiveEntityId, getEffectiveGroupId } from '@/auth/utils/context.util';
 
@@ -70,11 +70,16 @@ export class OpeningBalanceController {
     return this.openingBalanceService.deleteOpeningBalance(id, entityId);
   }
 
-  @Post(':id/finalize')
+  @Post(':id/reverse')
   @UseGuards(AuthGuard)
-  async finalize(@Req() req, @Param('id') id: string): Promise<GetOpeningBalanceResponseDto> {
+  async reverse(
+    @Req() req,
+    @Param('id') id: string,
+    @Body() dto: ReverseOpeningBalanceDto,
+  ): Promise<GetOpeningBalanceResponseDto> {
+    const groupId = getEffectiveGroupId(req) as string;
     const entityId = getEffectiveEntityId(req);
     if (!entityId) throw new UnauthorizedException('Access denied!');
-    return this.openingBalanceService.finalizeOpeningBalance(id, entityId);
+    return this.openingBalanceService.reverseOpeningBalance(id, entityId, groupId, dto);
   }
 }

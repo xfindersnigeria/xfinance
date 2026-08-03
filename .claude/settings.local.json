@@ -40,7 +40,11 @@
       "Bash(npx --no-install tsc --noEmit)",
       "Bash(node_modules/.bin/tsc --noEmit)",
       "Bash(/home/jaycee/projects/xfinance/apps/api/node_modules/.bin/tsc -p /home/jaycee/projects/xfinance/apps/api/tsconfig.json --noEmit)",
-      "Bash(./node_modules/.bin/tsc --noEmit)"
+      "Bash(./node_modules/.bin/tsc --noEmit)",
+      "Bash(timeout 25 npx nest start)",
+      "Bash(pkill -f \"nest start\")",
+      "Bash(kill -9 96123)",
+      "Bash(curl *)"
     ]
   }
 }
