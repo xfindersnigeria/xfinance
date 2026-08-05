@@ -64,8 +64,19 @@ const expenseSchema = z.object({
     "Wire_Transfer",
   ]),
   paymentAccountId: z.string().min(1, "Payment Account is required"),
-  amount: z.number().min(0.01, "Amount is required"),
-  tax: z.number().min(0, ""),
+  // preprocess: an empty/cleared field (NumberInput emits undefined) is
+  // treated as 0 before validation, instead of failing with zod's raw
+  // "Expected number, received undefined" type error. amount still enforces
+  // a real value via .min(0.01) — 0 fails that check with the intended
+  // "Amount is required" message; tax legitimately allows 0 (no tax).
+  amount: z.preprocess(
+    (val) => (val === undefined || val === null || val === "" ? 0 : val),
+    z.number().min(0.01, "Amount is required"),
+  ),
+  tax: z.preprocess(
+    (val) => (val === undefined || val === null || val === "" ? 0 : val),
+    z.number().min(0, ""),
+  ),
   description: z.string().optional(),
   tags: z.string().optional(),
   attachments: z.any().optional(),
@@ -128,7 +139,7 @@ export default function ExpensesForm({
   const projects = (projectsData as any)?.data || [];
 
   const form = useForm<ExpenseFormType>({
-    resolver: zodResolver(expenseSchema),
+    resolver: zodResolver(expenseSchema) as any,
     defaultValues,
     mode: "onChange",
   });
