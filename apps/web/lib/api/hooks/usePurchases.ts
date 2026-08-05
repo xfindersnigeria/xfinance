@@ -523,6 +523,9 @@ export const useBulkImportExpenses = (
 
   return useMutation({
     mutationFn: purchasesService.bulkImportExpenses,
+    // Same reasoning as useBulkImportReceipts: long-running, no backend
+    // idempotency protection — never auto-retry.
+    retry: false,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["expenses"] });
       queryClient.invalidateQueries({ queryKey: ["account-transactions"] });

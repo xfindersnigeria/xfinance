@@ -281,6 +281,10 @@ export const useCreateStoreSupplyIssueBulk = () => {
   const { closeModal } = useModal();
   return useMutation({
     mutationFn: createStoreSupplyIssueBulk,
+    // Creates one record per selected item in a loop server-side, with no
+    // idempotency protection — a retry after a client-side timeout would
+    // issue every item a second time.
+    retry: false,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["store-supply-issues"] });
       queryClient.invalidateQueries({ queryKey: ["store-supplies"] });

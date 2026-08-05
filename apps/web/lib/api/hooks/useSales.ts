@@ -435,6 +435,10 @@ export const useBulkImportReceipts = (
 
   return useMutation({
     mutationFn: salesService.bulkImportReceipts,
+    // Bulk import is long-running (loops every row) and the backend has no
+    // idempotency protection — a retry after a client-side timeout would
+    // create a full second batch of receipts. Never auto-retry this one.
+    retry: false,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["receipts"] });
       queryClient.invalidateQueries({ queryKey: ["account-transactions"] });
