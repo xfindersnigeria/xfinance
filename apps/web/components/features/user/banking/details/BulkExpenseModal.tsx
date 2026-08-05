@@ -292,7 +292,7 @@ export default function BulkExpenseModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl lg:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-lg font-bold">Bulk Expense Upload</DialogTitle>
           <p className="text-xs text-gray-500">{accountLabel}</p>
@@ -425,7 +425,8 @@ export default function BulkExpenseModal({
             )}
 
             <div className="rounded-xl border overflow-hidden">
-              <div className="grid grid-cols-[2rem_1fr_1fr_6rem_8rem_2rem] text-xs font-semibold text-gray-500 bg-gray-50 px-3 py-2 gap-2 border-b">
+              <div className="overflow-x-auto">
+              <div className="grid grid-cols-[2rem_1fr_1fr_6rem_8rem_2rem] min-w-150 text-xs font-semibold text-gray-500 bg-gray-50 px-3 py-2 gap-2 border-b">
                 <span>#</span>
                 <span>Description</span>
                 <span>Payee</span>
@@ -435,7 +436,7 @@ export default function BulkExpenseModal({
               </div>
               <div className="divide-y max-h-64 overflow-y-auto">
                 {rows.map((r, i) => (
-                  <div key={i} className="grid grid-cols-[2rem_1fr_1fr_6rem_8rem_2rem] items-center px-3 py-2.5 gap-2 hover:bg-gray-50">
+                  <div key={i} className="grid grid-cols-[2rem_1fr_1fr_6rem_8rem_2rem] min-w-150 items-center px-3 py-2.5 gap-2 hover:bg-gray-50">
                     <span className="text-xs text-gray-400">{r._rowIdx}</span>
                     <div>
                       <p className="text-xs font-medium text-gray-800 truncate">{r.description}</p>
@@ -462,6 +463,7 @@ export default function BulkExpenseModal({
                     </button>
                   </div>
                 ))}
+              </div>
               </div>
             </div>
 
