@@ -74,6 +74,18 @@ Also caught and fixed a **regression the sweep itself introduced**: several per-
 2. **Frontend (React Query, 5-min `staleTime`): this was the actual cause of the reported symptom.** Audited all four financial hook files — 111 total `invalidateQueries` calls across receipts, invoices, payments, expenses, bills, banking, and accounts — and **zero** of them invalidated the `["dashboard"]` query key. The backend was correctly recomputing fresh numbers the whole time; the browser just never asked for them again until the 5-minute `staleTime` expired naturally.
    Fixed at the root instead of patching 100+ individual mutations one by one (easy to miss one, easy to forget on the next new mutation): added a global `MutationCache` in `QueryProvider.tsx` that invalidates every dashboard-related query key (`dashboard`, `monthlyBreakdown`, `cashFlow`, `expensesByCategory`, `kpis`, `receivableAging`, `payableAging`, `recentTransactions`, `adminDashboard`, `superadmin`) after **any** mutation in the app succeeds. Cheap when the dashboard isn't being actively viewed — invalidation only triggers a refetch for currently-mounted/observed queries.
 
+## Revenue MTD calculation bug (2026-08-05, later still)
+
+**Reported:** payments recorded against invoices don't show up in Revenue MTD (bulk income receipts were suspected too, but that logic was already correct — see below).
+
+**Root cause (confirmed, structural — not a caching issue):** the invoice-revenue portion of every revenue calculation in `analytics.service.ts` filtered by `Invoice.invoiceDate` (when the invoice was *issued*) instead of `PaymentReceived.paidAt` (when the payment was actually *received*). Since invoices are almost always paid days/weeks after being issued, a payment recorded this month against an invoice issued last month was counted in **neither** month. Also inconsistent: fully-'Paid' invoices counted the invoice's full `total`, while 'Partial'/'Overdue' counted only `paymentReceived.amount` — mixed accrual/cash-basis logic for no reason, on top of the wrong date field.
+
+Fix: replaced the invoice-status-branching (`Paid`/`Partial`/`Overdue`, 3 separate queries) with a single `paymentReceived.aggregate` filtered by `paidAt` — simpler and correct: any cash received this month counts as this month's revenue, regardless of the invoice's current status. Confirmed `PaymentReceived.amount` is the actual amount received in that transaction (validated against outstanding balance server-side, can't overpay) — the right field to sum.
+
+This exact copy-pasted bug existed in **7 places** — fixed all of them: `getKPIs` (entity dashboard Revenue MTD card), `getMonthlyBreakdown` (revenue trend chart), `getCashFlow` (inflow), `getGroupKPIs`, `getGroupMonthlyBreakdown`, `getGroupEntityPerformance` — i.e. every revenue number in both the entity and group/admin dashboards was affected, not just the one KPI card.
+
+**Receipts (what bulk income creates) were already correct** — filtered by `Receipt.date` + `status: 'Completed'`, which is what `bulkImportReceipts` sets. If a bulk-imported receipt still doesn't show, check that the CSV row's date actually falls within the current month before assuming a bug — dates outside the current month correctly won't count as MTD.
+
 **Outstanding on the user's end:** none of the above takes effect until migrations are applied — the dashboard error the user is hitting (`Expenses.findMany` — "column does not exist") is the same pending-migration issue from earlier, now compounded by one more migration. Full, current command:
 
 ```bash
