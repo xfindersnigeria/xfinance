@@ -65,6 +65,15 @@ Also caught and fixed a **regression the sweep itself introduced**: several per-
   - Renamed the Next.js route folder: `app/(dashboards)/@user/income/sales-receipt/` → `.../income-receipt/` (`git mv`, clean rename, both `page.tsx` files use absolute imports so nothing inside needed editing). Confirmed via grep there were zero hardcoded links to the old path anywhere — sidebar route and breadcrumb are both generated dynamically from `moduleKey`, so they update themselves. No redirect, per instruction.
   - Component files/folder (`components/features/user/income/sales-receipt/...`) intentionally left as-is, per instruction.
 
+## Dashboard cache invalidation (2026-08-05, later)
+
+**Reported:** bulk income import doesn't reflect on MTD Revenue on the dashboard.
+
+**Root cause — two layers, both real:**
+1. Backend (Redis, 5-min TTL): `AnalyticsService.getDashboardData()` caches under `dashboard:{entityId}:{filters}`, busted via `cacheService.invalidateEntityDashboardCache()`. This part was already correctly wired for `bulkImportReceipts` (and most financial services) — but **`JournalService`** (manual journal create + draft activation) and **`OpeningBalanceService`** (create + reverse — the two paths that actually post to the ledger) never called it at all, despite both directly changing account balances shown on the dashboard. Fixed: injected `CacheService` into both and added the invalidation call at the same point other services use it (right after the balance-affecting transaction commits). `updateOpeningBalance`/`deleteOpeningBalance` intentionally left alone — those only touch Draft (unposted) records, which never affect any account balance.
+2. **Frontend (React Query, 5-min `staleTime`): this was the actual cause of the reported symptom.** Audited all four financial hook files — 111 total `invalidateQueries` calls across receipts, invoices, payments, expenses, bills, banking, and accounts — and **zero** of them invalidated the `["dashboard"]` query key. The backend was correctly recomputing fresh numbers the whole time; the browser just never asked for them again until the 5-minute `staleTime` expired naturally.
+   Fixed at the root instead of patching 100+ individual mutations one by one (easy to miss one, easy to forget on the next new mutation): added a global `MutationCache` in `QueryProvider.tsx` that invalidates every dashboard-related query key (`dashboard`, `monthlyBreakdown`, `cashFlow`, `expensesByCategory`, `kpis`, `receivableAging`, `payableAging`, `recentTransactions`, `adminDashboard`, `superadmin`) after **any** mutation in the app succeeds. Cheap when the dashboard isn't being actively viewed — invalidation only triggers a refetch for currently-mounted/observed queries.
+
 **Outstanding on the user's end:** none of the above takes effect until migrations are applied — the dashboard error the user is hitting (`Expenses.findMany` — "column does not exist") is the same pending-migration issue from earlier, now compounded by one more migration. Full, current command:
 
 ```bash

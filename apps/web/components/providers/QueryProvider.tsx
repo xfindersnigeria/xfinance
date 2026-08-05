@@ -6,11 +6,36 @@
  * Optimized with data-type specific caching strategies
  */
 
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, MutationCache } from '@tanstack/react-query';
 import { ReactNode } from 'react';
 
 // Create a client for the app with optimized cache strategies
 const queryClient = new QueryClient({
+  // Dashboard data (KPIs, charts, etc.) is derived from receipts, expenses,
+  // invoices, journals, bank transactions and more — far too many mutations
+  // to remember to invalidate ["dashboard"] individually on each one, and
+  // it's easy to add a new one later and forget. Instead, treat it as a
+  // cross-cutting concern: after ANY mutation succeeds anywhere in the app,
+  // mark dashboard queries stale so the next view refetches instead of
+  // serving up to 5 minutes of stale data. Cheap when the dashboard isn't
+  // being viewed — invalidation only triggers a refetch for actively
+  // mounted/observed queries.
+  mutationCache: new MutationCache({
+    onSuccess: () => {
+      [
+        'dashboard',
+        'monthlyBreakdown',
+        'cashFlow',
+        'expensesByCategory',
+        'kpis',
+        'receivableAging',
+        'payableAging',
+        'recentTransactions',
+        'adminDashboard',
+        'superadmin',
+      ].forEach((key) => queryClient.invalidateQueries({ queryKey: [key] }));
+    },
+  }),
   defaultOptions: {
     queries: {
       // Default: moderate cache for general queries

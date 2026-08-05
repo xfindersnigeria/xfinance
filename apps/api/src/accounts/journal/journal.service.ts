@@ -9,6 +9,7 @@ import { CreateJournalDto, UpdateJournalDto } from './dto/journal.dto';
 import { generateJournalReference } from '@/auth/utils/helper';
 import { PrismaService } from '@/prisma/prisma.service';
 import { BullmqService } from '@/bullmq/bullmq.service';
+import { CacheService } from '@/cache/cache.service';
 import { Journal } from 'prisma/generated/client';
 
 @Injectable()
@@ -16,6 +17,7 @@ export class JournalService {
   constructor(
     private prisma: PrismaService,
     private bullmqService: BullmqService,
+    private cacheService: CacheService,
   ) {}
 
   async create(dto: any): Promise<Journal> {
@@ -107,6 +109,8 @@ export class JournalService {
         });
       }
 
+      await this.cacheService.invalidateEntityDashboardCache(dto.entityId);
+
       return journal;
     } catch (error) {
       if (error instanceof BadRequestException) {
@@ -190,6 +194,8 @@ export class JournalService {
           account: acc,
         })),
       });
+
+      await this.cacheService.invalidateEntityDashboardCache(entityId);
 
       return updatedJournal;
     } catch (error) {

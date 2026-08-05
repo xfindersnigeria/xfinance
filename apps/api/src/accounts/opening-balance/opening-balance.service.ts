@@ -15,6 +15,7 @@ import {
   GetOpeningBalancesResponseDto,
 } from './dto/opening-balance.dto';
 import { generateJournalReference } from '@/auth/utils/helper';
+import { CacheService } from '@/cache/cache.service';
 
 interface AccountValidationResult {
   valid: boolean;
@@ -30,7 +31,10 @@ const OPEN_BALANCE_INCLUDE = {
 
 @Injectable()
 export class OpeningBalanceService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private cacheService: CacheService,
+  ) {}
 
   /**
    * Create opening balance with validation and synchronous journal posting.
@@ -161,6 +165,8 @@ export class OpeningBalanceService {
         { timeout: 15000 },
       );
 
+      await this.cacheService.invalidateEntityDashboardCache(entityId);
+
       return this.getOpeningBalance(result.id, entityId);
     } catch (error) {
       if (
@@ -290,6 +296,8 @@ export class OpeningBalanceService {
         },
         { timeout: 15000 },
       );
+
+      await this.cacheService.invalidateEntityDashboardCache(entityId);
 
       return this.getOpeningBalance(result.id, entityId);
     } catch (error) {
