@@ -1,6 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,7 +27,7 @@ interface SingleIssueFormProps {
 const issueTypes = ["Department", "Employee", "Project"];
 
 export default function SingleIssueForm({ row, onCancel }: SingleIssueFormProps) {
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState<number | undefined>(1);
   const [issueType, setIssueType] = useState(issueTypes[0]);
   const [issueTo, setIssueTo] = useState("");
   const [issueDate, setIssueDate] = useState(new Date().toISOString().slice(0, 10));
@@ -53,9 +54,10 @@ export default function SingleIssueForm({ row, onCancel }: SingleIssueFormProps)
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const isoDate = issueDate ? new Date(issueDate).toISOString() : new Date().toISOString();
+    const clampedQuantity = Math.max(1, Math.min(row.quantity, quantity || 0));
     createIssue.mutate(
       {
-        items: [{ supplyId: row.id, quantity }],
+        items: [{ supplyId: row.id, quantity: clampedQuantity }],
         type: issueType.toLowerCase(),
         issuedTo: issueTo,
         issueDate: isoDate,
@@ -74,12 +76,10 @@ export default function SingleIssueForm({ row, onCancel }: SingleIssueFormProps)
         <div className="text-xs text-gray-500">{row.sku} &bull; {row.quantity} available</div>
         <div className="mt-3 flex items-center gap-2">
           <span className="text-sm text-gray-600 font-medium">Qty to Issue:</span>
-          <Input
-            type="number"
-            min={1}
-            max={row.quantity}
+          <NumberInput
             value={quantity}
-            onChange={(e) => setQuantity(Math.max(1, Math.min(row.quantity, Number(e.target.value))))}
+            onChange={setQuantity}
+            placeholder="1"
             className="w-24 bg-white text-center"
           />
         </div>

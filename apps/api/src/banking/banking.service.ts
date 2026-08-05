@@ -6,8 +6,6 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccountService } from '../accounts/account/account.service';
-import { OpeningBalanceService } from '../accounts/opening-balance/opening-balance.service';
-import { CreateOpeningBalanceDto } from '../accounts/opening-balance/dto/opening-balance.dto';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
 import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
 import { CacheService } from '../cache/cache.service';
@@ -17,7 +15,6 @@ export class BankingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly accountService: AccountService,
-    private readonly openingBalanceService: OpeningBalanceService,
     private readonly cacheService: CacheService,
   ) {}
 
@@ -98,30 +95,8 @@ export class BankingService {
       },
     });
 
-    // If an opening balance is provided, route it through OpeningBalanceService —
-    // the single place allowed to create OpeningBalance records and post them to
-    // the journal, so validation and balance posting can never drift out of sync
-    // between this flow and the dedicated Opening Balance screen.
-    const openingBalance = createBankAccountDto.openingBalance ?? 0;
-    if (openingBalance > 0) {
-      const openingBalanceDto: CreateOpeningBalanceDto = {
-        date: new Date(),
-        note: `Opening balance for bank account: ${createBankAccountDto.accountName}`,
-        items: [
-          {
-            accountId: linkedAccount.id,
-            debit: openingBalance,
-            credit: 0,
-          },
-        ],
-      };
-
-      await this.openingBalanceService.createOpeningBalance(
-        effectiveEntityId,
-        groupId,
-        openingBalanceDto,
-      );
-    }
+    // Opening balances are created exclusively via the dedicated Opening
+    // Balance module — not during bank account creation.
 
     // Fetch fresh bankAccount with updated linkedAccount data
     await this.cacheService.invalidateEntityDashboardCache(effectiveEntityId);
@@ -285,17 +260,18 @@ export class BankingService {
       );
     }
 
-    // Delete linked account if exists
-    if (bankAccount.linkedAccountId) {
-      await this.prisma.account.delete({
-        where: { id: bankAccount.linkedAccountId },
-      });
-    }
-
-    // Delete bank account
-    await this.prisma.bankAccount.delete({
-      where: { id },
-    });
+    // BankAccount.linkedAccountId is ON DELETE RESTRICT, so the bank account
+    // (child) must be deleted before its linked Account (parent).
+    await this.prisma.$transaction([
+      this.prisma.bankAccount.delete({ where: { id } }),
+      ...(bankAccount.linkedAccountId
+        ? [
+            this.prisma.account.delete({
+              where: { id: bankAccount.linkedAccountId },
+            }),
+          ]
+        : []),
+    ]);
 
     await this.cacheService.invalidateEntityDashboardCache(effectiveEntityId);
     return { message: 'Bank account deleted successfully' };

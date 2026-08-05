@@ -13,6 +13,7 @@ import {
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
@@ -234,7 +235,7 @@ export default function StoreItemProductForm({
                 <FormItem>
                   <FormLabel>Selling Price *</FormLabel>
                   <FormControl>
-                    <Input type="number" placeholder={`${sym}0.00`} {...field} />
+                    <NumberInput value={field.value as any} onChange={field.onChange} placeholder={`${sym}0.00`} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -247,7 +248,7 @@ export default function StoreItemProductForm({
                 <FormItem>
                   <FormLabel>Cost Price</FormLabel>
                   <FormControl>
-                    <Input type="number" placeholder={`${sym}0.00`} {...field} />
+                    <NumberInput value={field.value as any} onChange={field.onChange} placeholder={`${sym}0.00`} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -335,7 +336,7 @@ export default function StoreItemProductForm({
                   <FormItem>
                     <FormLabel>Current Stock</FormLabel>
                     <FormControl>
-                      <Input type="number" {...field} />
+                      <NumberInput value={field.value as any} onChange={field.onChange} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -348,7 +349,7 @@ export default function StoreItemProductForm({
                   <FormItem>
                     <FormLabel>Low Stock Alert</FormLabel>
                     <FormControl>
-                      <Input type="number" {...field} />
+                      <NumberInput value={field.value as any} onChange={field.onChange} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

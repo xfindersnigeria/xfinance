@@ -19,6 +19,8 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import { SearchableCombobox } from "@/components/ui/searchable-combobox";
+import { NumberInput } from "@/components/ui/number-input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Form,
@@ -399,35 +401,21 @@ export default function BillsForm({
                   <FormItem>
                     <FormLabel>Accounts Payable</FormLabel>
                     <FormControl>
-                      <Select
-                        onValueChange={field.onChange}
+                      <SearchableCombobox
                         value={field.value || ""}
+                        onChange={field.onChange}
                         disabled={payableAccountsLoading}
-                      >
-                        <SelectTrigger className="w-full bg-white">
-                          <SelectValue
-                            placeholder={
-                              payableAccountsLoading
-                                ? "Loading..."
-                                : "Select payable account"
-                            }
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Array.isArray(payableAccounts) &&
-                          payableAccounts.length > 0 ? (
-                            payableAccounts.map((account: any) => (
-                              <SelectItem key={account.id} value={account.id}>
-                                {account.name} - {account.code}
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <SelectItem value="no-payable" disabled>
-                              No payable accounts
-                            </SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
+                        isLoading={payableAccountsLoading}
+                        placeholder="Select payable account"
+                        searchPlaceholder="Search accounts..."
+                        emptyMessage="No payable accounts found."
+                        options={(Array.isArray(payableAccounts) ? payableAccounts : []).map(
+                          (account: any) => ({
+                            value: account.id,
+                            label: `${account.name} - ${account.code}`,
+                          }),
+                        )}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -619,13 +607,10 @@ export default function BillsForm({
                       control={form.control}
                       name={`lineItems.${idx}.quantity`}
                       render={({ field }) => (
-                        <Input
-                          type="number"
-                          min={1}
-                          {...field}
-                          onChange={(e) =>
-                            field.onChange(Number(e.target.value))
-                          }
+                        <NumberInput
+                          value={field.value}
+                          onChange={field.onChange}
+                          placeholder="1"
                         />
                       )}
                     />
@@ -633,14 +618,10 @@ export default function BillsForm({
                       control={form.control}
                       name={`lineItems.${idx}.rate`}
                       render={({ field }) => (
-                        <Input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          {...field}
-                          onChange={(e) =>
-                            field.onChange(Number(e.target.value))
-                          }
+                        <NumberInput
+                          value={field.value}
+                          onChange={field.onChange}
+                          placeholder="0.00"
                         />
                       )}
                     />
@@ -648,35 +629,21 @@ export default function BillsForm({
                       control={form.control}
                       name={`lineItems.${idx}.expenseAccountId`}
                       render={({ field }) => (
-                        <Select
-                          onValueChange={field.onChange}
+                        <SearchableCombobox
                           value={field.value || ""}
+                          onChange={field.onChange}
                           disabled={accountsLoading}
-                        >
-                          <SelectTrigger className="w-full bg-white">
-                            <SelectValue
-                              placeholder={
-                                accountsLoading
-                                  ? "Loading..."
-                                  : "Select account"
-                              }
-                            />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {Array.isArray(expenseAccounts) &&
-                            expenseAccounts.length > 0 ? (
-                              expenseAccounts.map((account: any) => (
-                                <SelectItem key={account.id} value={account.id}>
-                                  {account.name} - {account.code}
-                                </SelectItem>
-                              ))
-                            ) : (
-                              <SelectItem value="no-accounts" disabled>
-                                No accounts available
-                              </SelectItem>
-                            )}
-                          </SelectContent>
-                        </Select>
+                          isLoading={accountsLoading}
+                          placeholder="Select account"
+                          searchPlaceholder="Search accounts..."
+                          emptyMessage="No accounts available."
+                          options={(Array.isArray(expenseAccounts) ? expenseAccounts : []).map(
+                            (account: any) => ({
+                              value: account.id,
+                              label: `${account.name} - ${account.code}`,
+                            }),
+                          )}
+                        />
                       )}
                     />
                   </div>
@@ -700,13 +667,11 @@ export default function BillsForm({
                   control={form.control}
                   name="discount"
                   render={({ field }) => (
-                    <Input
-                      type="number"
-                      min={0}
-                      step="0.01"
+                    <NumberInput
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="0.00"
                       className="w-20"
-                      {...field}
-                      onChange={(e) => field.onChange(Number(e.target.value))}
                     />
                   )}
                 />
@@ -718,13 +683,11 @@ export default function BillsForm({
                     control={form.control}
                     name="tax"
                     render={({ field }) => (
-                      <Input
-                        type="number"
-                        min={0}
-                        step="0.01"
+                      <NumberInput
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder="0"
                         className="w-14"
-                        {...field}
-                        onChange={(e) => field.onChange(Number(e.target.value))}
                       />
                     )}
                   />

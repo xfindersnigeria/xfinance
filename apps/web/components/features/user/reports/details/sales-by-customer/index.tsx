@@ -164,7 +164,7 @@ export default function SalesByCustomer() {
         <>
           {/* KPI cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <KPICard label="Total Sales"     value={summary ? fmtShort(summary.totalSales, sym) : "—"} />
+            <KPICard label="Total Income"     value={summary ? fmtShort(summary.totalSales, sym) : "—"} />
             <KPICard label="Total Invoices"  value={summary ? String(summary.totalInvoices) : "—"} />
             <KPICard label="Average Invoice" value={summary ? fmtShort(summary.avgInvoice, sym) : "—"} />
           </div>
@@ -245,7 +245,7 @@ export default function SalesByCustomer() {
                 <thead>
                   <tr className="border-b border-slate-100">
                     <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Customer</th>
-                    <th className="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Total Sales</th>
+                    <th className="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Total Income</th>
                     <th className="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Invoices</th>
                     <th className="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Avg Invoice</th>
                     <th className="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Growth</th>

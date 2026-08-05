@@ -23,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { Badge } from "@/components/ui/badge";
 import {
   Calendar,
@@ -412,20 +413,22 @@ export default function SetBudgetForm({ existingBudget, onSuccess }: SetBudgetFo
                       name={`budgetLines.${index}.account`}
                       render={({ field: f }) => (
                         <FormItem className="mb-0">
-                          <Select value={f.value} onValueChange={f.onChange} disabled={accountsLoading}>
-                            <FormControl>
-                              <SelectTrigger className="w-full rounded-lg border-gray-300 h-9 text-sm">
-                                <SelectValue placeholder={accountsLoading ? "Loading..." : "Select account"} />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent className="max-h-64">
-                              {accounts.map((acc) => (
-                                <SelectItem key={acc.id} value={acc.id} className="text-sm">
-                                  {acc.code} – {acc.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <FormControl>
+                            <SearchableCombobox
+                              value={f.value}
+                              onChange={f.onChange}
+                              disabled={accountsLoading}
+                              isLoading={accountsLoading}
+                              placeholder="Select account"
+                              searchPlaceholder="Search accounts..."
+                              emptyMessage="No accounts found."
+                              triggerClassName="rounded-lg border-gray-300 h-9 text-sm"
+                              options={accounts.map((acc) => ({
+                                value: acc.id,
+                                label: `${acc.code} – ${acc.name}`,
+                              }))}
+                            />
+                          </FormControl>
                           <FormMessage className="text-xs" />
                         </FormItem>
                       )}

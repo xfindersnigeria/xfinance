@@ -34,7 +34,7 @@ export default function OrdersHeader({
 
       <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <OrderStatCardSmall
-          title="Today's Sales"
+          title="Today's Income"
           value={<span className="text-2xl font-bold text-primary">$4,470</span>}
           subtitle={"+12% vs yesterday"}
         />

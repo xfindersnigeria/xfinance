@@ -7,20 +7,31 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
-import { MoreVertical, Trash2 } from "lucide-react";
+import { MoreVertical, Edit3, Trash2 } from "lucide-react";
 import ConfirmationForm from "@/components/local/shared/ConfirmationForm";
 import { CustomModal } from "@/components/local/custom/modal";
 import { MODULES } from "@/lib/types/enums";
 import { useDeleteAccount } from "@/lib/api/hooks/useAccounts";
 import { useModal } from "@/components/providers/ModalProvider";
 import { MODAL } from "@/lib/data/modal-data";
+import AccountEditForm from "./AccountEditForm";
 
 export default function ChartOfAccountsActions({ row }: { row: any }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const { isOpen, openModal, closeModal } = useModal();
   const deleteAccount = useDeleteAccount();
 
-  const deleteKey = MODAL.ACCOUNT_DELETE + "-" + row.id;
+  // Row-suffixed: each row renders its own CustomModal/Dialog instance, so a
+  // bare/shared key would open every row's modal at once (stacked overlays —
+  // the black-backdrop flicker — and whichever row's data happened to render
+  // on top looked like it was "the same account" for every row).
+  const editKey = `${MODAL.ACCOUNT_EDIT}-${row.id}`;
+  const deleteKey = `${MODAL.ACCOUNT_DELETE}-${row.id}`;
+
+  const handleEditClick = () => {
+    setDropdownOpen(false);
+    setTimeout(() => openModal(editKey), 100);
+  };
 
   const handleDeleteClick = () => {
     setDropdownOpen(false);
@@ -48,6 +59,14 @@ export default function ChartOfAccountsActions({ row }: { row: any }) {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-40">
           <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault();
+              handleEditClick();
+            }}
+          >
+            <Edit3 className="size-4 mr-2" /> Edit
+          </DropdownMenuItem>
+          <DropdownMenuItem
             data-variant="destructive"
             onSelect={(e) => {
               e.preventDefault();
@@ -58,6 +77,21 @@ export default function ChartOfAccountsActions({ row }: { row: any }) {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <CustomModal
+        title="Edit Account"
+        description="Update the account name or description"
+        open={isOpen(editKey)}
+        onOpenChange={(open) =>
+          open ? openModal(editKey) : closeModal(editKey)
+        }
+        module={MODULES.ACCOUNTS}
+      >
+        <AccountEditForm
+          account={{ id: row.id, name: row.name, description: row.description }}
+          onSuccess={() => closeModal(editKey)}
+        />
+      </CustomModal>
 
       <CustomModal
         title="Confirm Deletion"

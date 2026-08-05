@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Textarea } from "@/components/ui/textarea";
 import { useModal } from "@/components/providers/ModalProvider";
 import { MODAL } from "@/lib/data/modal-data";
@@ -68,8 +69,8 @@ export default function ProjectsForm({
       status: (project?.status as any) || "Planning",
       startDate: project?.startDate || "",
       endDate: project?.endDate || "",
-      budgetedRevenue: project?.budgetedRevenue || 0,
-      budgetedCost: project?.budgetedCost || 0,
+      budgetedRevenue: project?.budgetedRevenue ?? (undefined as any),
+      budgetedCost: project?.budgetedCost ?? (undefined as any),
       managerId: project?.managerId || "",
       billingType: project?.billingType || "Fixed Price",
       currency: project?.currency || "USD",
@@ -86,8 +87,8 @@ export default function ProjectsForm({
         status: (project.status as any) || "Planning",
         startDate: project.startDate || "",
         endDate: project.endDate || "",
-        budgetedRevenue: project.budgetedRevenue || 0,
-        budgetedCost: project.budgetedCost || 0,
+        budgetedRevenue: project.budgetedRevenue ?? (undefined as any),
+        budgetedCost: project.budgetedCost ?? (undefined as any),
         managerId: project.managerId || "",
         currency: project.currency || "USD",
         billingType: project.billingType || "Fixed Price",
@@ -329,13 +330,10 @@ export default function ProjectsForm({
                   <FormItem>
                     <FormLabel>{`Budgeted Revenue (${sym})`}</FormLabel>
                     <FormControl>
-                      <Input
-                        type="number"
+                      <NumberInput
+                        value={field.value}
+                        onChange={field.onChange}
                         placeholder="0.00"
-                        {...field}
-                        onChange={(e) =>
-                          field.onChange(Number(e.target.value) || 0)
-                        }
                         className="rounded-lg"
                       />
                     </FormControl>
@@ -351,13 +349,10 @@ export default function ProjectsForm({
                   <FormItem>
                     <FormLabel>{`Budgeted Cost (${sym})`}</FormLabel>
                     <FormControl>
-                      <Input
-                        type="number"
+                      <NumberInput
+                        value={field.value}
+                        onChange={field.onChange}
                         placeholder="0.00"
-                        {...field}
-                        onChange={(e) =>
-                          field.onChange(Number(e.target.value) || 0)
-                        }
                         className="rounded-lg"
                       />
                     </FormControl>

@@ -10,6 +10,7 @@ import {
   AccountResponseDto,
   CreateAccountDto,
   UpdateAccountDto,
+  CreateAccountForEntitiesDto,
 } from './dto/account.dto';
 import { Prisma } from 'prisma/generated/client';
 
@@ -107,6 +108,61 @@ export class AccountService {
         `${error instanceof Error ? error.message : String(error)}`,
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
+    }
+  }
+
+  /**
+   * Group-level creation: creates the same account, once per selected
+   * entity, so a group admin/superadmin can roll it out across multiple
+   * entities in one action instead of repeating entity-by-entity.
+   */
+  async createForEntities(dto: CreateAccountForEntitiesDto, groupId: string) {
+    try {
+      const subCategory = await this.prisma.accountSubCategory.findUnique({
+        where: { id: dto.subCategoryId },
+      });
+      if (!subCategory) {
+        throw new BadRequestException('Account subcategory not found');
+      }
+
+      const entities = await this.prisma.entity.findMany({
+        where: { id: { in: dto.entityIds }, groupId },
+        select: { id: true },
+      });
+      if (entities.length !== dto.entityIds.length) {
+        throw new BadRequestException(
+          'One or more selected entities do not belong to this group',
+        );
+      }
+
+      const accounts: Prisma.AccountGetPayload<object>[] = [];
+      for (const entityId of dto.entityIds) {
+        const code = await this.generateNextCode(dto.subCategoryId, entityId);
+        const account = await this.prisma.account.create({
+          data: {
+            name: dto.name,
+            code,
+            description: dto.description || '',
+            subCategoryId: dto.subCategoryId,
+            balance: 0,
+            entityId,
+            groupId,
+          },
+        });
+        accounts.push(account);
+      }
+
+      return {
+        message: `Account created for ${accounts.length} ${accounts.length === 1 ? 'entity' : 'entities'}`,
+        accounts,
+      };
+    } catch (error) {
+      throw error instanceof HttpException
+        ? error
+        : new HttpException(
+            `${error instanceof Error ? error.message : String(error)}`,
+            HttpStatus.INTERNAL_SERVER_ERROR,
+          );
     }
   }
 
@@ -341,8 +397,18 @@ console.log(subCategory, entityId, groupId)
               },
             },
           },
+          bankAccount: true,
         },
       });
+
+      // Accounts linked to a bank account share the same display name —
+      // keep BankAccount.accountName in sync when the account is renamed.
+      if (account.name !== undefined && updated.bankAccount) {
+        await this.prisma.bankAccount.update({
+          where: { id: updated.bankAccount.id },
+          data: { accountName: account.name },
+        });
+      }
 
       // Add type, category, and subcategory names to response
       return {
@@ -366,7 +432,7 @@ console.log(subCategory, entityId, groupId)
       // Verify account belongs to entity
       await this.findOne(id, entityId);
 
-      const deleted = await this.prisma.account.delete({
+      const account = await this.prisma.account.findUnique({
         where: { id },
         include: {
           subCategory: {
@@ -378,22 +444,49 @@ console.log(subCategory, entityId, groupId)
               },
             },
           },
+          bankAccount: true,
+          accountTransactions: true,
         },
       });
+
+      if (!account) {
+        throw new HttpException('Account not found', HttpStatus.NOT_FOUND);
+      }
+
+      if (account.accountTransactions.length > 0) {
+        throw new HttpException(
+          'This account cannot be deleted because it has existing transactions. Remove those first.',
+          HttpStatus.CONFLICT,
+        );
+      }
+
+      // If this account is linked to a bank account with no transaction
+      // history, it is a mere metadata link — delete both records together.
+      // BankAccount.linkedAccountId is ON DELETE RESTRICT, so the bank
+      // account (child) must be deleted before the Account (parent).
+      await this.prisma.$transaction([
+        ...(account.bankAccount
+          ? [
+              this.prisma.bankAccount.delete({
+                where: { id: account.bankAccount.id },
+              }),
+            ]
+          : []),
+        this.prisma.account.delete({ where: { id } }),
+      ]);
 
       return {
         message: 'Account deleted successfully',
         deletedAccount: {
-          ...deleted,
-          typeName: deleted.subCategory?.category?.type?.name,
-          categoryName: deleted.subCategory?.category?.name,
-          subCategoryName: deleted.subCategory?.name,
+          ...account,
+          typeName: account.subCategory?.category?.type?.name,
+          categoryName: account.subCategory?.category?.name,
+          subCategoryName: account.subCategory?.name,
         },
       };
     } catch (error) {
       if (error instanceof HttpException) throw error;
-      if (error instanceof Prisma
-        .PrismaClientKnownRequestError) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
         throw new HttpException(
           'This account cannot be deleted because it is linked to existing transactions or records. Remove those first.',
           HttpStatus.CONFLICT,

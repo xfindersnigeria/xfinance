@@ -12,6 +12,8 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import { SearchableCombobox } from "@/components/ui/searchable-combobox";
+import { NumberInput } from "@/components/ui/number-input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Form,
@@ -52,7 +54,7 @@ const defaultValues: PaymentFormType = {
   vendorId: "",
   billId: "",
   paymentDate: new Date(),
-  amount: 0,
+  amount: undefined as any,
   paymentMethod: "",
   accountId: "",
   reference: "",
@@ -368,16 +370,7 @@ export default function PaymentMadeForm({
                   <FormItem>
                     <FormLabel>Amount *</FormLabel>
                     <FormControl>
-                      <Input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        placeholder="0.00"
-                        value={field.value}
-                        onChange={(e) =>
-                          field.onChange(parseFloat(e.target.value) || 0)
-                        }
-                      />
+                      <NumberInput value={field.value} onChange={field.onChange} />
                     </FormControl>
                     {selectedBillId && remainingAmount > 0 && (
                       <p className="text-xs text-muted-foreground">
@@ -422,30 +415,18 @@ export default function PaymentMadeForm({
                   <FormItem>
                     <FormLabel>From Account *</FormLabel>
                     <FormControl>
-                      <Select
-                        onValueChange={field.onChange}
+                      <SearchableCombobox
                         value={field.value}
-                      >
-                        <SelectTrigger
-                          className="w-full bg-white"
-                          disabled={accountsLoading}
-                        >
-                          <SelectValue placeholder="Select cash account" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {cashAccounts.length > 0 ? (
-                            cashAccounts.map((account: any) => (
-                              <SelectItem key={account.id} value={account.id}>
-                                {account.name} ({account.code})
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <SelectItem value="no-accounts" disabled>
-                              No cash accounts found
-                            </SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
+                        onChange={field.onChange}
+                        disabled={accountsLoading}
+                        placeholder="Select cash account"
+                        searchPlaceholder="Search accounts..."
+                        emptyMessage="No cash accounts found."
+                        options={cashAccounts.map((account: any) => ({
+                          value: account.id,
+                          label: `${account.name} (${account.code})`,
+                        }))}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

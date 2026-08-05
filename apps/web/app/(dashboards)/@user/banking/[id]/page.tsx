@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Download, RotateCcw, Upload } from "lucide-react";
+import { ArrowLeft, Download, RotateCcw, Upload, PlusCircle } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
 import { BankAccountLedger } from "@/components/features/user/banking/details";
 import BulkExpenseModal from "@/components/features/user/banking/details/BulkExpenseModal";
+import BulkIncomeModal from "@/components/features/user/banking/details/BulkIncomeModal";
 import { useBankAccount } from "@/lib/api/hooks/useBanking";
 
 export default function BankAccountDetailsPage() {
@@ -13,6 +14,7 @@ export default function BankAccountDetailsPage() {
   const params = useParams();
   const id = params?.id?.toString() ?? "";
   const [bulkExpenseOpen, setBulkExpenseOpen] = useState(false);
+  const [bulkIncomeOpen, setBulkIncomeOpen] = useState(false);
 
   const { data: accountData } = useBankAccount(id);
   const linkedAccountId = (accountData as any)?.linkedAccountId ?? "";
@@ -41,6 +43,15 @@ export default function BankAccountDetailsPage() {
               <Upload className="w-4 h-4" /> Bulk Expense
             </Button>
           )}
+          {linkedAccountId && (
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => setBulkIncomeOpen(true)}
+            >
+              <PlusCircle className="w-4 h-4" /> Bulk Income
+            </Button>
+          )}
           <Button variant="outline" className="gap-2">
             <Download className="w-4 h-4" /> Export Ledger
           </Button>
@@ -60,6 +71,15 @@ export default function BankAccountDetailsPage() {
           open={bulkExpenseOpen}
           onOpenChange={setBulkExpenseOpen}
           paymentAccountId={linkedAccountId}
+          accountLabel={accountLabel}
+        />
+      )}
+
+      {linkedAccountId && (
+        <BulkIncomeModal
+          open={bulkIncomeOpen}
+          onOpenChange={setBulkIncomeOpen}
+          depositTo={linkedAccountId}
           accountLabel={accountLabel}
         />
       )}

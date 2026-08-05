@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import {
   Form,
   FormField,
@@ -59,12 +60,12 @@ export default function StoreSupplyForm({
     defaultValues: {
       name: "",
       sku: "",
-      quantity: 0,
+      quantity: undefined as any,
       location: "",
       description: "",
       category: "",
-      unitPrice: 0,
-      minQuantity: 0,
+      unitPrice: undefined as any,
+      minQuantity: undefined as any,
       supplier: "",
     },
   });
@@ -203,15 +204,9 @@ export default function StoreSupplyForm({
                     {`Unit Price (${sym})`} <span className="text-red-500">*</span>
                   </FormLabel>
                   <FormControl>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min={0}
-                      {...field}
-                      value={field.value ?? 0}
-                      onChange={(e) =>
-                        field.onChange(Number(e.target.value) || 0)
-                      }
+                    <NumberInput
+                      value={field.value}
+                      onChange={field.onChange}
                       placeholder="0.00"
                     />
                   </FormControl>
@@ -228,14 +223,9 @@ export default function StoreSupplyForm({
                     Quantity on Hand <span className="text-red-500">*</span>
                   </FormLabel>
                   <FormControl>
-                    <Input
-                      type="number"
-                      min={0}
-                      {...field}
-                      value={field.value ?? 0}
-                      onChange={(e) =>
-                        field.onChange(Number(e.target.value) || 0)
-                      }
+                    <NumberInput
+                      value={field.value}
+                      onChange={field.onChange}
                       placeholder="0"
                     />
                   </FormControl>
@@ -250,14 +240,9 @@ export default function StoreSupplyForm({
                 <FormItem>
                   <FormLabel>Minimum Quantity *</FormLabel>
                   <FormControl>
-                    <Input
-                      type="number"
-                      min={0}
-                      {...field}
-                      value={field.value ?? 0}
-                      onChange={(e) =>
-                        field.onChange(Number(e.target.value) || 0)
-                      }
+                    <NumberInput
+                      value={field.value}
+                      onChange={field.onChange}
                       placeholder="0"
                     />
                   </FormControl>

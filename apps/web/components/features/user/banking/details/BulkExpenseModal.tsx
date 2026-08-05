@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import {
   Upload,
   Download,
@@ -444,17 +445,18 @@ export default function BulkExpenseModal({
                     <span className={`text-xs font-semibold ${r.amount > 0 ? "text-red-600" : "text-gray-400"}`}>
                       {sym}{Math.round(r.amount).toLocaleString()}
                     </span>
-                    <Select value={r.expenseAccountId || "__none__"} onValueChange={(v) => setRowAccount(i, v === "__none__" ? "" : v)}>
-                      <SelectTrigger className="h-7 text-xs w-full">
-                        <SelectValue placeholder="Select account..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">Select account...</SelectItem>
-                        {expenseAccounts.map((a: any) => (
-                          <SelectItem key={a.id} value={a.id}>{a.code} {a.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableCombobox
+                      value={r.expenseAccountId}
+                      onChange={(v) => setRowAccount(i, v)}
+                      placeholder="Select account..."
+                      searchPlaceholder="Search accounts..."
+                      emptyMessage="No accounts found."
+                      triggerClassName="h-7 text-xs"
+                      options={expenseAccounts.map((a: any) => ({
+                        value: a.id,
+                        label: `${a.code} ${a.name}`,
+                      }))}
+                    />
                     <button onClick={() => deleteRow(i)} className="text-gray-400 hover:text-red-500 transition-colors">
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>

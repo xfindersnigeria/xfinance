@@ -193,6 +193,20 @@ export const getEntities = (params?: {
 };
 
 /**
+ * Retrieve entities for an arbitrary group (superadmin only) — used by the
+ * master chart of accounts multi-entity account creation flow, where the
+ * caller isn't logged into (or impersonating) that group.
+ */
+export const getEntitiesByGroup = (
+  groupId: string,
+): Promise<{ entities: Entity[]; totalCount: number }> => {
+  return apiClient<{ entities: Entity[]; totalCount: number }>(
+    `entities/by-group/${groupId}`,
+    { method: 'GET' },
+  );
+};
+
+/**
  * Retrieve a specific entity by ID.
  * User must have access to the entity's group.
  * @param id - Entity ID

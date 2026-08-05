@@ -30,7 +30,7 @@ export const getSalesReceiptColumns = (
   onAction: (action: string, row: any) => void,
   sym: string = "₦",
 ): Column<any>[] => [
-  { key: "id", title: "Receipt No.", className: "text-xs" },
+  { key: "receiptNumber", title: "Receipt No.", className: "text-xs" },
   { key: "customerName", title: "Customer", className: "text-xs" },
   {
     key: "date",

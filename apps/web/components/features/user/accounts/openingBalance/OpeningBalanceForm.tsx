@@ -15,13 +15,8 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableCombobox } from "@/components/ui/searchable-combobox";
+import { NumberInput } from "@/components/ui/number-input";
 import { Plus, Trash2, Calendar, Loader2 } from "lucide-react";
 import { useSetOpeningBalances } from "@/lib/api/hooks/useAccounts";
 import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
@@ -30,8 +25,8 @@ import { Account } from "@/lib/api/hooks/types/accountsTypes";
 // Zod schema for Opening Balance Line
 const openingBalanceLineSchema = z.object({
   accountId: z.string().min(1, "Account is required"),
-  debit: z.coerce.number().default(0),
-  credit: z.coerce.number().default(0),
+  debit: z.coerce.number().optional(),
+  credit: z.coerce.number().optional(),
 });
 
 const openingBalanceSchema = z.object({
@@ -67,7 +62,7 @@ export default function OpeningBalanceForm({
       date: new Date().toISOString().split("T")[0],
       fiscalYear: new Date().getFullYear().toString(),
       note: "",
-      items: [{ accountId: "", debit: 0, credit: 0 }],
+      items: [{ accountId: "", debit: undefined, credit: undefined }],
     },
   });
 
@@ -139,7 +134,7 @@ export default function OpeningBalanceForm({
 
 
   const handleAddAccount = useCallback(() => {
-    append({ accountId: "", debit: 0, credit: 0 });
+    append({ accountId: "", debit: undefined, credit: undefined });
   }, [append]);
 
   const handleAccountChange = useCallback(
@@ -148,9 +143,9 @@ export default function OpeningBalanceForm({
       // Reset debit/credit based on account type
       const isDebit = isDebitAccount(accountId);
       if (isDebit) {
-        form.setValue(`items.${index}.credit`, 0);
+        form.setValue(`items.${index}.credit`, undefined);
       } else {
-        form.setValue(`items.${index}.debit`, 0);
+        form.setValue(`items.${index}.debit`, undefined);
       }
     },
     [form, isDebitAccount]
@@ -281,28 +276,22 @@ export default function OpeningBalanceForm({
                               <FormLabel className="text-xs md:text-sm text-gray-600 md:hidden">
                                 Account
                               </FormLabel>
-                              <Select
-                                value={field.value}
-                                onValueChange={(value) =>
-                                  handleAccountChange(index, value)
-                                }
-                              >
-                                <FormControl>
-                                  <SelectTrigger className="w-full rounded-lg border-gray-300 truncate">
-                                    <SelectValue placeholder="Select account" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent className="">
-                                  {accounts.map((account) => (
-                                    <SelectItem
-                                      key={account.id}
-                                      value={account.id}
-                                    >
-                                      {account.name}-{account.code}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <FormControl>
+                                <SearchableCombobox
+                                  value={field.value}
+                                  onChange={(value) =>
+                                    handleAccountChange(index, value)
+                                  }
+                                  placeholder="Select account"
+                                  searchPlaceholder="Search accounts..."
+                                  emptyMessage="No accounts found."
+                                  triggerClassName="rounded-lg border-gray-300"
+                                  options={accounts.map((account) => ({
+                                    value: account.id,
+                                    label: `${account.name}-${account.code}`,
+                                  }))}
+                                />
+                              </FormControl>
                               <FormMessage />
                             </FormItem>
                           )}
@@ -330,12 +319,11 @@ export default function OpeningBalanceForm({
                                 Debit
                               </FormLabel>
                               <FormControl>
-                                <Input
-                                  type="number"
-                                  step="0.01"
+                                <NumberInput
+                                  value={field.value}
+                                  onChange={field.onChange}
                                   placeholder="0.00"
                                   className="rounded-lg border-gray-300 text-right bg-blue-50 border-blue-300"
-                                  {...field}
                                 />
                               </FormControl>
                               <FormMessage />
@@ -355,12 +343,11 @@ export default function OpeningBalanceForm({
                                 Credit
                               </FormLabel>
                               <FormControl>
-                                <Input
-                                  type="number"
-                                  step="0.01"
+                                <NumberInput
+                                  value={field.value}
+                                  onChange={field.onChange}
                                   placeholder="0.00"
                                   className="rounded-lg border-gray-300 text-right bg-green-50 border-green-300"
-                                  {...field}
                                 />
                               </FormControl>
                               <FormMessage />

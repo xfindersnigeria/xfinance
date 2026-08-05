@@ -15,13 +15,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { Badge } from "@/components/ui/badge";
 import { ArrowRight, AlertCircle, Loader2 } from "lucide-react";
 import { ChartOfAccountsFormData, chartOfAccountsSchema } from "./utils/schema";
@@ -49,11 +43,12 @@ export default function ChartOfAccountsForm({
   const createAccount = useCreateAccount();
   const updateAccount = useUpdateAccount();
   const { closeModal } = useModal();
-  const [typeId, setTypeId] = React.useState<string>("");
+  const [typeId, setTypeId] = React.useState<string>(account?.accountType || "");
 
   const form = useForm<ChartOfAccountsFormData>({
     resolver: zodResolver(chartOfAccountsSchema) as any,
     defaultValues: {
+      accountType: account?.accountType || "",
       // accountCode: account?.accountCode || "",
       accountName: account?.accountName || "",
       categoryId: account?.categoryId || "",
@@ -79,6 +74,7 @@ export default function ChartOfAccountsForm({
 
   useEffect(() => {
     if (account) {
+      setTypeId(account?.accountType || "");
       form.reset({
         accountType: account?.accountType || "",
         // accountCode: account?.accountCode || "",
@@ -124,28 +120,21 @@ export default function ChartOfAccountsForm({
                   <FormLabel className="text-base font-semibold text-gray-900">
                     Account Type <span className="text-red-500">*</span>
                   </FormLabel>
-                  <Select
-                    value={field.value}
-                    onValueChange={(val) => { field.onChange(val); setTypeId(val); }}
-                    disabled={loadingTypes}
-                  >
-                    <FormControl>
-                      <SelectTrigger className="w-full rounded-lg border-gray-300">
-                        <SelectValue
-                          placeholder={
-                            loadingTypes ? "Loading..." : "Select account type"
-                          }
-                        />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {accountTypes?.map((t) => (
-                        <SelectItem key={t.id} value={t.id}>
-                          {t.code} - {t.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <SearchableCombobox
+                      value={field.value}
+                      onChange={(val) => { field.onChange(val); setTypeId(val); }}
+                      isLoading={loadingTypes}
+                      placeholder="Select account type"
+                      searchPlaceholder="Search account types..."
+                      emptyMessage="No account types found."
+                      triggerClassName="rounded-lg border-gray-300"
+                      options={(accountTypes ?? []).map((t) => ({
+                        value: t.id,
+                        label: `${t.code} - ${t.name}`,
+                      }))}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -162,36 +151,31 @@ export default function ChartOfAccountsForm({
                   <FormLabel className="text-base font-semibold text-gray-900">
                     Category <span className="text-red-500">*</span>
                   </FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                    disabled={
-                      !typeId ||
-                      (filteredCategories && filteredCategories.length === 0)
-                    }
-                  >
-                    <FormControl>
-                      <SelectTrigger className="w-full rounded-lg border-gray-300">
-                        <SelectValue
-                          placeholder={
-                            !typeId
-                              ? "Select a type first"
-                              : filteredCategories &&
-                                  filteredCategories.length === 0
-                                ? "No categories available"
-                                : "Select category"
-                          }
-                        />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {filteredCategories?.map((cat) => (
-                        <SelectItem key={cat.id} value={cat.id}>
-                          {cat.code} - {cat.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <SearchableCombobox
+                      value={field.value}
+                      onChange={field.onChange}
+                      disabled={
+                        !typeId ||
+                        (filteredCategories && filteredCategories.length === 0)
+                      }
+                      placeholder={
+                        !typeId
+                          ? "Select a type first"
+                          : filteredCategories &&
+                              filteredCategories.length === 0
+                            ? "No categories available"
+                            : "Select category"
+                      }
+                      searchPlaceholder="Search categories..."
+                      emptyMessage="No categories found."
+                      triggerClassName="rounded-lg border-gray-300"
+                      options={(filteredCategories ?? []).map((cat) => ({
+                        value: cat.id,
+                        label: `${cat.code} - ${cat.name}`,
+                      }))}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -208,30 +192,22 @@ export default function ChartOfAccountsForm({
                   <FormLabel className="text-base font-semibold text-gray-900">
                     Subcategory <span className="text-red-500">*</span>
                   </FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                    disabled={loadingSubcategories || !selectedCategoryId}
-                  >
-                    <FormControl>
-                      <SelectTrigger className="w-full rounded-lg border-gray-300">
-                        <SelectValue
-                          placeholder={
-                            loadingSubcategories
-                              ? "Loading..."
-                              : "Select subcategory"
-                          }
-                        />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {subcategories?.map((sub) => (
-                        <SelectItem key={sub.id} value={sub.id}>
-                          {sub.code} - {sub.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <SearchableCombobox
+                      value={field.value}
+                      onChange={field.onChange}
+                      disabled={loadingSubcategories || !selectedCategoryId}
+                      isLoading={loadingSubcategories}
+                      placeholder="Select subcategory"
+                      searchPlaceholder="Search subcategories..."
+                      emptyMessage="No subcategories found."
+                      triggerClassName="rounded-lg border-gray-300"
+                      options={(subcategories ?? []).map((sub) => ({
+                        value: sub.id,
+                        label: `${sub.code} - ${sub.name}`,
+                      }))}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

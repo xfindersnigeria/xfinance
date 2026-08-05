@@ -24,6 +24,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableCombobox } from "@/components/ui/searchable-combobox";
+import { NumberInput } from "@/components/ui/number-input";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { itemFormSchema, ItemFormInputs } from "./utils/schema";
 import { itemCategories, itemTypes } from "./utils/data";
@@ -65,7 +67,7 @@ export default function ItemsForm({
       description: item?.description || "",
       type: item?.type || "service",
       category: item?.category || "",
-      unitPrice: item?.unitPrice || 0,
+      unitPrice: item?.unitPrice ?? (undefined as any),
       incomeAccountId: item?.incomeAccountId || "4100",
       isTaxable: item?.isTaxable ?? false,
       isActive: item?.isActive ?? true,
@@ -256,11 +258,10 @@ export default function ItemsForm({
                   <FormItem>
                     <FormLabel>{`Unit Price (${sym})`}</FormLabel>
                     <FormControl>
-                      <Input
-                        type="number"
+                      <NumberInput
+                        value={field.value}
+                        onChange={field.onChange}
                         placeholder="0.00"
-                        {...field}
-                        onChange={(e) => field.onChange(Number(e.target.value))}
                         className="rounded-lg"
                       />
                     </FormControl>
@@ -275,30 +276,20 @@ export default function ItemsForm({
                   <FormItem>
                     <FormLabel>Income Account</FormLabel>
                     <FormControl>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <SelectTrigger
-                          className="w-full truncate"
-                          disabled={accountsLoading}
-                        >
-                          <SelectValue placeholder="Select income account" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {incomeAccounts.length > 0 ? (
-                            incomeAccounts.map((account: any) => (
-                              <SelectItem key={account.id} value={account.id}>
-                                {account.name} ({account.code})
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <SelectItem value="no-accounts" disabled>
-                              No cash accounts found
-                            </SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
+                      <SearchableCombobox
+                        value={field.value}
+                        onChange={field.onChange}
+                        disabled={accountsLoading}
+                        isLoading={accountsLoading}
+                        placeholder="Select income account"
+                        searchPlaceholder="Search accounts..."
+                        emptyMessage="No income accounts found."
+                        triggerClassName="truncate"
+                        options={incomeAccounts.map((account: any) => ({
+                          value: account.id,
+                          label: `${account.name} (${account.code})`,
+                        }))}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

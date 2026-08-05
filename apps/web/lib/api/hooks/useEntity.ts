@@ -11,6 +11,7 @@ import {
   updateEntity,
   deleteEntity,
   getEntities,
+  getEntitiesByGroup,
   getEntity,
   EntityFormData,
 } from "../services/entityService";
@@ -129,6 +130,19 @@ export const useEntities = (params?: {
     queryFn: () => getEntities(params),
     staleTime: 2 * 60 * 1000, // 2 minutes
     refetchOnWindowFocus: true,
+  });
+};
+
+/**
+ * Hook to fetch entities for an arbitrary group (superadmin only) — used by
+ * the master chart of accounts multi-entity account creation flow.
+ */
+export const useEntitiesByGroup = (groupId: string) => {
+  return useQuery({
+    queryKey: ["entities", "by-group", groupId],
+    queryFn: () => getEntitiesByGroup(groupId),
+    enabled: !!groupId,
+    staleTime: 2 * 60 * 1000,
   });
 };
 

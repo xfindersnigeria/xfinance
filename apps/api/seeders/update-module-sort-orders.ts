@@ -23,7 +23,7 @@ async function updateModuleSortOrders() {
       { key: 'items', name: 'Items', menu: 'Income', scope: 'user', menuSortOrder: 1, moduleSortOrder: 1 },
       { key: 'invoices', name: 'Invoices', menu: 'Income', scope: 'user', menuSortOrder: 1, moduleSortOrder: 2 },
       { key: 'paymentReceived', name: 'Payment Received', menu: 'Income', scope: 'user', menuSortOrder: 1, moduleSortOrder: 3 },
-      { key: 'salesReceipt', name: 'Sales Receipt', menu: 'Income', scope: 'user', menuSortOrder: 1, moduleSortOrder: 4 },
+      { key: 'incomeReceipt', name: 'Income Receipt', menu: 'Income', scope: 'user', menuSortOrder: 1, moduleSortOrder: 4 },
       // Projects
       { key: 'projects', name: 'Projects', menu: 'Projects', scope: 'user', menuSortOrder: 2, moduleSortOrder: 0 },
       // Expense

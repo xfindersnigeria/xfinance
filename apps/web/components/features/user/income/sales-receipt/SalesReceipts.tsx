@@ -79,7 +79,7 @@ export default function SalesReceipts() {
       {/* View Modal */}
       <CustomModal
         title="Receipt Details"
-        description="View complete details of sales receipt"
+        description="View complete details of income receipt"
         open={isOpen(MODAL.SALES_RECEIPT_VIEW)}
         onOpenChange={(open) =>
           open

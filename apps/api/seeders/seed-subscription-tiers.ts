@@ -86,7 +86,7 @@ async function main() {
           'items',
           'invoices',
           'paymentReceived',
-          'salesReceipt',
+          'incomeReceipt',
           // Projects
           'projects',
           // Expenses
@@ -145,7 +145,7 @@ async function main() {
           'items',
           'invoices',
           'paymentReceived',
-          'salesReceipt',
+          'incomeReceipt',
           'projects',
           'vendors',
           'expenses',

@@ -45,7 +45,9 @@ export const expensesColumns: ExpenseColumn[] = [
     title: "Vendor",
     className: "text-xs",
     render: (value: unknown, row) => (
-      <span className="text-xs font-medium">{(row?.vendor as any)?.name}</span>
+      <span className="text-xs font-medium">
+        {(row?.vendor as any)?.name || (row as any)?.vendorName || "—"}
+      </span>
     ),
   },
   // {

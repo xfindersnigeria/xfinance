@@ -20,7 +20,7 @@ async function updateModulesMenu() {
       { key: 'items', menu: 'Income' },
       { key: 'invoices', menu: 'Income' },
       { key: 'paymentReceived', menu: 'Income' },
-      { key: 'salesReceipt', menu: 'Income' },
+      { key: 'incomeReceipt', menu: 'Income' },
       // Projects
       { key: 'projects', menu: 'Projects' },
       // Expense

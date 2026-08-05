@@ -10,6 +10,7 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Form,
@@ -82,16 +83,16 @@ export default function AssetsForm({
       assignedId: assets?.assignedId || "",
       description: assets?.description || "",
       purchaseDate: formatDate(assets?.purchaseDate),
-      purchaseCost: assets?.purchaseCost || "",
-      currentValue: assets?.currentValue || "",
+      purchaseCost: assets?.purchaseCost ?? (undefined as any),
+      currentValue: assets?.currentValue ?? (undefined as any),
       warrantyExpiry: formatDate((assets as any)?.expiryDate),
       trackDepreciation:
         typeof assets?.trackDepreciation === "boolean"
           ? assets.trackDepreciation
           : false,
       depreciationMethod: assets?.depreciationMethod || "",
-      usefulLife: (assets as any)?.years || "",
-      salvageValue: assets?.salvageValue || "",
+      usefulLife: (assets as any)?.years ?? (undefined as any),
+      salvageValue: assets?.salvageValue ?? (undefined as any),
       activeAsset:
         typeof assets?.activeAsset === "boolean" ? assets.activeAsset : true,
     },
@@ -467,12 +468,11 @@ export default function AssetsForm({
                             <path d="M12 3v2m0 14v-2m6-7h-8a2 2 0 0 1 0-4h4a2 2 0 0 1 0 4zm-8 4h8a2 2 0 0 1 0 4h-4a2 2 0 0 1 0-4z" />
                           </svg>
                         </span>
-                        <Input
-                          type="number"
-                          step="0.01"
+                        <NumberInput
                           className="pl-8 rounded-2xl"
                           placeholder={`${sym} 0.00`}
-                          {...field}
+                          value={field.value as any}
+                          onChange={field.onChange}
                         />
                       </div>
                     </FormControl>
@@ -504,12 +504,11 @@ export default function AssetsForm({
                             <path d="M12 3v2m0 14v-2m6-7h-8a2 2 0 0 1 0-4h4a2 2 0 0 1 0 4zm-8 4h8a2 2 0 0 1 0 4h-4a2 2 0 0 1 0-4z" />
                           </svg>
                         </span>
-                        <Input
-                          type="number"
-                          step="0.01"
+                        <NumberInput
                           className="pl-8 rounded-2xl"
                           placeholder={`${sym} 0.00`}
-                          {...field}
+                          value={field.value as any}
+                          onChange={field.onChange}
                         />
                       </div>
                     </FormControl>
@@ -643,12 +642,11 @@ export default function AssetsForm({
                         Useful Life (Years)
                       </FormLabel>
                       <FormControl>
-                        <Input
-                          type="number"
-                          step="1"
+                        <NumberInput
                           className="rounded-2xl"
                           placeholder="Years"
-                          {...field}
+                          value={field.value as any}
+                          onChange={field.onChange}
                         />
                       </FormControl>
                       <FormMessage />
@@ -679,12 +677,11 @@ export default function AssetsForm({
                               <path d="M12 3v2m0 14v-2m6-7h-8a2 2 0 0 1 0-4h4a2 2 0 0 1 0 4zm-8 4h8a2 2 0 0 1 0 4h-4a2 2 0 0 1 0-4z" />
                             </svg>
                           </span>
-                          <Input
-                            type="number"
-                            step="0.01"
+                          <NumberInput
                             className="pl-8 rounded-2xl"
                             placeholder={`${sym} 0.00`}
-                            {...field}
+                            value={field.value as any}
+                            onChange={field.onChange}
                           />
                         </div>
                       </FormControl>

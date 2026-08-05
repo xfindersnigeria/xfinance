@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/form";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
@@ -217,19 +218,11 @@ export default function StoreItemServiceForm({
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg">
                         {sym}
                       </span>
-                      <Input
-                        type="number"
+                      <NumberInput
                         placeholder="0.00"
                         className="pl-8"
-                        min={0}
-                        step="0.01"
-                        {...field}
-                        value={field.value ?? ""}
-                        onChange={(e) =>
-                          field.onChange(
-                            e.target.value.replace(/^0+(?=\d)/, ""),
-                          )
-                        }
+                        value={field.value as any}
+                        onChange={field.onChange}
                       />
                     </div>
                   </FormControl>

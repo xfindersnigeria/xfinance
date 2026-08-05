@@ -59,8 +59,8 @@ async function seedModules() {
         moduleSortOrder: 3,
       },
       {
-        key: 'salesReceipt',
-        name: 'Sales Receipt',
+        key: 'incomeReceipt',
+        name: 'Income Receipt',
         menu: 'Income',
         scope: 'user',
         menuSortOrder: 1,

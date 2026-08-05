@@ -15,7 +15,7 @@ export default function SalesReceiptDetails({ receipt, onClose }: SalesReceiptDe
     const sym = useEntityCurrencySymbol();
     if (!receipt) return null;
 
-    console.log(receipt, "Sales Receipt Details Data"); // Debug log to check receipt data
+    console.log(receipt, "Income Receipt Details Data"); // Debug log to check receipt data
 
     const getItems = () => {
         if (!receipt.items) return [];
@@ -33,7 +33,7 @@ export default function SalesReceiptDetails({ receipt, onClose }: SalesReceiptDe
             <div className="bg-blue-50 rounded-xl p-4">
                 <div className="flex justify-between items-start">
                     <div>
-                        <p className="text-gray-500 text-sm">View complete details of sales receipt</p>
+                        <p className="text-gray-500 text-sm">View complete details of income receipt</p>
                     </div>
                 </div>
                 <div className="flex justify-between items-center mt-2">
@@ -81,7 +81,7 @@ export default function SalesReceiptDetails({ receipt, onClose }: SalesReceiptDe
                             <div key={idx} className="flex justify-between items-center">
                                 <div>
                                     <p className="font-medium">
-                                        {item.item?.name || item.description || "Product"}
+                                        {item.item?.name || item.itemName || item.description || "Product"}
                                         {item.item?.sku && <span className="text-gray-500 text-xs ml-2">({item.item.sku})</span>}
                                     </p>
                                     <p className="text-gray-500 text-sm">

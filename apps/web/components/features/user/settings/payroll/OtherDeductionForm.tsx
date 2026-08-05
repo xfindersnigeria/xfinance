@@ -12,6 +12,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
@@ -59,7 +60,7 @@ export default function OtherDeductionForm({ deduction, onSuccess }: Props) {
     defaultValues: {
       name: deduction?.name ?? "",
       type: deduction?.type ?? "FIXED_AMOUNT",
-      rate: deduction?.rate ?? 0,
+      rate: deduction?.rate ?? (undefined as any),
       description: deduction?.description ?? "",
     },
   });
@@ -126,14 +127,10 @@ export default function OtherDeductionForm({ deduction, onSuccess }: Props) {
                 {watchedType === "FIXED_AMOUNT" ? `Rate (%) or Amount (${sym})` : "Rate (%)"}
               </FormLabel>
               <FormControl>
-                <Input
-                  type="number"
-                  step="0.01"
+                <NumberInput
                   placeholder={watchedType === "FIXED_AMOUNT" ? "5000" : "5"}
-                  {...field}
-                   onChange={(e) =>
-                              field.onChange(Number(e.target.value))
-                            }
+                  value={field.value}
+                  onChange={field.onChange}
                 />
               </FormControl>
               <FormMessage />

@@ -35,7 +35,7 @@ export default function SalesReceiptHeader({
     <div className="mb-6">
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-primary">Sales Receipts</h2>
+          <h2 className="text-2xl font-bold text-primary">Income Receipts</h2>
           <p className="text-muted-foreground">
             Manage non-invoiced sales and cash transactions{" "}
           </p>
@@ -53,7 +53,7 @@ export default function SalesReceiptHeader({
 
       <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <SalesReceiptStatCardSmall
-          title="Total Sales"
+          title="Total Income"
           value={<span className="text-2xl">{sym}{(stats?.totalSales || 0).toLocaleString()}</span>}
           icon={
             <DollarSign className="h-6 w-6 text-emerald-600 bg-emerald-100 rounded-xl p-1" />
@@ -61,7 +61,7 @@ export default function SalesReceiptHeader({
           loading={loading}
         />
         <SalesReceiptStatCardSmall
-          title="Today's Sales"
+          title="Today's Income"
           value={<span className="text-2xl">{sym}{(stats?.todaysSales || 0).toLocaleString()}</span>}
           icon={
             <Calendar className="h-6 w-6 text-primary bg-indigo-100 rounded-xl p-1" />
@@ -87,8 +87,8 @@ export default function SalesReceiptHeader({
       </div>
 
       <CustomModal
-        title="New Sales Receipt"
-        description="Create a new sales receipt for non-invoiced sales"
+        title="New Income Receipt"
+        description="Create a new income receipt for non-invoiced sales"
         open={isOpen(MODAL.SALES_RECEIPT_CREATE)}
         onOpenChange={(open) => open ? openModal(MODAL.SALES_RECEIPT_CREATE) : closeModal(MODAL.SALES_RECEIPT_CREATE)}
         module={MODULES.SALES}

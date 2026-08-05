@@ -428,6 +428,27 @@ export const useCreateReceipt = (
   });
 };
 
+export const useBulkImportReceipts = (
+  options?: UseMutationOptions<any, Error, salesService.BulkImportReceiptsPayload>,
+) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: salesService.bulkImportReceipts,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["receipts"] });
+      queryClient.invalidateQueries({ queryKey: ["account-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : "Bulk import failed",
+      );
+    },
+    ...options,
+  });
+};
+
 export const useUpdateReceipt = (
   options?: UseMutationOptions<any, Error, { id: string; data: any }>,
 ) => {

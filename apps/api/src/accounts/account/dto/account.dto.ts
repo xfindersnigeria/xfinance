@@ -5,6 +5,8 @@ import {
   IsOptional,
   IsInt,
   Min,
+  IsArray,
+  ArrayMinSize,
 } from 'class-validator';
 
 export class CreateAccountDto {
@@ -49,6 +51,47 @@ export class CreateAccountDto {
 }
 
 export class UpdateAccountDto extends PartialType(CreateAccountDto) {}
+
+export class CreateAccountForEntitiesDto {
+  @ApiProperty({ example: 'Cash on Hand', description: 'Name of the account' })
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+
+  @ApiProperty({
+    example: 'subcat_123',
+    description: 'SubCategory ID the account belongs to',
+  })
+  @IsString()
+  @IsNotEmpty()
+  subCategoryId: string;
+
+  @ApiProperty({
+    example: 'Main cash account for daily transactions',
+    description: 'Description of the account',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @ApiProperty({
+    example: ['entity_1', 'entity_2'],
+    description: 'Entities within the group to create this account for',
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsString({ each: true })
+  entityIds: string[];
+
+  @ApiProperty({
+    required: false,
+    description: 'Group ID — required when called by a superadmin with no effective group context',
+  })
+  @IsString()
+  @IsOptional()
+  groupId?: string;
+}
 
 export class AccountResponseDto {
   @ApiProperty({

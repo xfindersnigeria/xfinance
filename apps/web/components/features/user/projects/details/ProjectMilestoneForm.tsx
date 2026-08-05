@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Form,
@@ -73,7 +74,7 @@ export default function ProjectMilestoneForm({
       description: milestone?.description ?? "",
       dueDate: milestone?.dueDate ? new Date(milestone.dueDate) : new Date(),
       status: milestone?.status ?? "Upcoming",
-      budget: milestone?.budget ?? 0,
+      budget: milestone?.budget ?? (undefined as any),
     },
   });
 
@@ -201,13 +202,10 @@ export default function ProjectMilestoneForm({
                 <FormItem>
                   <FormLabel>{`Milestone Budget (${sym}) *`}</FormLabel>
                   <FormControl>
-                    <Input
-                      type="number"
-                      min={0}
-                      step={1000}
+                    <NumberInput
+                      value={field.value}
+                      onChange={field.onChange}
                       placeholder="0.00"
-                      value={field.value || ""}
-                      onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
                     />
                   </FormControl>
                   <FormMessage />

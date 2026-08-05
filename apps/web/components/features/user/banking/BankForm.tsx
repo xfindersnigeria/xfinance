@@ -21,7 +21,7 @@ import {
   FormControl,
   FormMessage,
 } from "@/components/ui/form";
-import { Building2, DollarSign } from "lucide-react";
+import { Building2 } from "lucide-react";
 import {
   useCreateBankAccount,
   useUpdateBankAccount,
@@ -36,7 +36,6 @@ const bankAccountSchema = z.object({
   currency: z.string().min(1, "Currency required"),
   accountNumber: z.string().min(1, "Account number required"),
   routingNumber: z.string().optional(),
-  openingBalance: z.number().min(0, "Opening balance must be 0 or more"),
 });
 
 type BankAccountFormType = z.infer<typeof bankAccountSchema>;
@@ -48,7 +47,6 @@ const defaultValues: BankAccountFormType = {
   currency: "USD",
   accountNumber: "",
   routingNumber: "",
-  openingBalance: 0,
 };
 
 interface BankFormProps {
@@ -83,7 +81,6 @@ export default function BankForm({
       currency: account?.currency || entityBaseCurrency || "",
       accountNumber: account?.accountNumber || "",
       routingNumber: account?.routingNumber || "",
-      openingBalance: account?.openingBalance || 0,
     },
     mode: "onChange",
   });
@@ -97,7 +94,6 @@ export default function BankForm({
         currency: account?.currency || entityBaseCurrency || "",
         accountNumber: account.accountNumber || "",
         routingNumber: account.routingNumber || "",
-        openingBalance: account.openingBalance || 0,
       });
     }
   }, [account, form]);
@@ -117,7 +113,6 @@ export default function BankForm({
             currency: values.currency,
             accountNumber: values.accountNumber,
             routingNumber: values.routingNumber || undefined,
-            openingBalance: Number(values.openingBalance),
           },
         });
       } else {
@@ -129,7 +124,6 @@ export default function BankForm({
           currency: values.currency,
           accountNumber: values.accountNumber,
           routingNumber: values.routingNumber || undefined,
-          openingBalance: Number(values.openingBalance),
         });
       }
 
@@ -283,36 +277,6 @@ export default function BankForm({
                 )}
               />
             </div>
-          </div>
-
-          {/* Opening Balance */}
-          <div className="rounded-2xl border bg-linear-to-br from-pink-50 to-white p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <DollarSign className="text-pink-500 w-5 h-5" />
-              <span className="font-semibold text-base">Balance</span>
-            </div>
-            <FormField
-              control={form.control}
-              name="openingBalance"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Opening Balance</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      placeholder="0.00"
-                      {...field}
-                      onChange={(e) =>
-                        field.onChange(parseFloat(e.target.value) || 0)
-                      }
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
           </div>
 
           {/* Actions */}

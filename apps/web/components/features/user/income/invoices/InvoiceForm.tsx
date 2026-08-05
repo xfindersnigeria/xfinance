@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useCreateInvoice, useUpdateInvoice } from "@/lib/api/hooks/useSales";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Form,
@@ -144,7 +145,7 @@ export default function InvoiceForm({
             rate: ii.unitPrice,
             quantity: ii.quantity,
           }))
-        : invoice?.lineItems || [{ itemId: "", quantity: 1, rate: 0 }];
+        : invoice?.lineItems || [{ itemId: "", quantity: 1, rate: undefined as any }];
       replace(mapped as any[]);
     }
   }, [invoice]);
@@ -438,7 +439,7 @@ export default function InvoiceForm({
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => append({ itemId: "", quantity: 1, rate: 0 })}
+                  onClick={() => append({ itemId: "", quantity: 1, rate: undefined as any })}
                 >
                   <Plus className="w-4 h-4" /> Add Item
                 </Button>
@@ -503,27 +504,17 @@ export default function InvoiceForm({
                         control={form.control}
                         name={`lineItems.${idx}.quantity`}
                         render={({ field }) => (
-                          <Input
-                            type="number"
-                            min={1}
-                            {...field}
-                            onChange={(e) =>
-                              field.onChange(Number(e.target.value))
-                            }
-                          />
+                          <NumberInput value={field.value} onChange={field.onChange} placeholder="1" />
                         )}
                       />
                       <Controller
                         control={form.control}
                         name={`lineItems.${idx}.rate`}
                         render={({ field }) => (
-                          <Input
-                            type="number"
-                            min={0}
-                            {...field}
-                            onChange={(e) =>
-                              field.onChange(Number(e.target.value))
-                            }
+                          <NumberInput
+                            value={field.value}
+                            onChange={field.onChange}
+                            placeholder="0.00"
                             disabled={true}
                           />
                         )}

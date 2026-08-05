@@ -45,7 +45,13 @@
       "Bash(pkill -f \"nest start\")",
       "Bash(kill -9 96123)",
       "Bash(curl *)",
-      "Bash(npx ts-node *)"
+      "Bash(npx ts-node *)",
+      "Bash(tee /tmp/tsc_out.txt)",
+      "Bash(tee /tmp/tsc_out2.txt)",
+      "Bash(python3 *)",
+      "Bash(find / -maxdepth 5 -iname \"xfinance\" -type d)",
+      "Bash(find / -maxdepth 6 -path \"*apps/web/components/features/user/hr/employees\")",
+      "Bash(tee /tmp/tsc_full.txt)"
     ]
   }
 }

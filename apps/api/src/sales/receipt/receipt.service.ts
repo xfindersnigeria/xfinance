@@ -1,6 +1,6 @@
 import { PrismaService } from '@/prisma/prisma.service';
 import { HttpException, HttpStatus, Injectable, Logger, BadRequestException } from '@nestjs/common';
-import { CreateReceiptDto, UpdateReceiptDto } from './dto/receipt.dto';
+import { CreateReceiptDto, UpdateReceiptDto, BulkImportReceiptsDto } from './dto/receipt.dto';
 import { GetReceiptsQueryDto } from './dto/get-receipts-query.dto';
 import { GetReceiptsResponseDto } from './dto/get-receipts-response.dto';
 import { ReceiptStatus, PaymentMethod } from 'prisma/generated/enums';
@@ -28,11 +28,15 @@ export class ReceiptService {
       }
 
       // Fetch item details to check for taxable items and determine type
+      // (only for real, non-free-text line items)
+      const realItemIds = (items || [])
+        .map((i) => i.itemId)
+        .filter((id): id is string => !!id);
       const itemDetails =
-        items && items.length > 0
+        realItemIds.length > 0
           ? await this.prisma.items.findMany({
               where: {
-                id: { in: items.map((i) => i.itemId) },
+                id: { in: realItemIds },
                 entityId,
               },
               select: {
@@ -54,7 +58,8 @@ export class ReceiptService {
           hasTaxableItems = true;
         }
         return {
-          itemId: item.itemId,
+          itemId: item.itemId || undefined,
+          itemName: item.itemId ? undefined : item.itemName,
           rate: item.rate,
           quantity: item.quantity,
           total,
@@ -219,7 +224,7 @@ export class ReceiptService {
         ...r,
         id: r.id,
         customerId: r.customerId,
-        customerName: r.customer?.name,
+        customerName: r.customer?.name || r.customerName,
         date: r.date.toISOString(),
         items: r.receiptItem, // Return structured items
         createdAt: r.createdAt.toISOString(),
@@ -302,7 +307,8 @@ export class ReceiptService {
         const total = item.rate * item.quantity;
         subtotal += total;
         return {
-          itemId: item.itemId,
+          itemId: item.itemId || undefined,
+          itemName: item.itemId ? undefined : item.itemName,
           rate: item.rate,
           quantity: item.quantity,
           total,
@@ -426,6 +432,100 @@ export class ReceiptService {
       if (error instanceof HttpException) throw error;
       throw new HttpException(
         `${error instanceof Error ? error.message : String(error)}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  async bulkImportReceipts(
+    body: BulkImportReceiptsDto,
+    entityId: string,
+    groupId: string,
+  ) {
+    try {
+      if (!body.items || body.items.length === 0) {
+        throw new HttpException('No items provided', HttpStatus.BAD_REQUEST);
+      }
+
+      const depositAccount = await this.prisma.account.findUnique({
+        where: { id: body.depositTo },
+      });
+      if (!depositAccount) {
+        throw new HttpException('Deposit account not found', HttpStatus.NOT_FOUND);
+      }
+      if (depositAccount.entityId !== entityId) {
+        throw new HttpException(
+          'Deposit account does not belong to this entity',
+          HttpStatus.FORBIDDEN,
+        );
+      }
+
+      const created: string[] = [];
+      for (const item of body.items) {
+        const receiptNumber = generateRandomInvoiceNumber({ prefix: 'BRCT' });
+        const itemName = item.reference
+          ? `${item.description} — Ref: ${item.reference}`
+          : item.description;
+        const amount = Math.round(item.amount);
+
+        const receipt = await this.prisma.$transaction(async (tx) => {
+          const rec = await tx.receipt.create({
+            data: {
+              date: new Date(item.date),
+              receiptNumber,
+              paymentMethod: 'Bank_Transfer' as any,
+              depositTo: body.depositTo,
+              subtotal: amount,
+              tax: 0,
+              total: amount,
+              status: 'Completed' as any,
+              customerName: item.customerName || undefined,
+              entityId,
+              groupId,
+            },
+          });
+
+          await tx.receiptItem.create({
+            data: {
+              itemName,
+              rate: amount,
+              quantity: 1,
+              total: amount,
+              receiptId: rec.id,
+            },
+          });
+
+          return rec;
+        });
+
+        await this.bullmqService.addJob('post-receipt-journal', {
+          receiptId: receipt.id,
+          receiptData: {
+            receiptNumber: receipt.receiptNumber,
+            entityId,
+            groupId,
+            subtotal: amount,
+            tax: 0,
+            total: amount,
+            depositTo: body.depositTo,
+            items: [{ quantity: 1, rate: amount, total: amount }],
+          },
+        });
+
+        created.push(receipt.id);
+      }
+
+      await this.cacheService.invalidateEntityDashboardCache(entityId);
+
+      return {
+        imported: created.length,
+        total: body.items.reduce((sum, i) => sum + Math.round(i.amount), 0),
+        message: `${created.length} income receipt(s) imported and queued for posting`,
+      };
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      throw new HttpException(
+        `Bulk import failed: ${error instanceof Error ? error.message : String(error)}`,
         HttpStatus.BAD_REQUEST,
       );
     }

@@ -16,13 +16,8 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { NumberInput } from "@/components/ui/number-input";
+import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { Button } from "@/components/ui/button";
 import { useAccounts } from "@/lib/api/hooks/useAccounts";
 import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
@@ -85,7 +80,7 @@ export default function CreateBookEntryModal({
       date: "",
       description: "",
       reference: "",
-      amount: 0,
+      amount: undefined as any,
       type: entryType,
       offsetAccountId: "",
     },
@@ -184,14 +179,11 @@ export default function CreateBookEntryModal({
                 <FormControl>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">{sym}</span>
-                    <Input
-                      type="number"
-                      min={0}
-                      step="0.01"
+                    <NumberInput
+                      value={field.value}
+                      onChange={field.onChange}
                       className="pl-7"
                       placeholder="0.00"
-                      {...field}
-                      onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
                     />
                   </div>
                 </FormControl>
@@ -209,26 +201,17 @@ export default function CreateBookEntryModal({
                   {isWithdrawal ? "Expense Account" : "Income / Offset Account"} *
                 </FormLabel>
                 <FormControl>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue
-                        placeholder={isWithdrawal ? "Select expense account..." : "Select account..."}
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {offsetAccounts.length > 0 ? (
-                        offsetAccounts.map((a: any) => (
-                          <SelectItem key={a.id} value={a.id}>
-                            {a.code} — {a.name}
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <SelectItem value="__none__" disabled>
-                          No accounts found
-                        </SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
+                  <SearchableCombobox
+                    value={field.value}
+                    onChange={field.onChange}
+                    placeholder={isWithdrawal ? "Select expense account..." : "Select account..."}
+                    searchPlaceholder="Search accounts..."
+                    emptyMessage="No accounts found."
+                    options={offsetAccounts.map((a: any) => ({
+                      value: a.id,
+                      label: `${a.code} — ${a.name}`,
+                    }))}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>

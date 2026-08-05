@@ -22,6 +22,14 @@ export class CreateExpenseDto {
   @IsString()
   vendorId?: string;
 
+  @ApiPropertyOptional({
+    example: 'Acme Supplies',
+    description: 'Free-text vendor name, used when not mapped to a Vendor record',
+  })
+  @IsOptional()
+  @IsString()
+  vendorName?: string;
+
   @ApiProperty({ example: 'Office Supplies', description: 'Expense account ID' })
   @IsString()
   expenseAccountId: string;
@@ -97,6 +105,14 @@ export class UpdateExpenseDto {
   @IsOptional()
   @IsString()
   vendorId?: string;
+
+  @ApiPropertyOptional({
+    example: 'Acme Supplies',
+    description: 'Free-text vendor name, used when not mapped to a Vendor record',
+  })
+  @IsOptional()
+  @IsString()
+  vendorName?: string;
 
   @ApiPropertyOptional({ example: 'Office Supplies', description: 'Expense category' })
   @IsOptional()

@@ -1094,7 +1094,7 @@ export class BullmqProcessor extends WorkerHost {
         total: number;
         depositTo: string;
         items: Array<{
-          itemId: string;
+          itemId?: string;
           quantity: number;
           rate: number;
           total: number;
@@ -1116,16 +1116,21 @@ export class BullmqProcessor extends WorkerHost {
         data: { postingStatus: 'Processing' },
       });
 
-      // Fetch item details to determine type
-      const itemDetails = await this.prisma.items.findMany({
-        where: {
-          id: { in: receiptData.items.map((i) => i.itemId) },
-        },
-        select: {
-          id: true,
-          type: true,
-        },
-      });
+      // Fetch item details to determine type (skip free-text items with no itemId)
+      const realItemIds = receiptData.items
+        .map((i) => i.itemId)
+        .filter((id): id is string => !!id);
+      const itemDetails = realItemIds.length
+        ? await this.prisma.items.findMany({
+            where: {
+              id: { in: realItemIds },
+            },
+            select: {
+              id: true,
+              type: true,
+            },
+          })
+        : [];
 
       // Separate items by type
       let productNetTotal = 0;
@@ -1133,13 +1138,13 @@ export class BullmqProcessor extends WorkerHost {
 
       for (const item of receiptData.items) {
         const itemDetail = itemDetails.find((i) => i.id === item.itemId);
-        if (!itemDetail) continue;
-
         const netAmount = item.total;
 
-        if (itemDetail.type === 'goods') {
+        // Free-text line items (no itemId) have no Items record to classify
+        // by — default them to service revenue so the journal still balances.
+        if (itemDetail?.type === 'goods') {
           productNetTotal += netAmount;
-        } else if (itemDetail.type === 'service') {
+        } else {
           serviceNetTotal += netAmount;
         }
       }

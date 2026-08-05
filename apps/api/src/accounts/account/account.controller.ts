@@ -16,6 +16,7 @@ import {
   AccountResponseDto,
   CreateAccountDto,
   UpdateAccountDto,
+  CreateAccountForEntitiesDto,
 } from './dto/account.dto';
 import { getEffectiveEntityId, getEffectiveGroupId } from '@/auth/utils/context.util';
 import { Request } from 'express';
@@ -44,6 +45,21 @@ export class AccountController {
     const entityId = getEffectiveEntityId(req);
     if (!entityId) throw new BadRequestException('Entity ID is required');
     return this.accountService.create(account, entityId);
+  }
+
+  @Post('bulk-for-entities')
+  @ApiOperation({
+    summary: 'Create the same account across multiple entities in a group',
+  })
+  @ApiBody({ type: CreateAccountForEntitiesDto })
+  @ApiResponse({ status: 201, description: 'Account created for each selected entity' })
+  async createForEntities(
+    @Body() dto: CreateAccountForEntitiesDto,
+    @Req() req: Request,
+  ) {
+    const groupId = getEffectiveGroupId(req) ?? dto.groupId ?? null;
+    if (!groupId) throw new BadRequestException('Group ID is required');
+    return this.accountService.createForEntities(dto, groupId);
   }
 
   @Get()

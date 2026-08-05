@@ -77,6 +77,18 @@ export class EntityController {
     return this.entityService.findAll(query, effectiveGroupId);
   }
 
+  @Get('by-group/:groupId')
+  @UseGuards(RolesGuard)
+  @Roles(systemRole.superadmin)
+  @ApiOperation({ summary: 'List entities for an arbitrary group (superadmin only)' })
+  @ApiResponse({ status: 200, description: 'List of entities' })
+  findAllByGroup(
+    @Param('groupId') groupId: string,
+    @Query() query: GetEntitiesQueryDto,
+  ) {
+    return this.entityService.findAll(query, groupId);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get entity by id' })
   @ApiResponse({ status: 200, description: 'Entity detail' })

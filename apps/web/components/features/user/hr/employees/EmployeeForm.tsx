@@ -8,6 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Form,
@@ -75,8 +76,8 @@ export default function EmployeeForm({
       hireDate: employee?.hireDate || "",
       reportsTo: employee?.reportsTo || "",
       annualLeaveDays: employee?.annualLeaveDays || 20,
-      baseSalary: employee?.baseSalary || 0,
-      allowances: employee?.allowances || 0,
+      baseSalary: employee?.baseSalary ?? (undefined as any),
+      allowances: employee?.allowances ?? (undefined as any),
       payFrequency: employee?.payFrequency || "Monthly",
       currency: employee?.currency || "NGN - Nige",
       bankName: employee?.bankName || "",
@@ -94,7 +95,7 @@ export default function EmployeeForm({
         employee?.emergencyContactRelationship || "",
       tin: employee?.tin || "",
       fctTaxpayerId: employee?.fctTaxpayerId || "",
-      annualRent: employee?.annualRent || 0,
+      annualRent: employee?.annualRent ?? (undefined as any),
       note: employee?.note || "",
     },
   });
@@ -135,7 +136,7 @@ export default function EmployeeForm({
           employee?.emergencyContactRelationship || "",
         tin: employee?.tin || "",
         fctTaxpayerId: employee?.fctTaxpayerId || "",
-        annualRent: employee?.annualRent || 0,
+        annualRent: employee?.annualRent ?? (undefined as any),
         note: employee?.note || "",
       });
     }
@@ -468,7 +469,7 @@ export default function EmployeeForm({
                   <FormItem>
                     <FormLabel>Annual Leave Days</FormLabel>
                     <FormControl>
-                      <Input type="number" min={0} {...field} />
+                      <NumberInput value={field.value} onChange={field.onChange} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -490,7 +491,7 @@ export default function EmployeeForm({
                   <FormItem>
                     <FormLabel>Base Salary *</FormLabel>
                     <FormControl>
-                      <Input type="number" min={0} step="0.01" {...field} />
+                      <NumberInput value={field.value} onChange={field.onChange} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -503,7 +504,7 @@ export default function EmployeeForm({
                   <FormItem>
                     <FormLabel>Allowances</FormLabel>
                     <FormControl>
-                      <Input type="number" min={0} step="0.01" {...field} />
+                      <NumberInput value={field.value} onChange={field.onChange} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -662,7 +663,7 @@ export default function EmployeeForm({
                   <FormItem>
                     <FormLabel>Annual Rent Paid (₦)</FormLabel>
                     <FormControl>
-                      <Input type="number" min={0} step="1" placeholder="0.00" {...field} />
+                      <NumberInput value={field.value} onChange={field.onChange} placeholder="0.00" />
                     </FormControl>
                     <div className="text-xs text-muted-foreground">Enter actual rent paid — relief is capped at ₦500,000 during payroll calculation</div>
                     <FormMessage />

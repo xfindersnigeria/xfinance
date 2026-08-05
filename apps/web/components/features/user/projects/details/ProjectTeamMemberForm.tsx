@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import {
   Form,
   FormControl,
@@ -78,7 +79,7 @@ export default function ProjectTeamMemberForm({
       name: member?.name ?? "",
       email: member?.email ?? "",
       role: member?.role ?? "",
-      monthlyRate: member?.monthlyRate ?? 0,
+      monthlyRate: member?.monthlyRate ?? (undefined as any),
       estimatedMonths: member?.estimatedMonths ?? 1,
     },
   });
@@ -178,13 +179,10 @@ export default function ProjectTeamMemberForm({
                   <FormItem>
                     <FormLabel>{`Monthly Rate (${sym}) *`}</FormLabel>
                     <FormControl>
-                      <Input
-                        type="number"
-                        min={0}
-                        step={1000}
+                      <NumberInput
+                        value={field.value}
+                        onChange={field.onChange}
                         placeholder="0.00"
-                        value={field.value || ""}
-                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
                       />
                     </FormControl>
                     <FormMessage />

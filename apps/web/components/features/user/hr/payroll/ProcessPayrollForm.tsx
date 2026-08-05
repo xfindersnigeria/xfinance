@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import {
   Select,
   SelectItem,
@@ -112,45 +113,46 @@ export default function ProcessPayrollForm({
   const handleRowChange = (idx: number, key: string, value: any) => {
     const updated = [...rows];
     updated[idx][key] = value;
-    // recalc net pay
+    // recalc net pay — treat a field still being edited (undefined/blank) as 0
+    // for this live preview only; the field itself keeps showing blank.
     updated[idx].netPay =
-      Number(updated[idx].basicSalary) +
-      Number(updated[idx].allowances) +
-      Number(updated[idx].bonus) +
-      Number(updated[idx].overtime) -
-      Number(updated[idx].deductionsStat) -
-      Number(updated[idx].deductionsOther);
+      (Number(updated[idx].basicSalary) || 0) +
+      (Number(updated[idx].allowances) || 0) +
+      (Number(updated[idx].bonus) || 0) +
+      (Number(updated[idx].overtime) || 0) -
+      (Number(updated[idx].deductionsStat) || 0) -
+      (Number(updated[idx].deductionsOther) || 0);
     setRows(updated);
   };
 
   // --- Totals ---
   const selectedRows = rows.filter((_: any, i: any) => selected[i]);
   const totalBasic = selectedRows.reduce(
-    (a: any, b: any) => a + Number(b.basicSalary),
+    (a: any, b: any) => a + (Number(b.basicSalary) || 0),
     0,
   );
   const totalAllowances = selectedRows.reduce(
-    (a: any, b: any) => a + Number(b.allowances),
+    (a: any, b: any) => a + (Number(b.allowances) || 0),
     0,
   );
   const totalBonus = selectedRows.reduce(
-    (a: any, b: any) => a + Number(b.bonus),
+    (a: any, b: any) => a + (Number(b.bonus) || 0),
     0,
   );
   const totalOvertime = selectedRows.reduce(
-    (a: any, b: any) => a + Number(b.overtime),
+    (a: any, b: any) => a + (Number(b.overtime) || 0),
     0,
   );
   const totalDeductionsStat = selectedRows.reduce(
-    (a: any, b: any) => a + Number(b.deductionsStat),
+    (a: any, b: any) => a + (Number(b.deductionsStat) || 0),
     0,
   );
   const totalDeductionsOther = selectedRows.reduce(
-    (a: any, b: any) => a + Number(b.deductionsOther),
+    (a: any, b: any) => a + (Number(b.deductionsOther) || 0),
     0,
   );
   const totalNetPay = selectedRows.reduce(
-    (a: any, b: any) => a + Number(b.netPay),
+    (a: any, b: any) => a + (Number(b.netPay) || 0),
     0,
   );
 
@@ -161,12 +163,12 @@ export default function ProcessPayrollForm({
       .filter((_: any, i: number) => selected[i])
       .map((r: any) => ({
         employeeId: r.id,
-        basicSalary: Number(r.basicSalary),
-        allowances: Number(r.allowances),
-        bonus: Number(r.bonus),
-        overtime: Number(r.overtime),
-        statutoryDed: Number(r.deductionsStat),
-        otherDed: Number(r.deductionsOther),
+        basicSalary: Number(r.basicSalary) || 0,
+        allowances: Number(r.allowances) || 0,
+        bonus: Number(r.bonus) || 0,
+        overtime: Number(r.overtime) || 0,
+        statutoryDed: Number(r.deductionsStat) || 0,
+        otherDed: Number(r.deductionsOther) || 0,
       }));
     const now = new Date();
     onSubmit &&
@@ -308,12 +310,11 @@ export default function ProcessPayrollForm({
                 {/* Basic Salary */}
                 <div>
                   <p className="text-xs text-gray-500 mb-1">Basic Salary</p>
-                  <Input
-                    type="number"
+                  <NumberInput
                     className="rounded-xl bg-gray-50"
                     value={row.basicSalary}
-                    onChange={(e) =>
-                      handleRowChange(idx, "basicSalary", e.target.value)
+                    onChange={(val) =>
+                      handleRowChange(idx, "basicSalary", val)
                     }
                   />
                 </div>
@@ -321,12 +322,11 @@ export default function ProcessPayrollForm({
                 {/* Allowances */}
                 <div>
                   <p className="text-xs text-gray-500 mb-1">Allowances</p>
-                  <Input
-                    type="number"
+                  <NumberInput
                     className="rounded-xl bg-gray-50"
                     value={row.allowances}
-                    onChange={(e) =>
-                      handleRowChange(idx, "allowances", e.target.value)
+                    onChange={(val) =>
+                      handleRowChange(idx, "allowances", val)
                     }
                   />
                 </div>
@@ -334,12 +334,11 @@ export default function ProcessPayrollForm({
                 {/* Bonus */}
                 <div>
                   <p className="text-xs text-gray-500 mb-1">Bonus</p>
-                  <Input
-                    type="number"
+                  <NumberInput
                     className="rounded-xl bg-gray-50"
                     value={row.bonus}
-                    onChange={(e) =>
-                      handleRowChange(idx, "bonus", e.target.value)
+                    onChange={(val) =>
+                      handleRowChange(idx, "bonus", val)
                     }
                   />
                 </div>
@@ -347,12 +346,11 @@ export default function ProcessPayrollForm({
                 {/* Overtime */}
                 <div>
                   <p className="text-xs text-gray-500 mb-1">Overtime</p>
-                  <Input
-                    type="number"
+                  <NumberInput
                     className="rounded-xl bg-gray-50"
                     value={row.overtime}
-                    onChange={(e) =>
-                      handleRowChange(idx, "overtime", e.target.value)
+                    onChange={(val) =>
+                      handleRowChange(idx, "overtime", val)
                     }
                   />
                 </div>
@@ -360,12 +358,11 @@ export default function ProcessPayrollForm({
                 {/* Statutory Ded. */}
                 <div>
                   <p className="text-xs text-gray-500 mb-1">Statutory Ded.</p>
-                  <Input
-                    type="number"
+                  <NumberInput
                     className="rounded-xl bg-gray-50"
                     value={row.deductionsStat}
-                    onChange={(e) =>
-                      handleRowChange(idx, "deductionsStat", e.target.value)
+                    onChange={(val) =>
+                      handleRowChange(idx, "deductionsStat", val)
                     }
                   />
                 </div>
@@ -373,12 +370,11 @@ export default function ProcessPayrollForm({
                 {/* Other Ded. */}
                 <div>
                   <p className="text-xs text-gray-500 mb-1">Other Ded.</p>
-                  <Input
-                    type="number"
+                  <NumberInput
                     className="rounded-xl bg-gray-50"
                     value={row.deductionsOther}
-                    onChange={(e) =>
-                      handleRowChange(idx, "deductionsOther", e.target.value)
+                    onChange={(val) =>
+                      handleRowChange(idx, "deductionsOther", val)
                     }
                   />
                 </div>

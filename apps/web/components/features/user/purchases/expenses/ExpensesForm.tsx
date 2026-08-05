@@ -13,6 +13,9 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import { SearchableCombobox } from "@/components/ui/searchable-combobox";
+import { CreatableCombobox } from "@/components/ui/creatable-combobox";
+import { NumberInput } from "@/components/ui/number-input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Form,
@@ -46,7 +49,8 @@ import { paymentMethodOptions } from "../../income/payment-received/PaymentRecei
 const expenseSchema = z.object({
   date: z.date(),
   reference: z.string().optional(),
-  vendorId: z.string().min(1, "vendorId is required"),
+  vendorId: z.string().optional(),
+  vendorName: z.string().optional(),
   expenseAccountId: z.string().min(1, "Expense Account is required"),
   paymentMethod: z.enum([
     "Cash",
@@ -75,11 +79,12 @@ const defaultValues: ExpenseFormType = {
   date: new Date(),
   reference: "",
   vendorId: "",
+  vendorName: "",
   expenseAccountId: "",
   paymentMethod: "Cash",
   paymentAccountId: "",
-  amount: 0,
-  tax: 0,
+  amount: undefined as any,
+  tax: undefined as any,
   description: "",
   tags: "",
   attachments: undefined,
@@ -140,6 +145,7 @@ export default function ExpensesForm({
         date: expense?.date ? new Date(expense.date as any) : new Date(),
         reference: expense?.reference || "",
         vendorId: expense?.vendorId || "",
+        vendorName: (expense as any)?.vendorName || "",
         expenseAccountId: expense?.expenseAccountId || "",
         paymentMethod: (expense?.paymentMethod as any) || "Cash",
         paymentAccountId: expense?.paymentAccountId || "",
@@ -168,7 +174,8 @@ export default function ExpensesForm({
       if (isEditMode && expense?.id) {
         const updateData: any = {
           date: values.date.toISOString(),
-          vendorId: values.vendorId,
+          vendorId: values.vendorId || null,
+          vendorName: values.vendorId ? null : values.vendorName || null,
           expenseAccountId: values.expenseAccountId,
           paymentMethod: values.paymentMethod,
           paymentAccountId: values.paymentAccountId,
@@ -193,7 +200,11 @@ export default function ExpensesForm({
         const formData = new FormData();
         formData.append("date", values.date.toISOString());
         if (values.reference) formData.append("reference", values.reference);
-        formData.append("vendorId", values.vendorId);
+        if (values.vendorId) {
+          formData.append("vendorId", values.vendorId);
+        } else if (values.vendorName) {
+          formData.append("vendorName", values.vendorName);
+        }
         formData.append("expenseAccountId", values.expenseAccountId);
         formData.append("paymentMethod", values.paymentMethod);
         formData.append("paymentAccountId", values.paymentAccountId);
@@ -297,36 +308,30 @@ export default function ExpensesForm({
                 name="vendorId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Vendor/Supplier *</FormLabel>
+                    <FormLabel>Vendor/Supplier</FormLabel>
                     <FormControl>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value}
-                        disabled={vendorsLoading}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue
-                            placeholder={
-                              vendorsLoading
-                                ? "Loading vendors..."
-                                : "Select vendor"
-                            }
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Array.isArray(vendors) && vendors.length > 0 ? (
-                            vendors.map((v: any) => (
-                              <SelectItem key={v.id} value={v.id}>
-                                {v.displayName || v.name}
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <SelectItem value="no-vendors" disabled>
-                              No vendors found
-                            </SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
+                      <CreatableCombobox
+                        options={(Array.isArray(vendors) ? vendors : []).map(
+                          (v: any) => ({
+                            value: v.id,
+                            label: v.displayName || v.name,
+                          }),
+                        )}
+                        selectedId={field.value}
+                        freeText={form.watch("vendorName")}
+                        isLoading={vendorsLoading}
+                        placeholder="Select or type vendor name"
+                        searchPlaceholder="Search vendors or type a new name..."
+                        emptyMessage="No vendors found."
+                        onSelect={(id) => {
+                          field.onChange(id);
+                          form.setValue("vendorName", "");
+                        }}
+                        onFreeText={(text) => {
+                          field.onChange("");
+                          form.setValue("vendorName", text);
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -339,27 +344,17 @@ export default function ExpensesForm({
                   <FormItem>
                     <FormLabel>Expense Account *</FormLabel>
                     <FormControl>
-                      <Select
-                        onValueChange={field.onChange}
+                      <SearchableCombobox
                         value={field.value}
-                      >
-                        <SelectTrigger className="w-full bg-white">
-                          <SelectValue placeholder="Select account" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {expenseAccounts.length > 0 ? (
-                            expenseAccounts.map((account: any) => (
-                              <SelectItem key={account.id} value={account.id}>
-                                {account.name} ({account.code})
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <SelectItem value="no-accounts" disabled>
-                              No expense accounts found
-                            </SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
+                        onChange={field.onChange}
+                        placeholder="Select account"
+                        searchPlaceholder="Search accounts..."
+                        emptyMessage="No expense accounts found."
+                        options={expenseAccounts.map((account: any) => ({
+                          value: account.id,
+                          label: `${account.name} (${account.code})`,
+                        }))}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -409,27 +404,17 @@ export default function ExpensesForm({
                   <FormItem>
                     <FormLabel>Payment Account *</FormLabel>
                     <FormControl>
-                      <Select
-                        onValueChange={field.onChange}
+                      <SearchableCombobox
                         value={field.value}
-                      >
-                        <SelectTrigger className="w-full bg-white">
-                          <SelectValue placeholder="Select account" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {paymentAccounts.length > 0 ? (
-                            paymentAccounts.map((account: any) => (
-                              <SelectItem key={account.id} value={account.id}>
-                                {account.name} ({account.code})
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <SelectItem value="no-accounts" disabled>
-                              No payment accounts found
-                            </SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
+                        onChange={field.onChange}
+                        placeholder="Select account"
+                        searchPlaceholder="Search accounts..."
+                        emptyMessage="No payment accounts found."
+                        options={paymentAccounts.map((account: any) => ({
+                          value: account.id,
+                          label: `${account.name} (${account.code})`,
+                        }))}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -452,15 +437,7 @@ export default function ExpensesForm({
                   <FormItem>
                     <FormLabel>Amount *</FormLabel>
                     <FormControl>
-                      <Input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        {...field}
-                        onChange={(e) =>
-                          field.onChange(parseFloat(e.target.value) || 0)
-                        }
-                      />
+                      <NumberInput value={field.value} onChange={field.onChange} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -473,15 +450,7 @@ export default function ExpensesForm({
                   <FormItem>
                     <FormLabel>Tax Amount</FormLabel>
                     <FormControl>
-                      <Input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        {...field}
-                        onChange={(e) =>
-                          field.onChange(parseFloat(e.target.value) || 0)
-                        }
-                      />
+                      <NumberInput value={field.value} onChange={field.onChange} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

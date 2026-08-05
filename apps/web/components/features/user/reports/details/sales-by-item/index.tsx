@@ -120,7 +120,7 @@ export default function SalesByItem() {
           {/* KPI cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <KPICard
-              label="Total Sales"
+              label="Total Income"
               value={summary ? fmtShort(summary.totalRevenue, sym) : "—"}
             />
             <KPICard

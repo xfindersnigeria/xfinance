@@ -381,6 +381,7 @@ model Expenses {
   reference        String
   vendorId         String?
   vendor           vendor?              @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  vendorName       String? // free-text vendor name when not mapped to a Vendor record
   paymentMethod    PaymentMethod
   paymentAccountId String
   paymentAccount   Account              @relation("PaymentAccount", fields: [paymentAccountId], references: [id], onDelete: Restrict)
@@ -489,10 +490,11 @@ model Receipt {
   journalReference String?
   postedAt         DateTime?
   createdAt        DateTime             @default(now())
-  customerId       String
+  customerId       String?
+  customerName     String? // free-text customer name when not mapped to a Customer record
   receiptNumber    String               @default("123456789")
   updatedAt        DateTime             @default(now()) @updatedAt
-  customer         Customer             @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer         Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
   entity           Entity               @relation(fields: [entityId], references: [id], onDelete: Cascade)
   account          Account              @relation(fields: [depositTo], references: [id])
   receiptItem      ReceiptItem[]
@@ -504,8 +506,9 @@ model Receipt {
 
 model ReceiptItem {
   id        String   @id @default(cuid())
-  itemId    String
-  item      Items    @relation(fields: [itemId], references: [id])
+  itemId    String?
+  itemName  String? // free-text item name when not mapped to an Items record
+  item      Items?   @relation(fields: [itemId], references: [id], onDelete: SetNull)
   quantity  Int
   rate      Int
   total     Int

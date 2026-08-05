@@ -14,6 +14,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import {
   Select,
   SelectContent,
@@ -56,7 +57,7 @@ export default function AddTransactionModal({
       reference: "",
       description: "",
       transactionType: "credit",
-      amount: 0,
+      amount: undefined as any,
       category: "",
     },
   });
@@ -161,16 +162,11 @@ export default function AddTransactionModal({
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
                         {sym}
                       </span>
-                      <Input
-                        type="number"
-                        min={0}
-                        step="0.01"
+                      <NumberInput
+                        value={field.value}
+                        onChange={field.onChange}
                         className="pl-7"
                         placeholder="0.00"
-                        {...field}
-                        onChange={(e) =>
-                          field.onChange(parseFloat(e.target.value) || 0)
-                        }
                       />
                     </div>
                   </FormControl>

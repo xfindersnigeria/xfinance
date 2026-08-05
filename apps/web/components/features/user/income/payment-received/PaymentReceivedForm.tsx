@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Form,
@@ -81,7 +82,7 @@ export default function PaymentReceivedForm({
     resolver: zodResolver(paymentReceivedSchema),
     defaultValues: {
       invoiceId: invoiceId || payment?.invoiceId || "",
-      amount: payment?.amount || 0,
+      amount: payment?.amount ?? (undefined as any),
       paidAt: payment?.paidAt ? new Date(payment.paidAt) : new Date(),
       paymentMethod: payment?.paymentMethod || "",
       depositTo: payment?.depositTo || "",
@@ -223,12 +224,9 @@ export default function PaymentReceivedForm({
                         Amount <span className="text-red-500">*</span>
                       </FormLabel>
                       <FormControl>
-                        <Input
-                          type="number"
-                          min={0}
-                          step="0.01"
+                        <NumberInput
                           value={field.value}
-                          onChange={(e) => field.onChange(Number(e.target.value))}
+                          onChange={field.onChange}
                           placeholder={`${sym} 0.00`}
                         />
                       </FormControl>

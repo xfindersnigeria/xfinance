@@ -157,6 +157,25 @@ export const updateReceipt = (id: string | number, data: any) =>
 export const deleteReceipt = (id: string | number) =>
   apiClient(`sales/receipts/${id}`, { method: "DELETE" });
 
+export interface BulkIncomeItem {
+  date: string;
+  description: string;
+  amount: number;
+  reference?: string;
+  customerName?: string;
+}
+
+export interface BulkImportReceiptsPayload {
+  depositTo: string;
+  items: BulkIncomeItem[];
+}
+
+export const bulkImportReceipts = (payload: BulkImportReceiptsPayload) =>
+  apiClient("sales/receipts/bulk-import", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
 // Payment Received
 export const getPaymentsReceived: (params?: {
   page?: number;

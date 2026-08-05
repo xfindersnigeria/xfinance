@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -48,7 +49,7 @@ export default function InventoryForm({
     resolver: zodResolver(inventoryAdjustmentSchema),
     defaultValues: {
       type: "add",
-      quantity: 0,
+      quantity: undefined as any,
       reason: "",
       notes: "",
     },
@@ -113,12 +114,10 @@ export default function InventoryForm({
                   Quantity <span className="text-red-500">*</span>
                 </FormLabel>
                 <FormControl>
-                  <Input
-                    type="number"
-                    min={1}
+                  <NumberInput
+                    value={field.value}
+                    onChange={field.onChange}
                     placeholder="0"
-                    {...field}
-                    onChange={(e) => field.onChange(Number(e.target.value))}
                   />
                 </FormControl>
                 <div className="text-xs text-gray-400 mt-1">

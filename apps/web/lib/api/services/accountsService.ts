@@ -121,6 +121,19 @@ export const createAccount = async (data: {
   });
 };
 
+export const createAccountForEntities = async (data: {
+  name: string;
+  subCategoryId: string;
+  description?: string;
+  entityIds: string[];
+  groupId?: string;
+}) => {
+  return apiClient("account/bulk-for-entities", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+};
+
 export const getAccounts = async (params?: {
   search?: string;
   subCategory?: string;

@@ -17,13 +17,8 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableCombobox } from "@/components/ui/searchable-combobox";
+import { NumberInput } from "@/components/ui/number-input";
 import { Plus, Trash2, Loader2 } from "lucide-react";
 import { useCreateJournal } from "@/lib/api/hooks/useAccounts";
 import { Account } from "@/lib/api/hooks/types/accountsTypes";
@@ -32,8 +27,8 @@ import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 // Zod schema for Journal Entry Line
 const journalLineSchema = z.object({
   accountId: z.string().min(1, "Account is required"),
-  debit: z.coerce.number().pipe(z.number()).default(0),
-  credit: z.coerce.number().pipe(z.number()).default(0),
+  debit: z.coerce.number().optional(),
+  credit: z.coerce.number().optional(),
   description: z.string().optional(),
 });
 
@@ -63,7 +58,7 @@ export default function ManualJournalForm({ accounts = [], onSuccess }: ManualJo
     defaultValues: {
       date: new Date().toISOString().split("T")[0],
       description: "",
-      journalLines: [{ accountId: "", debit: 0, credit: 0, description: "" }],
+      journalLines: [{ accountId: "", debit: undefined, credit: undefined, description: "" }],
     },
   });
 
@@ -117,7 +112,7 @@ export default function ManualJournalForm({ accounts = [], onSuccess }: ManualJo
       form.reset({
         date: new Date().toISOString().split("T")[0],
         description: "",
-        journalLines: [{ accountId: "", debit: 0, credit: 0, description: "" }],
+        journalLines: [{ accountId: "", debit: undefined, credit: undefined, description: "" }],
       });
       if (onSuccess) onSuccess();
     }
@@ -130,7 +125,7 @@ export default function ManualJournalForm({ accounts = [], onSuccess }: ManualJo
   }, [createJournal.isSuccess, createJournal.isError]);
 
   const handleAddLine = useCallback(() => {
-    append({ accountId: "", debit: 0, credit: 0, description: "" });
+    append({ accountId: "", debit: undefined, credit: undefined, description: "" });
   }, [append]);
 
   return (
@@ -207,20 +202,20 @@ export default function ManualJournalForm({ accounts = [], onSuccess }: ManualJo
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel className="text-xs md:text-sm text-gray-600 md:hidden">Account</FormLabel>
-                            <Select value={field.value} onValueChange={field.onChange}>
-                              <FormControl>
-                                <SelectTrigger className="w-full rounded-lg border-gray-300">
-                                  <SelectValue placeholder="Select account" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {accounts.map((account) => (
-                                  <SelectItem key={account.id} value={account.id}>
-                                    {account.name}-{account.code}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <FormControl>
+                              <SearchableCombobox
+                                value={field.value}
+                                onChange={field.onChange}
+                                placeholder="Select account"
+                                searchPlaceholder="Search accounts..."
+                                emptyMessage="No accounts found."
+                                triggerClassName="rounded-lg border-gray-300"
+                                options={accounts.map((account) => ({
+                                  value: account.id,
+                                  label: `${account.name}-${account.code}`,
+                                }))}
+                              />
+                            </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -236,12 +231,11 @@ export default function ManualJournalForm({ accounts = [], onSuccess }: ManualJo
                           <FormItem>
                             <FormLabel className="text-xs md:text-sm text-gray-600 md:hidden">Debit</FormLabel>
                             <FormControl>
-                              <Input
-                                type="number"
-                                step="0.01"
+                              <NumberInput
+                                value={field.value}
+                                onChange={field.onChange}
                                 placeholder="0.00"
                                 className="rounded-lg border-gray-300 text-right bg-gray-50"
-                                {...field}
                               />
                             </FormControl>
                             <FormMessage />
@@ -259,12 +253,11 @@ export default function ManualJournalForm({ accounts = [], onSuccess }: ManualJo
                           <FormItem>
                             <FormLabel className="text-xs md:text-sm text-gray-600 md:hidden">Credit</FormLabel>
                             <FormControl>
-                              <Input
-                                type="number"
-                                step="0.01"
+                              <NumberInput
+                                value={field.value}
+                                onChange={field.onChange}
                                 placeholder="0.00"
                                 className="rounded-lg border-gray-300 text-right bg-gray-50"
-                                {...field}
                               />
                             </FormControl>
                             <FormMessage />

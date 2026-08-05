@@ -4,6 +4,7 @@ import { useEmployees } from "@/lib/api/hooks/useHR";
 import { useProjects } from "@/lib/api/hooks/useProjects";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -35,7 +36,7 @@ export default function BulkIssueSuppliesForm({
   onCancel,
   isLoading,
 }: BulkIssueSuppliesFormProps) {
-  const [quantities, setQuantities] = useState<{ [id: string]: number }>(
+  const [quantities, setQuantities] = useState<{ [id: string]: number | undefined }>(
     Object.fromEntries(selectedItems.map((item) => [item.id, 1])),
   );
   const [issueType, setIssueType] = useState(issueTypes[0]);
@@ -60,9 +61,8 @@ export default function BulkIssueSuppliesForm({
   const [purpose, setPurpose] = useState("");
   const [notes, setNotes] = useState("");
 
-  const handleQtyChange = (id: string, value: string) => {
-    const qty = Math.max(1, Number(value));
-    setQuantities((q) => ({ ...q, [id]: qty }));
+  const handleQtyChange = (id: string, value: number | undefined) => {
+    setQuantities((q) => ({ ...q, [id]: value }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -74,7 +74,7 @@ export default function BulkIssueSuppliesForm({
     onSubmit({
       items: selectedItems.map((item) => ({
         supplyId: item.id,
-        quantity: quantities[item.id],
+        quantity: Math.max(1, quantities[item.id] || 0),
       })),
       type: issueType.toLowerCase(),
       issuedTo: issueTo,
@@ -102,12 +102,10 @@ export default function BulkIssueSuppliesForm({
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-gray-500 font-medium">Qty:</span>
-                <Input
-                  type="number"
-                  min={1}
-                  max={item.quantity}
+                <NumberInput
                   value={quantities[item.id]}
-                  onChange={(e) => handleQtyChange(item.id, e.target.value)}
+                  onChange={(val) => handleQtyChange(item.id, val)}
+                  placeholder="1"
                   className="w-20 bg-gray-100 text-center"
                 />
               </div>

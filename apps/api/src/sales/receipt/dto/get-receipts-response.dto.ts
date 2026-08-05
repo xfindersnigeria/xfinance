@@ -41,7 +41,7 @@ export class ReceiptsStatsDto {
 
   @ApiProperty({
     example: 5000,
-    description: "Today's sales (sum of totals for today's receipts)",
+    description: "Today's income (sum of totals for today's receipts)",
   })
   todaysSales: number;
 

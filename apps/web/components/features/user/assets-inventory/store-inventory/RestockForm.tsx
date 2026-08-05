@@ -1,6 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
@@ -13,21 +14,21 @@ interface RestockFormProps {
 }
 
 export default function RestockForm({ row, onCancel }: RestockFormProps) {
-  const [quantityToRestock, setQuantityToRestock] = useState(1);
-  const [unitPrice, setUnitPrice] = useState(row.unitPrice);
+  const [quantityToRestock, setQuantityToRestock] = useState<number | undefined>(1);
+  const [unitPrice, setUnitPrice] = useState<number | undefined>(row.unitPrice);
   const [supplier, setSupplier] = useState("");
   const [notes, setNotes] = useState("");
 
   const createRestock = useCreateStoreSupplyRestock();
   const sym = useEntityCurrencySymbol();
-  const newStock = row.quantity + quantityToRestock;
+  const newStock = row.quantity + (quantityToRestock || 0);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     createRestock.mutate({
       supplyId: row.id,
-      quantity: quantityToRestock,
-      unitPrice,
+      quantity: Math.max(1, quantityToRestock || 0),
+      unitPrice: unitPrice || 0,
       supplier,
       notes: notes || undefined,
       restockDate: new Date(),
@@ -57,22 +58,19 @@ export default function RestockForm({ row, onCancel }: RestockFormProps) {
       <div className="space-y-3">
         <div>
           <label className="text-sm font-medium text-gray-700 block mb-1">Quantity to Restock</label>
-          <Input
-            type="number"
-            min={1}
+          <NumberInput
             value={quantityToRestock}
-            onChange={(e) => setQuantityToRestock(Math.max(1, Number(e.target.value)))}
+            onChange={setQuantityToRestock}
+            placeholder="1"
             className="bg-gray-100"
           />
         </div>
         <div>
           <label className="text-sm font-medium text-gray-700 block mb-1">{`Unit Price (${sym})`}</label>
-          <Input
-            type="number"
-            min={0}
-            step={0.01}
+          <NumberInput
             value={unitPrice}
-            onChange={(e) => setUnitPrice(Number(e.target.value))}
+            onChange={setUnitPrice}
+            placeholder="0.00"
             className="bg-gray-100"
           />
         </div>

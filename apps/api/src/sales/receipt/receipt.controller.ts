@@ -18,7 +18,7 @@ import {
   getEffectiveEntityId,
   getEffectiveGroupId,
 } from '@/auth/utils/context.util';
-import { CreateReceiptDto, UpdateReceiptDto } from './dto/receipt.dto';
+import { CreateReceiptDto, UpdateReceiptDto, BulkImportReceiptsDto } from './dto/receipt.dto';
 import { GetReceiptsQueryDto } from './dto/get-receipts-query.dto';
 import { GetReceiptsResponseDto } from './dto/get-receipts-response.dto';
 import {
@@ -49,6 +49,21 @@ export class ReceiptController {
     if (!entityId) throw new UnauthorizedException('Access denied!');
     const groupId = getEffectiveGroupId(req) as string;
     return this.receiptService.createReceipt(body, entityId, groupId);
+  }
+
+  @Post('bulk-import')
+  @UseGuards(AuthGuard)
+  @ApiOperation({ summary: 'Bulk import income receipts from a parsed CSV/XLSX upload' })
+  @ApiBearerAuth('jwt')
+  @ApiCookieAuth('cookieAuth')
+  @ApiOkResponse({ description: 'Bulk import queued successfully' })
+  @ApiUnauthorizedResponse({ description: 'Access denied' })
+  async bulkImportReceipts(@Body() body: BulkImportReceiptsDto, @Req() req) {
+    const entityId = getEffectiveEntityId(req);
+    if (!entityId) throw new UnauthorizedException('Access denied!');
+    const groupId = getEffectiveGroupId(req) as string;
+    if (!groupId) throw new UnauthorizedException('Access denied!');
+    return this.receiptService.bulkImportReceipts(body, entityId, groupId);
   }
 
   @Get()

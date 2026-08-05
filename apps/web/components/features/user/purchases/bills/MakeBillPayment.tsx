@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Textarea } from "@/components/ui/textarea";
 import {
     Form,
@@ -169,12 +170,10 @@ export default function MakeBillPayment({
                                     <FormControl>
                                         <div className="relative flex-1">
                                             <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-                                            <Input
-                                                type="number"
-                                                step="0.01"
+                                            <NumberInput
                                                 className="pl-9"
-                                                {...field}
-                                                onChange={(e) => field.onChange(Number(e.target.value))}
+                                                value={field.value}
+                                                onChange={field.onChange}
                                             />
                                         </div>
                                     </FormControl>

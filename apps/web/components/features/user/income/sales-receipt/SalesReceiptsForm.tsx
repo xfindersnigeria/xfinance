@@ -6,6 +6,7 @@ import { z } from "zod";
 import { Trash2, Plus, Loader2, ArrowRight, Receipt } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import {
   Form,
   FormControl,
@@ -21,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CreatableCombobox } from "@/components/ui/creatable-combobox";
 import { format } from "date-fns";
 import {
   useCreateReceipt,
@@ -29,14 +31,14 @@ import {
   useItems,
 } from "@/lib/api/hooks/useSales";
 import { useAccounts } from "@/lib/api/hooks/useAccounts";
-import { ItemSelector } from "../invoices/ItemSelector";
 import { paymentMethodOptions } from "../payment-received/PaymentReceivedForm";
 import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 import { useModal } from "@/components/providers/ModalProvider";
 import { MODAL } from "@/lib/data/modal-data";
 
 export const receiptSchema = z.object({
-  customerId: z.string().min(1, "Customer is required"),
+  customerId: z.string().optional(),
+  customerName: z.string().optional(),
   date: z.date(),
   paymentMethod: z.enum([
     "Cash",
@@ -54,7 +56,8 @@ export const receiptSchema = z.object({
     .array(
       z.object({
         receiptItemId: z.string().optional(), // Server-side receipt item ID for updates
-        itemId: z.string().min(1, "Item is required"),
+        itemId: z.string().optional(),
+        itemName: z.string().optional(),
         quantity: z.number().min(1, "Quantity must be at least 1"),
         rate: z.number().min(0, "Unit price must be at least 0"),
       }),
@@ -93,6 +96,7 @@ export default function SalesReceiptsForm({
     resolver: zodResolver(receiptSchema),
     defaultValues: {
       customerId: receipt?.customerId || "",
+      customerName: (receipt as any)?.customerName || "",
       date: receipt?.date ? new Date(receipt.date as any) : new Date(),
       paymentMethod: receipt?.paymentMethod || "Cash",
       depositTo: (receipt as any)?.depositTo || "",
@@ -123,6 +127,7 @@ export default function SalesReceiptsForm({
       // Reset non-array fields
       form.reset({
         customerId: receipt?.customerId || "",
+        customerName: (receipt as any)?.customerName || "",
         date: receipt?.date ? new Date(receipt.date as any) : new Date(),
         paymentMethod: receipt?.paymentMethod || "Cash",
         lineItems: [],
@@ -137,6 +142,7 @@ export default function SalesReceiptsForm({
               return {
                 receiptItemId: parsed.id || parsed.receiptItemId,
                 itemId: parsed.itemId,
+                itemName: parsed.itemName,
                 rate: parsed.unitPrice,
                 quantity: parsed.quantity,
               };
@@ -144,10 +150,11 @@ export default function SalesReceiptsForm({
           : (receipt as any).items.map((ii: any) => ({
               receiptItemId: ii.id || ii.receiptItemId,
               itemId: ii.itemId,
+              itemName: ii.itemName,
               rate: ii.rate,
               quantity: ii.quantity,
             }))
-        : receipt?.lineItems || [{ itemId: "", quantity: 1, rate: 0 }];
+        : receipt?.lineItems || [{ itemId: "", itemName: "", quantity: 1, rate: undefined as any }];
       replace(mapped as any[]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -170,7 +177,8 @@ export default function SalesReceiptsForm({
         // Build items array for update: include `id` for existing items
         const items = values.lineItems.map((li: any) => {
           const out: any = {
-            itemId: li.itemId,
+            itemId: li.itemId || undefined,
+            itemName: li.itemId ? undefined : li.itemName,
             rate: Number(li.rate) || 0,
             quantity: Number(li.quantity) || 0,
           };
@@ -191,13 +199,15 @@ export default function SalesReceiptsForm({
       } else {
         // Create payload: transform to match API format
         const items = values.lineItems.map((li) => ({
-          itemId: li.itemId,
+          itemId: li.itemId || undefined,
+          itemName: li.itemId ? undefined : li.itemName,
           rate: Number(li.rate) || 0,
           quantity: Number(li.quantity) || 0,
         }));
 
         const payload = {
-          customerId: values.customerId,
+          customerId: values.customerId || undefined,
+          customerName: values.customerId ? undefined : values.customerName,
           date: values.date,
           paymentMethod: values.paymentMethod,
           depositTo: values.depositTo,
@@ -227,34 +237,25 @@ export default function SalesReceiptsForm({
                   <FormItem>
                     <FormLabel>Customer</FormLabel>
                     <FormControl>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value}
-                        disabled={customersLoading}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue
-                            placeholder={
-                              customersLoading
-                                ? "Loading customers..."
-                                : "Select customer"
-                            }
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Array.isArray(customers) && customers.length > 0 ? (
-                            customers.map((c: any) => (
-                              <SelectItem key={c.id} value={c.id}>
-                                {c.name}
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <SelectItem value="no-customers" disabled>
-                              No customers found
-                            </SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
+                      <CreatableCombobox
+                        options={(Array.isArray(customers) ? customers : []).map(
+                          (c: any) => ({ value: c.id, label: c.name }),
+                        )}
+                        selectedId={field.value}
+                        freeText={form.watch("customerName")}
+                        isLoading={customersLoading}
+                        placeholder="Select or type customer name"
+                        searchPlaceholder="Search customers or type a new name..."
+                        emptyMessage="No customers found."
+                        onSelect={(id) => {
+                          field.onChange(id);
+                          form.setValue("customerName", "");
+                        }}
+                        onFreeText={(text) => {
+                          field.onChange("");
+                          form.setValue("customerName", text);
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -354,16 +355,14 @@ export default function SalesReceiptsForm({
                 <Plus className="w-4 h-4" /> Line Items *
               </h4>
               {/* Hide Add Item button if all items are selected */}
-              {fields.length < items.length && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => append({ itemId: "", quantity: 1, rate: 0 })}
-                >
-                  <Plus className="w-4 h-4" /> Add Item
-                </Button>
-              )}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => append({ itemId: "", itemName: "", quantity: 1, rate: undefined as any })}
+              >
+                <Plus className="w-4 h-4" /> Add Item
+              </Button>
             </div>
             <div className="space-y-3">
               {/* Header Row */}
@@ -402,12 +401,23 @@ export default function SalesReceiptsForm({
                           .map((li, i) => (i !== idx ? li.itemId : null))
                           .filter(Boolean);
                         return (
-                          <ItemSelector
-                            items={items}
+                          <CreatableCombobox
+                            options={items
+                              .map((i: any) => ({
+                                value: i.id,
+                                label: i.name,
+                                description: i.sku,
+                              }))
+                              .filter((o) => !selectedIds.includes(o.value))}
+                            selectedId={field.value}
+                            freeText={form.watch(`lineItems.${idx}.itemName`)}
                             isLoading={itemsLoading}
-                            value={field.value}
-                            onChange={(val) => {
+                            placeholder="Select or type item name"
+                            searchPlaceholder="Search items or type a new name..."
+                            emptyMessage="No items found."
+                            onSelect={(val) => {
                               field.onChange(val);
+                              form.setValue(`lineItems.${idx}.itemName`, "");
                               const selectedItem = items.find(
                                 (i: any) => i.id === val,
                               );
@@ -418,8 +428,10 @@ export default function SalesReceiptsForm({
                                 );
                               }
                             }}
-                            placeholder="Select item..."
-                            disabledIds={selectedIds as any}
+                            onFreeText={(text) => {
+                              field.onChange("");
+                              form.setValue(`lineItems.${idx}.itemName`, text);
+                            }}
                           />
                         );
                       }}
@@ -428,33 +440,28 @@ export default function SalesReceiptsForm({
                       control={form.control}
                       name={`lineItems.${idx}.quantity`}
                       render={({ field }) => (
-                        <Input
-                          type="number"
-                          min={1}
-                          {...field}
-                          // className="w-16"
-                          onChange={(e) =>
-                            field.onChange(Number(e.target.value))
-                          }
+                        <NumberInput
+                          value={field.value}
+                          onChange={field.onChange}
+                          placeholder="1"
                         />
                       )}
                     />
                     <Controller
                       control={form.control}
                       name={`lineItems.${idx}.rate`}
-                      render={({ field }) => (
-                        <Input
-                          type="number"
-                          min={0}
-                          {...field}
-                          // className="w-24"
-                          onChange={(e) =>
-                            field.onChange(Number(e.target.value))
-                          }
-                          prefix={sym}
-                          disabled={true}
-                        />
-                      )}
+                      render={({ field }) => {
+                        const isRealItem = !!form.watch(`lineItems.${idx}.itemId`);
+                        return (
+                          <NumberInput
+                            value={field.value}
+                            onChange={field.onChange}
+                            placeholder="0.00"
+                            prefix={sym}
+                            disabled={isRealItem}
+                          />
+                        );
+                      }}
                     />
                   </div>
                 </div>

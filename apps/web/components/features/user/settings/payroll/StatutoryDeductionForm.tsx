@@ -13,8 +13,10 @@ import {
   FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { Loader2, Plus, Trash2, Info } from "lucide-react";
 import {
   Select,
@@ -199,12 +201,10 @@ export default function StatutoryDeductionForm({ deduction, onSuccess }: Props) 
               <FormItem>
                 <FormLabel>Rate (%)</FormLabel>
                 <FormControl>
-                  <Input
-                    type="number"
-                    step="0.01"
+                  <NumberInput
+                    value={field.value}
+                    onChange={field.onChange}
                     placeholder="e.g. 7.5"
-                    value={field.value ?? ""}
-                    onChange={(e) => field.onChange(Number(e.target.value))}
                   />
                 </FormControl>
                 <FormMessage />
@@ -223,12 +223,10 @@ export default function StatutoryDeductionForm({ deduction, onSuccess }: Props) 
                 <FormItem>
                   <FormLabel>{`Fixed Amount (${sym})`}</FormLabel>
                   <FormControl>
-                    <Input
-                      type="number"
-                      step="0.01"
+                    <NumberInput
+                      value={field.value}
+                      onChange={field.onChange}
                       placeholder="e.g. 5000"
-                      value={field.value ?? ""}
-                      onChange={(e) => field.onChange(Number(e.target.value))}
                     />
                   </FormControl>
                   <FormMessage />
@@ -242,12 +240,10 @@ export default function StatutoryDeductionForm({ deduction, onSuccess }: Props) 
                 <FormItem>
                   <FormLabel>{`Minimum Salary (${sym})`}</FormLabel>
                   <FormControl>
-                    <Input
-                      type="number"
-                      step="0.01"
+                    <NumberInput
+                      value={field.value}
+                      onChange={field.onChange}
                       placeholder="e.g. 30000"
-                      value={field.value ?? ""}
-                      onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
                     />
                   </FormControl>
                   <FormDescription className="text-xs">
@@ -280,32 +276,20 @@ export default function StatutoryDeductionForm({ deduction, onSuccess }: Props) 
 
             {tiers.map((tier, i) => (
               <div key={i} className="grid grid-cols-[1fr_1fr_1fr_2.5rem] gap-2 items-center">
-                <Input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  placeholder="0"
+                <NumberInput
                   value={tier.from}
-                  onChange={(e) => updateTier(i, "from", Number(e.target.value))}
-                />
-                <Input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  placeholder="∞"
-                  value={tier.to ?? ""}
-                  onChange={(e) =>
-                    updateTier(i, "to", e.target.value ? Number(e.target.value) : undefined)
-                  }
-                />
-                <Input
-                  type="number"
-                  min={0}
-                  max={100}
-                  step="0.01"
+                  onChange={(val) => updateTier(i, "from", val)}
                   placeholder="0"
+                />
+                <NumberInput
+                  value={tier.to}
+                  onChange={(val) => updateTier(i, "to", val)}
+                  placeholder="∞"
+                />
+                <NumberInput
                   value={tier.rate}
-                  onChange={(e) => updateTier(i, "rate", Number(e.target.value))}
+                  onChange={(val) => updateTier(i, "rate", val)}
+                  placeholder="0"
                 />
                 <Button
                   type="button"
@@ -350,20 +334,19 @@ export default function StatutoryDeductionForm({ deduction, onSuccess }: Props) 
           render={({ field }) => (
             <FormItem>
               <FormLabel>Corresponding Account</FormLabel>
-              <Select value={field.value ?? ""} onValueChange={field.onChange}>
-                <FormControl>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select account" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {accounts.map((acc: any) => (
-                    <SelectItem key={acc.id} value={acc.id}>
-                      {acc.code}-{acc.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <FormControl>
+                <SearchableCombobox
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  placeholder="Select account"
+                  searchPlaceholder="Search accounts..."
+                  emptyMessage="No accounts found."
+                  options={accounts.map((acc: any) => ({
+                    value: acc.id,
+                    label: `${acc.code}-${acc.name}`,
+                  }))}
+                />
+              </FormControl>
               <FormDescription>
                 Select the liability account where this deduction will be credited
               </FormDescription>

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { NumberInput } from '@/components/ui/number-input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -13,7 +13,14 @@ export function SubscriptionSettingsTab() {
   const { data: settings, isLoading } = useSubscriptionSettings();
   const { mutate: updateSettings, isPending } = useUpdateSubscriptionSettings();
   
-  const [formData, setFormData] = React.useState({
+  const [formData, setFormData] = React.useState<{
+    trialPeriodEnabled: boolean;
+    trialDurationDays: number | undefined;
+    autoRenewalEnabled: boolean;
+    proratePayments: boolean;
+    gracePeriodDays: number | undefined;
+    paymentReminders: boolean;
+  }>({
     trialPeriodEnabled: false,
     trialDurationDays: 14,
     autoRenewalEnabled: true,
@@ -43,7 +50,7 @@ export function SubscriptionSettingsTab() {
     }));
   };
 
-  const handleInputChange = (key: 'trialDurationDays' | 'gracePeriodDays', value: number) => {
+  const handleInputChange = (key: 'trialDurationDays' | 'gracePeriodDays', value: number | undefined) => {
     setFormData((prev) => ({
       ...prev,
       [key]: value,
@@ -53,10 +60,10 @@ export function SubscriptionSettingsTab() {
   const handleSave = () => {
     const payload = {
       trialPeriodEnabled: formData.trialPeriodEnabled,
-      trialDurationDays: formData.trialDurationDays,
+      trialDurationDays: formData.trialDurationDays ?? 0,
       autoRenewalEnabled: formData.autoRenewalEnabled,
       proratePayments: formData.proratePayments,
-      gracePeriodDays: formData.gracePeriodDays,
+      gracePeriodDays: formData.gracePeriodDays ?? 0,
       paymentReminders: formData.paymentReminders,
     };
     updateSettings(payload);
@@ -102,11 +109,10 @@ export function SubscriptionSettingsTab() {
           <Label htmlFor="trial-duration" className="text-base font-medium text-gray-900">
             Trial Duration (Days)
           </Label>
-          <Input
+          <NumberInput
             id="trial-duration"
-            type="number"
             value={formData.trialDurationDays}
-            onChange={(e) => handleInputChange('trialDurationDays', parseInt(e.target.value) || 0)}
+            onChange={(value) => handleInputChange('trialDurationDays', value)}
             className="w-32"
           />
         </div>
@@ -145,11 +151,10 @@ export function SubscriptionSettingsTab() {
             Grace Period
           </Label>
           <p className="text-sm text-gray-600">Days after payment failure before suspension</p>
-          <Input
+          <NumberInput
             id="grace-period"
-            type="number"
             value={formData.gracePeriodDays}
-            onChange={(e) => handleInputChange('gracePeriodDays', parseInt(e.target.value) || 0)}
+            onChange={(value) => handleInputChange('gracePeriodDays', value)}
             className="w-32"
           />
         </div>

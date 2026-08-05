@@ -47,7 +47,7 @@ export default function ExpenseViewModal({ expense }: ExpenseViewModalProps) {
 
       <div>
         <Row label="Date" value={date} />
-        <Row label="Vendor" value={expense?.vendor?.displayName || expense?.vendorId || "—"} />
+        <Row label="Vendor" value={expense?.vendor?.displayName || expense?.vendorName || "—"} />
         <Row label="Expense Account" value={expense?.expenseAccount?.name || expense?.expenseAccountId || "—"} />
         <Row label="Payment Account" value={expense?.paymentAccount?.name || expense?.paymentAccountId || "—"} />
         <Row label="Payment Method" value={expense?.paymentMethod?.replace(/_/g, " ")} />

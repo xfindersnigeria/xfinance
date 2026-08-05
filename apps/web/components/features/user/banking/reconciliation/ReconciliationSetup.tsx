@@ -1,6 +1,7 @@
 "use client";
 
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
 import { ReconciliationSetupValues } from "./types";
 import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
@@ -52,13 +53,10 @@ export default function ReconciliationSetup({
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-medium">
               {sym}
             </span>
-            <Input
-              type="number"
-              min={0}
-              step="0.01"
+            <NumberInput
               value={values.statementEndingBalance}
-              onChange={(e) =>
-                onChange({ ...values, statementEndingBalance: parseFloat(e.target.value) || 0 })
+              onChange={(val) =>
+                onChange({ ...values, statementEndingBalance: val ?? 0 })
               }
               className={`pl-7 ${inputCls}`}
               placeholder="0.00"

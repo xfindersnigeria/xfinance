@@ -119,6 +119,39 @@ export const useCreateAccount = (
   });
 };
 
+export const useCreateAccountForEntities = (
+  options?: UseMutationOptions<
+    any,
+    Error,
+    {
+      name: string;
+      subCategoryId: string;
+      description?: string;
+      entityIds: string[];
+      groupId?: string;
+    }
+  >,
+) => {
+  const queryClient = useQueryClient();
+  const { closeModal } = useModal();
+
+  return useMutation({
+    mutationFn: accountsService.createAccountForEntities,
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["account-categories"] });
+      toast.success(data?.message || "Account created successfully");
+      closeModal(MODAL.ACCOUNT_CATEGORY_CREATE);
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to create account",
+      );
+    },
+    ...options,
+  });
+};
+
 export const useUpdateAccount = (
   options?: UseMutationOptions<any, Error, { id: string; data: UpdateAccountInput }>,
 ) => {
