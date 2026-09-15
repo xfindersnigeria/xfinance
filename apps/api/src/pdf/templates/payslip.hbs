@@ -74,11 +74,11 @@
   <table class="earnings-table">
     <thead><tr><th>Description</th><th style="text-align:right;">Amount</th></tr></thead>
     <tbody>
-      <tr><td>Basic Salary</td><td style="text-align:right;" class="amount-green">{{record.entity.currency}} {{record.basicSalary}}</td></tr>
-      {{#if record.allowances}}<tr><td>Allowances</td><td style="text-align:right;" class="amount-green">{{record.entity.currency}} {{record.allowances}}</td></tr>{{/if}}
-      {{#if record.bonus}}<tr><td>Bonus</td><td style="text-align:right;" class="amount-green">{{record.entity.currency}} {{record.bonus}}</td></tr>{{/if}}
-      {{#if record.overtime}}<tr><td>Overtime</td><td style="text-align:right;" class="amount-green">{{record.entity.currency}} {{record.overtime}}</td></tr>{{/if}}
-      <tr style="background:#f8fafc;font-weight:700;"><td>Gross Pay</td><td style="text-align:right;">{{record.entity.currency}} {{record.grossPay}}</td></tr>
+      <tr><td>Basic Salary</td><td style="text-align:right;" class="amount-green">{{record.entity.currency}} {{formatCurrency record.basicSalary}}</td></tr>
+      {{#if record.allowances}}<tr><td>Allowances</td><td style="text-align:right;" class="amount-green">{{record.entity.currency}} {{formatCurrency record.allowances}}</td></tr>{{/if}}
+      {{#if record.bonus}}<tr><td>Bonus</td><td style="text-align:right;" class="amount-green">{{record.entity.currency}} {{formatCurrency record.bonus}}</td></tr>{{/if}}
+      {{#if record.overtime}}<tr><td>Overtime</td><td style="text-align:right;" class="amount-green">{{record.entity.currency}} {{formatCurrency record.overtime}}</td></tr>{{/if}}
+      <tr style="background:#f8fafc;font-weight:700;"><td>Gross Pay</td><td style="text-align:right;">{{record.entity.currency}} {{formatCurrency record.grossPay}}</td></tr>
     </tbody>
   </table>
 
@@ -87,16 +87,43 @@
   <table class="deductions-table">
     <thead><tr><th>Description</th><th style="text-align:right;">Amount</th></tr></thead>
     <tbody>
-      {{#if record.statutoryDed}}<tr><td>Statutory Deductions (PAYE, NHIS, Pension)</td><td style="text-align:right;" class="amount-red">- {{record.entity.currency}} {{record.statutoryDed}}</td></tr>{{/if}}
-      {{#if record.otherDed}}<tr><td>Other Deductions</td><td style="text-align:right;" class="amount-red">- {{record.entity.currency}} {{record.otherDed}}</td></tr>{{/if}}
-      <tr style="background:#f8fafc;font-weight:700;"><td>Total Deductions</td><td style="text-align:right;" class="amount-red">- {{record.entity.currency}} {{record.statutoryDed}}</td></tr>
+      {{#each record.deductionBreakdown.statutory}}
+        {{#if this.amount}}<tr><td>{{this.name}}</td><td style="text-align:right;" class="amount-red">- {{../record.entity.currency}} {{formatCurrency this.amount}}</td></tr>{{/if}}
+      {{else}}
+        {{#if record.statutoryDed}}<tr><td>Statutory Deductions</td><td style="text-align:right;" class="amount-red">- {{record.entity.currency}} {{formatCurrency record.statutoryDed}}</td></tr>{{/if}}
+      {{/each}}
+      {{#each record.deductionBreakdown.other}}
+        {{#if this.amount}}<tr><td>{{this.name}}</td><td style="text-align:right;" class="amount-red">- {{../record.entity.currency}} {{formatCurrency this.amount}}</td></tr>{{/if}}
+      {{else}}
+        {{#if record.otherDed}}<tr><td>Other Deductions</td><td style="text-align:right;" class="amount-red">- {{record.entity.currency}} {{formatCurrency record.otherDed}}</td></tr>{{/if}}
+      {{/each}}
+      <tr style="background:#f8fafc;font-weight:700;"><td>Total Deductions</td><td style="text-align:right;" class="amount-red">- {{record.entity.currency}} {{formatCurrency record.deductionsTotal}}</td></tr>
     </tbody>
   </table>
+
+  {{#if record.deductionBreakdown.payeDetail}}
+  <div class="section-title">How Your Tax Was Calculated (Annual Basis)</div>
+  <table class="deductions-table">
+    <thead><tr><th>Description</th><th style="text-align:right;">Annual Amount</th></tr></thead>
+    <tbody>
+      <tr><td>Annual Gross Income</td><td style="text-align:right;">{{record.entity.currency}} {{formatCurrency record.deductionBreakdown.payeDetail.annualGross}}</td></tr>
+      {{#if record.deductionBreakdown.payeDetail.rentRelief}}<tr><td>Less: Rent Relief</td><td style="text-align:right;" class="amount-red">- {{record.entity.currency}} {{formatCurrency record.deductionBreakdown.payeDetail.rentRelief}}</td></tr>{{/if}}
+      {{#each record.deductionBreakdown.payeDetail.deductionLines}}
+        {{#if this.amount}}<tr><td>Less: {{this.name}}</td><td style="text-align:right;" class="amount-red">- {{../record.entity.currency}} {{formatCurrency this.amount}}</td></tr>{{/if}}
+      {{/each}}
+      <tr style="background:#f8fafc;font-weight:700;"><td>Chargeable Income</td><td style="text-align:right;">{{record.entity.currency}} {{formatCurrency record.deductionBreakdown.payeDetail.chargeableIncome}}</td></tr>
+      {{#each record.deductionBreakdown.payeDetail.taxBandBreakdown}}
+        {{#if this.amount}}<tr><td>Tax on band {{formatCurrency this.from}} – {{#if this.to}}{{formatCurrency this.to}}{{else}}above{{/if}} @ {{this.rate}}%</td><td style="text-align:right;" class="amount-red">{{../record.entity.currency}} {{formatCurrency this.amount}}</td></tr>{{/if}}
+      {{/each}}
+      <tr style="background:#f8fafc;font-weight:700;"><td>Annual PAYE Tax</td><td style="text-align:right;" class="amount-red">{{record.entity.currency}} {{formatCurrency record.deductionBreakdown.payeDetail.annualTax}}</td></tr>
+    </tbody>
+  </table>
+  {{/if}}
 
   <!-- Net Pay -->
   <div class="net-pay-box">
     <div class="net-pay-label">NET PAY</div>
-    <div class="net-pay-amount">{{record.entity.currency}} {{record.netPay}}</div>
+    <div class="net-pay-amount">{{record.entity.currency}} {{formatCurrency record.netPay}}</div>
   </div>
 
   <div class="footer">

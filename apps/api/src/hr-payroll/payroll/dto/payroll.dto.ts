@@ -8,6 +8,14 @@ export enum PayrollStatus {
   Rejected = 'Rejected',
 }
 
+export class PreviewDeductionDto {
+  @IsNotEmpty() @IsString() employeeId: string;
+  @IsNumber() basicSalary: number;
+  @IsOptional() @IsNumber() allowances?: number;
+  @IsOptional() @IsNumber() bonus?: number;
+  @IsOptional() @IsNumber() overtime?: number;
+}
+
 export class PayrollEmployeeDto {
   @IsNotEmpty() @IsString() employeeId: string;
   @IsNumber() basicSalary: number;

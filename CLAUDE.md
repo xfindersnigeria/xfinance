@@ -154,6 +154,10 @@ Steps required for every fresh standalone setup before the app is usable:
 5. Run `npm run setup:standalone` with `STANDALONE_GROUP_NAME` and
    `STANDALONE_GROUP_EMAIL` set in env. Copy the printed group ID into
    `DEFAULT_GROUP_ID` in `.env`, then restart the app.
+6. If migrating an existing deployment onto the statutory-deduction seeding
+   added in Goal 21, backfill default deductions onto all existing entities:
+   `npm run backfill:statutory-deductions` (from `apps/api/`, idempotent, safe
+   to re-run — new entities get these seeded automatically on creation).
 
 ## Settings Module — Conventions
 
@@ -217,7 +221,13 @@ Frontend components exist for these but backend endpoints may not. These were NO
 
 - [x] **Goal 20** — Audit logging system: `AuditLogInterceptor` already globally registered; improved module extraction (first 1-2 meaningful path segments, skips IDs/UUIDs); now also captures `impersonatedGroupId`/`impersonatedEntityId` from request headers; `GET /audit/logs` uses auth-context groupId (not query param), includes entity name, supports page/limit; `GET /audit/modules` returns distinct module names for filter; frontend `AuditTrail` fully wired with module/entity/action/date-range filters + clear button, pagination, detail sheet on row click showing all fields including changes JSON, IP, userAgent, impersonation context; `auditService.ts` + `useAudit.ts` hooks added.
 
+- [x] **Goal 21** — PAYE recalculated to match the Nigeria Tax Act 2025 progressive bands (effective 2026): new `PayrollService.computeAnnualPaye()` shared helper (rent relief `MIN(20%×annualRent, 500000)` + active eligible statutory deductions reduce chargeable income *before* tiered tax bands apply) replaces three previously-diverging implementations — `getPrefillData` was applying tiered tax to raw monthly salary (no annualization), `buildDeductionBreakdown` (the one that actually produced payslip/netPay figures) skipped the chargeable-income step entirely and taxed annualized gross directly, and `getPayeReport` had the only correct version but used inconsistent FIXED_AMOUNT annualization and threshold units; all three now share one implementation. `statutoryDed` on `PayrollRecord` is now always server-computed from `buildDeductionBreakdown` (the frontend's "Statutory Ded." field became a display-only summary — editing it client-side had no effect and was misleading). `PayrollRecord.deductionBreakdown` JSON now carries a `payeDetail` block (rent relief, chargeable income, per-band tax amounts) so `payslip.hbs` renders a full itemized per-employee breakdown (each statutory/other deduction on its own line, plus a "how your tax was calculated" section) instead of one lumped "Statutory Deductions (PAYE, NHIS, Pension)" line — the old template also had a bug where "Total Deductions" only showed `statutoryDed`, ignoring `otherDed`, now fixed via a server-computed `deductionsTotal`. New idempotent seeder `seed-statutory-deductions.ts` (NHF 2.5%, NHIS 1.75%, pension 8%, PAYE tiered) hooked into the existing `create-entity-user` BullMQ job so every new entity gets these automatically instead of an admin hand-building the tiered PAYE table; `backfill-statutory-deductions.ts` seeds existing entities. Added an active/inactive `Switch` to `StatutoryDeductionForm`/`OtherDeductionForm` — the `status` column and its calculation-time filtering already existed end-to-end, but no UI could actually change it.
+
 ## Rules for the Agent
 - Never modify the database directly — only via Prisma migrations
 - Always ask before making breaking changes to existing API contracts
 - Keep all existing features working in both deployment modes
+
+## CV / experience log
+
+The engineering work on this project is tracked for CV-building purposes in `~/projects/me/my-experience.md`, under its `## X-Finance` section (that file has one section per project across everything the user works on — see `~/projects/me/status.md` for the cross-project tracker this belongs to). Whenever a session produces a new learning point worth that file — a non-trivial architectural/domain-modeling decision (and the reasoning), a hard bug diagnosed and fixed (this is financial software — ledger/balance correctness bugs are especially worth capturing), a data-integrity or migration issue solved, a security fix, or a piece of engineering process enforced — append a concrete entry to that section before ending the session. Create the section if it's missing. Write entries as resume-bullet-ready facts: specific problem → specific solution → specific impact, not generic summaries, and not anything already fully covered there. Don't touch other projects' sections in that file.

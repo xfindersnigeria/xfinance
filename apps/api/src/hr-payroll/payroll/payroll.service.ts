@@ -10,32 +10,75 @@ export class PayrollService {
     private bullmqService: BullmqService,
   ) {}
 
+  /**
+   * Nigeria Tax Act 2025 PAYE (effective 2026): rent relief + active eligible
+   * statutory deductions (NHF, NHIS, pension, etc.) reduce chargeable income
+   * BEFORE the progressive tax bands apply. `periodGross` (not annualized) is
+   * used for FIXED_AMOUNT minAmount threshold checks, matching the form's
+   * "minimum salary" semantics.
+   */
+  private computeAnnualPaye(
+    annualGross: number,
+    periodGross: number,
+    annualRentPaid: number,
+    eligibleDeductions: { id?: string; name: string; type: string; rate?: number | null; fixedAmount?: number | null; minAmount?: number | null }[],
+    payeTiers: { from: number; to?: number | null; rate: number }[],
+  ) {
+    const rentRelief = Math.min(annualRentPaid * 0.2, 500000);
+
+    const deductionLines = eligibleDeductions.map((d) => {
+      let amount = 0;
+      if (d.type === 'PERCENTAGE' && d.rate != null) {
+        amount = (d.rate / 100) * annualGross;
+      } else if (d.type === 'FIXED_AMOUNT' && d.fixedAmount != null) {
+        if (!d.minAmount || periodGross >= d.minAmount) amount = d.fixedAmount * 12;
+      }
+      return { id: d.id, name: d.name, amount: Math.round(amount * 100) / 100 };
+    });
+
+    const totalAllowable = rentRelief + deductionLines.reduce((s, d) => s + d.amount, 0);
+    const chargeableIncome = Math.max(annualGross - totalAllowable, 0);
+
+    const taxBandBreakdown = payeTiers.map((tier) => {
+      const upper = tier.to ?? Infinity;
+      const bracketIncome = Math.min(chargeableIncome, upper) - tier.from;
+      const amount = bracketIncome > 0 ? Math.round(bracketIncome * (tier.rate / 100) * 100) / 100 : 0;
+      return { label: `${tier.rate}%`, from: tier.from, to: tier.to ?? null, rate: tier.rate, amount };
+    });
+    const annualTax = taxBandBreakdown.reduce((s, t) => s + t.amount, 0);
+
+    return {
+      rentRelief: Math.round(rentRelief * 100) / 100,
+      deductionLines,
+      totalAllowable: Math.round(totalAllowable * 100) / 100,
+      chargeableIncome: Math.round(chargeableIncome * 100) / 100,
+      taxBandBreakdown,
+      annualTax: Math.round(annualTax * 100) / 100,
+      monthlyTax: Math.round((annualTax / 12) * 100) / 100,
+    };
+  }
+
   /** Compute individual deduction amounts for a single payroll record snapshot. */
   private buildDeductionBreakdown(
-    basicSalary: number,
     grossPay: number,
+    annualRent: number,
     statutoryDeductions: any[],
     otherDeductions: any[],
   ) {
     const annualGross = grossPay * 12;
+    const tieredDed = statutoryDeductions.find((d) => d.type === 'TIERED');
+    const eligibleDeds = statutoryDeductions.filter((d) => d.type !== 'TIERED');
 
-    const statutory = statutoryDeductions.map((d) => {
-      let amount = 0;
-      if (d.type === 'PERCENTAGE' && d.rate != null) {
-        amount = (d.rate / 100) * grossPay;
-      } else if (d.type === 'FIXED_AMOUNT' && d.fixedAmount != null) {
-        if (!d.minAmount || grossPay >= d.minAmount) amount = d.fixedAmount;
-      } else if (d.type === 'TIERED' && d.tiers?.length) {
-        const annualTax = d.tiers.reduce((tax: number, tier: any) => {
-          const upper = tier.to ?? Infinity;
-          const bracketIncome = Math.min(annualGross, upper) - tier.from;
-          if (bracketIncome <= 0) return tax;
-          return tax + bracketIncome * (tier.rate / 100);
-        }, 0);
-        amount = annualTax / 12;
-      }
-      return { id: d.id, name: d.name, type: d.type, amount: Math.round(amount * 100) / 100 };
+    const paye = this.computeAnnualPaye(annualGross, grossPay, annualRent, eligibleDeds, tieredDed?.tiers ?? []);
+
+    const statutory = eligibleDeds.map((d) => {
+      const line = paye.deductionLines.find((l) => l.id === d.id);
+      return { id: d.id, name: d.name, type: d.type, amount: Math.round(((line?.amount ?? 0) / 12) * 100) / 100 };
     });
+
+    if (tieredDed) {
+      statutory.push({ id: tieredDed.id, name: tieredDed.name, type: tieredDed.type, amount: paye.monthlyTax });
+    }
 
     const other = otherDeductions.map((d) => {
       let amount = 0;
@@ -44,7 +87,19 @@ export class PayrollService {
       return { id: d.id, name: d.name, amount: Math.round(amount * 100) / 100 };
     });
 
-    return { statutory, other };
+    return {
+      statutory,
+      other,
+      payeDetail: {
+        rentRelief: paye.rentRelief,
+        annualGross,
+        deductionLines: paye.deductionLines,
+        totalAllowable: paye.totalAllowable,
+        chargeableIncome: paye.chargeableIncome,
+        taxBandBreakdown: paye.taxBandBreakdown,
+        annualTax: paye.annualTax,
+      },
+    };
   }
 
   /** Frequency multiplier for annualising monthly/weekly salary. */
@@ -61,6 +116,40 @@ export class PayrollService {
    * Return all active employees with prefilled salary data + suggested deductions
    * from entity's statutory and other deduction settings.
    */
+  /**
+   * Recompute the statutory deduction for one employee against arbitrary
+   * (possibly unsaved) earnings figures — used by the payroll form to keep
+   * "Statutory Ded." live as an admin edits basic salary/allowances/bonus/
+   * overtime, instead of leaving it pinned to the initial prefill suggestion.
+   */
+  async previewDeduction(
+    entityId: string,
+    employeeId: string,
+    basicSalary: number,
+    allowances: number,
+    bonus: number,
+    overtime: number,
+  ) {
+    const [employee, statutoryDeductions, otherDeductions] = await Promise.all([
+      this.prisma.employee.findFirst({ where: { id: employeeId, entityId }, select: { annualRent: true } }),
+      this.prisma.statutoryDeduction.findMany({
+        where: { entityId, status: 'active' },
+        select: { id: true, name: true, type: true, rate: true, fixedAmount: true, minAmount: true, tiers: { orderBy: { from: 'asc' } } },
+      }),
+      this.prisma.otherDeduction.findMany({
+        where: { entityId, status: 'active' },
+        select: { id: true, name: true, type: true, rate: true },
+      }),
+    ]);
+    if (!employee) throw new HttpException('Employee not found', HttpStatus.NOT_FOUND);
+
+    const grossPay = basicSalary + (allowances ?? 0) + (bonus ?? 0) + (overtime ?? 0);
+    const deductionBreakdown = this.buildDeductionBreakdown(grossPay, employee.annualRent ?? 0, statutoryDeductions, otherDeductions);
+    const statutoryDed = Math.round(deductionBreakdown.statutory.reduce((s, d) => s + d.amount, 0) * 100) / 100;
+
+    return { data: { statutoryDed, deductionBreakdown } };
+  }
+
   async getPrefillData(entityId: string) {
     const [employees, statutoryDeductions, otherDeductions] = await Promise.all([
       this.prisma.employee.findMany({
@@ -68,50 +157,29 @@ export class PayrollService {
         select: {
           id: true, firstName: true, lastName: true, position: true,
           salary: true, allowances: true, currency: true, departmentId: true,
+          annualRent: true,
           dept: { select: { name: true } },
         },
         orderBy: { firstName: 'asc' },
       }),
       this.prisma.statutoryDeduction.findMany({
         where: { entityId, status: 'active' },
-        select: { type: true, rate: true, fixedAmount: true, minAmount: true, tiers: { orderBy: { from: 'asc' } } },
+        select: { id: true, name: true, type: true, rate: true, fixedAmount: true, minAmount: true, tiers: { orderBy: { from: 'asc' } } },
       }),
       this.prisma.otherDeduction.findMany({
         where: { entityId, status: 'active' },
-        select: { type: true, rate: true },
+        select: { id: true, name: true, type: true, rate: true },
       }),
     ]);
 
     const employeesWithSuggestions = employees.map((emp) => {
       const salary = emp.salary ?? 0;
       const allowances = emp.allowances ?? 0;
+      const grossPay = salary + allowances;
 
-      const suggestedStatutoryDed = statutoryDeductions.reduce((sum, d) => {
-        if (d.type === 'PERCENTAGE' && d.rate) {
-          return sum + (d.rate / 100) * salary;
-        }
-        if (d.type === 'FIXED_AMOUNT' && d.fixedAmount) {
-          // Only apply if salary meets the minimum threshold (if set)
-          if (d.minAmount && salary < d.minAmount) return sum;
-          return sum + d.fixedAmount;
-        }
-        if (d.type === 'TIERED' && d.tiers?.length) {
-          const tierTax = d.tiers.reduce((tax, tier) => {
-            const upper = tier.to ?? Infinity;
-            const bracketAmount = Math.min(salary, upper) - tier.from;
-            if (bracketAmount <= 0) return tax;
-            return tax + bracketAmount * (tier.rate / 100);
-          }, 0);
-          return sum + tierTax;
-        }
-        return sum;
-      }, 0);
-
-      const suggestedOtherDed = otherDeductions.reduce((sum, d) => {
-        if (d.type === 'PERCENTAGE' && d.rate) return sum + (d.rate / 100) * salary;
-        if (d.type === 'FIXED_AMOUNT' && d.rate) return sum + d.rate;
-        return sum;
-      }, 0);
+      const deductionBreakdown = this.buildDeductionBreakdown(grossPay, emp.annualRent ?? 0, statutoryDeductions, otherDeductions);
+      const suggestedStatutoryDed = deductionBreakdown.statutory.reduce((sum, d) => sum + d.amount, 0);
+      const suggestedOtherDed = deductionBreakdown.other.reduce((sum, d) => sum + d.amount, 0);
 
       return {
         id: emp.id,
@@ -124,6 +192,7 @@ export class PayrollService {
         currency: emp.currency,
         suggestedStatutoryDed: Math.round(suggestedStatutoryDed * 100) / 100,
         suggestedOtherDed: Math.round(suggestedOtherDed * 100) / 100,
+        deductionBreakdown,
       };
     });
 
@@ -135,7 +204,8 @@ export class PayrollService {
    */
   async createBatch(dto: CreatePayrollBatchDto, entityId: string, groupId: string, createdById: string) {
     try {
-      const [statutoryDeductions, otherDeductions] = await Promise.all([
+      const employeeIds = dto.employees.map((e) => e.employeeId);
+      const [statutoryDeductions, otherDeductions, employeeRents] = await Promise.all([
         this.prisma.statutoryDeduction.findMany({
           where: { entityId, status: 'active' },
           select: { id: true, name: true, type: true, rate: true, fixedAmount: true, minAmount: true, tiers: { orderBy: { from: 'asc' } } },
@@ -144,18 +214,23 @@ export class PayrollService {
           where: { entityId, status: 'active' },
           select: { id: true, name: true, type: true, rate: true },
         }),
+        this.prisma.employee.findMany({
+          where: { id: { in: employeeIds }, entityId },
+          select: { id: true, annualRent: true },
+        }),
       ]);
+      const rentByEmployee = new Map(employeeRents.map((e) => [e.id, e.annualRent ?? 0]));
 
       const records = dto.employees.map((emp) => {
         const basicSalary = emp.basicSalary;
         const allowances = emp.allowances ?? 0;
         const bonus = emp.bonus ?? 0;
         const overtime = emp.overtime ?? 0;
-        const statutoryDed = emp.statutoryDed ?? 0;
         const otherDed = emp.otherDed ?? 0;
         const grossPay = basicSalary + allowances + bonus + overtime;
+        const deductionBreakdown = this.buildDeductionBreakdown(grossPay, rentByEmployee.get(emp.employeeId) ?? 0, statutoryDeductions, otherDeductions);
+        const statutoryDed = Math.round(deductionBreakdown.statutory.reduce((s, d) => s + d.amount, 0) * 100) / 100;
         const netPay = grossPay - statutoryDed - otherDed;
-        const deductionBreakdown = this.buildDeductionBreakdown(basicSalary, grossPay, statutoryDeductions, otherDeductions);
         return { employeeId: emp.employeeId, basicSalary, allowances, bonus, overtime, statutoryDed, otherDed, grossPay, netPay, deductionBreakdown, entityId, groupId };
       });
 
@@ -195,7 +270,7 @@ export class PayrollService {
       if (!batch) throw new HttpException('Payroll batch not found', HttpStatus.NOT_FOUND);
       if (batch.status === 'Approved') throw new HttpException('Cannot edit an approved payroll batch', HttpStatus.FORBIDDEN);
 
-      const [statutoryDeductions, otherDeductions] = dto.employees?.length
+      const [statutoryDeductions, otherDeductions, employeeRents] = dto.employees?.length
         ? await Promise.all([
             this.prisma.statutoryDeduction.findMany({
               where: { entityId, status: 'active' },
@@ -205,17 +280,24 @@ export class PayrollService {
               where: { entityId, status: 'active' },
               select: { id: true, name: true, type: true, rate: true },
             }),
+            this.prisma.employee.findMany({
+              where: { id: { in: dto.employees.map((e) => e.employeeId) }, entityId },
+              select: { id: true, annualRent: true },
+            }),
           ])
-        : [[], []];
+        : [[], [], []];
+      const rentByEmployee = new Map(employeeRents.map((e: any) => [e.id, e.annualRent ?? 0]));
 
       const updated = await this.prisma.$transaction(async (tx) => {
         if (dto.employees?.length) {
           await tx.payrollRecord.deleteMany({ where: { batchId: id } });
           const records = dto.employees.map((emp) => {
             const gross = emp.basicSalary + (emp.allowances ?? 0) + (emp.bonus ?? 0) + (emp.overtime ?? 0);
-            const net = gross - (emp.statutoryDed ?? 0) - (emp.otherDed ?? 0);
-            const deductionBreakdown = this.buildDeductionBreakdown(emp.basicSalary, gross, statutoryDeductions, otherDeductions);
-            return { employeeId: emp.employeeId, basicSalary: emp.basicSalary, allowances: emp.allowances ?? 0, bonus: emp.bonus ?? 0, overtime: emp.overtime ?? 0, statutoryDed: emp.statutoryDed ?? 0, otherDed: emp.otherDed ?? 0, grossPay: gross, netPay: net, deductionBreakdown, entityId, groupId: batch.groupId };
+            const otherDed = emp.otherDed ?? 0;
+            const deductionBreakdown = this.buildDeductionBreakdown(gross, rentByEmployee.get(emp.employeeId) ?? 0, statutoryDeductions, otherDeductions);
+            const statutoryDed = Math.round(deductionBreakdown.statutory.reduce((s, d) => s + d.amount, 0) * 100) / 100;
+            const net = gross - statutoryDed - otherDed;
+            return { employeeId: emp.employeeId, basicSalary: emp.basicSalary, allowances: emp.allowances ?? 0, bonus: emp.bonus ?? 0, overtime: emp.overtime ?? 0, statutoryDed, otherDed, grossPay: gross, netPay: net, deductionBreakdown, entityId, groupId: batch.groupId };
           });
           await tx.payrollRecord.createMany({ data: records.map(r => ({ ...r, batchId: id })) });
           const totalAmount = records.reduce((s, r) => s + r.netPay, 0);
@@ -437,7 +519,7 @@ export class PayrollService {
               select: {
                 id: true, firstName: true, lastName: true, position: true,
                 employeeId: true, bankName: true, acountType: true, accountNumber: true,
-                currency: true, dept: { select: { name: true } },
+                currency: true, annualRent: true, dept: { select: { name: true } },
               },
             },
             batch: { select: { batchName: true, period: true, paymentDate: true, paymentMethod: true, status: true } },
@@ -457,7 +539,7 @@ export class PayrollService {
 
       // Use stored breakdown if available, otherwise compute from current settings
       const deductionBreakdown = (record.deductionBreakdown as any) ??
-        this.buildDeductionBreakdown(record.basicSalary, record.grossPay, statutoryDeductions, otherDeductions);
+        this.buildDeductionBreakdown(record.grossPay, (record.employee as any)?.annualRent ?? 0, statutoryDeductions, otherDeductions);
 
       return { data: { ...record, deductionBreakdown } };
     } catch (error) {
@@ -497,39 +579,15 @@ export class PayrollService {
 
       const payeDeds = statutoryDeductions.filter((d) => d.type === 'TIERED');
       const allowableDeds = statutoryDeductions.filter((d) => d.type !== 'TIERED');
+      const payeDed = payeDeds[0];
 
       const report = employees.map((emp, idx) => {
         const mult = this.frequencyMultiplier(emp.perFrequency);
-        const annualGross = ((emp.salary ?? 0) + (emp.allowances ?? 0)) * mult;
+        const periodGross = (emp.salary ?? 0) + (emp.allowances ?? 0);
+        const annualGross = periodGross * mult;
         const annualRentPaid = emp.annualRent ?? 0;
-        const rentRelief = Math.min(annualRentPaid * 0.20, 500000);
 
-        const deductionLines: { name: string; amount: number }[] = [];
-        let totalAllowable = rentRelief;
-        for (const d of allowableDeds) {
-          let amt = 0;
-          if (d.type === 'PERCENTAGE' && d.rate != null) amt = (d.rate / 100) * annualGross;
-          else if (d.type === 'FIXED_AMOUNT' && d.fixedAmount != null) {
-            if (!d.minAmount || annualGross >= d.minAmount) amt = d.fixedAmount;
-          }
-          amt = Math.round(amt * 100) / 100;
-          deductionLines.push({ name: d.name, amount: amt });
-          totalAllowable += amt;
-        }
-
-        const chargeableIncome = Math.max(annualGross - totalAllowable, 0);
-        const payeDed = payeDeds[0];
-        let annualTax = 0;
-        const taxBandBreakdown: { label: string; from: number; to: number | null; rate: number; amount: number }[] = [];
-        if (payeDed?.tiers?.length) {
-          for (const tier of payeDed.tiers) {
-            const upper = tier.to ?? Infinity;
-            const bracketIncome = Math.min(chargeableIncome, upper) - tier.from;
-            const amt = bracketIncome > 0 ? Math.round(bracketIncome * (tier.rate / 100) * 100) / 100 : 0;
-            annualTax += amt;
-            taxBandBreakdown.push({ label: `${tier.rate}%`, from: tier.from, to: tier.to ?? null, rate: tier.rate, amount: amt });
-          }
-        }
+        const paye = this.computeAnnualPaye(annualGross, periodGross, annualRentPaid, allowableDeds, payeDed?.tiers ?? []);
 
         return {
           sn: idx + 1,
@@ -540,13 +598,13 @@ export class PayrollService {
           fctTaxpayerId: emp.fctTaxpayerId ?? '',
           annualGross: Math.round(annualGross * 100) / 100,
           annualRentPaid,
-          rentRelief: Math.round(rentRelief * 100) / 100,
-          deductionLines,
-          totalAllowable: Math.round(totalAllowable * 100) / 100,
-          chargeableIncome: Math.round(chargeableIncome * 100) / 100,
-          taxBandBreakdown,
-          annualTax: Math.round(annualTax * 100) / 100,
-          monthlyTax: Math.round((annualTax / 12) * 100) / 100,
+          rentRelief: paye.rentRelief,
+          deductionLines: paye.deductionLines,
+          totalAllowable: paye.totalAllowable,
+          chargeableIncome: paye.chargeableIncome,
+          taxBandBreakdown: paye.taxBandBreakdown,
+          annualTax: paye.annualTax,
+          monthlyTax: paye.monthlyTax,
           remittanceStatus: emp.payrollRecords.length > 0 ? 'Remitted' : 'Pending',
         };
       });

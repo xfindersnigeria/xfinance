@@ -129,6 +129,18 @@ export const changeLeaveStatus = async (id: string, status: string) =>
 export const getPayrollPrefill = async () =>
   apiClient("hr-payroll/payroll/prefill", { method: "GET" });
 
+export const previewPayrollDeduction = async (data: {
+  employeeId: string;
+  basicSalary: number;
+  allowances?: number;
+  bonus?: number;
+  overtime?: number;
+}) =>
+  apiClient("hr-payroll/payroll/preview-deduction", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
 export const createPayrollBatch = async (data: any) =>
   apiClient("hr-payroll/payroll", {
     method: "POST",

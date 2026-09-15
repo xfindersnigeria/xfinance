@@ -46,7 +46,7 @@ function PayslipModal({ row }: { row: any }) {
         ) : record ? (
           <div className="pb-4 text-sm">
             {/* Period header */}
-            <div className="text-center text-xs text-gray-500 mb-3 border-b pb-2">
+            <div className="text-center text-xs text-gray-500 mb-3 border-b pb-2 bg-green-100 rounded-xl">
               <span className="font-medium">Period: {record.batch?.period}</span>
               {record.batch?.paymentDate && (
                 <span className="ml-2">| Pay Date: {new Date(record.batch.paymentDate).toLocaleDateString("en-GB")}</span>

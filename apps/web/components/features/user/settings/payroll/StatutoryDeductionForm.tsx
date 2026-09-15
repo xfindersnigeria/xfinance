@@ -15,6 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { Loader2, Plus, Trash2, Info } from "lucide-react";
@@ -49,6 +50,7 @@ const schema = z
     tiers: z.array(tierSchema).optional(),
     description: z.string().optional(),
     accountId: z.string().optional(),
+    status: z.enum(["active", "inactive"]).optional(),
   })
   .superRefine((val, ctx) => {
     if (val.type === "PERCENTAGE" && (val.rate === undefined || val.rate === null)) {
@@ -102,6 +104,7 @@ export default function StatutoryDeductionForm({ deduction, onSuccess }: Props) 
       minAmount: (deduction as any)?.minAmount ?? undefined,
       description: deduction?.description ?? "",
       accountId: deduction?.accountId ?? "",
+      status: (deduction?.status as "active" | "inactive") ?? "active",
     },
   });
 
@@ -128,6 +131,7 @@ export default function StatutoryDeductionForm({ deduction, onSuccess }: Props) 
       type: values.type,
       description: values.description,
       accountId: values.accountId || undefined,
+      status: values.status,
     };
 
     if (values.type === "PERCENTAGE") {
@@ -351,6 +355,27 @@ export default function StatutoryDeductionForm({ deduction, onSuccess }: Props) 
                 Select the liability account where this deduction will be credited
               </FormDescription>
               <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="status"
+          render={({ field }) => (
+            <FormItem className="flex items-center justify-between rounded-md border px-3 py-2">
+              <div>
+                <FormLabel className="mb-0.5">Active</FormLabel>
+                <FormDescription className="text-xs">
+                  Inactive deductions are excluded from salary calculations
+                </FormDescription>
+              </div>
+              <FormControl>
+                <Switch
+                  checked={field.value !== "inactive"}
+                  onCheckedChange={(checked) => field.onChange(checked ? "active" : "inactive")}
+                />
+              </FormControl>
             </FormItem>
           )}
         />

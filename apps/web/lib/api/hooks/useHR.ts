@@ -258,6 +258,11 @@ export const usePayrollPrefill = () =>
     staleTime: 5 * 60 * 1000,
   });
 
+export const usePreviewPayrollDeduction = () =>
+  useMutation({
+    mutationFn: hrService.previewPayrollDeduction,
+  });
+
 export const useProcessPayroll = () => {
   const queryClient = useQueryClient();
   return useMutation({

@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -24,8 +24,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import dayjs from "dayjs";
 import { Calendar, Users, TrendingUp, CalendarDays, Info } from "lucide-react";
 import { useGroupCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { usePreviewPayrollDeduction } from "@/lib/api/hooks/useHR";
 
 // --- Custom Implementation for Process Payroll ---
+const EARNING_FIELDS = ["basicSalary", "allowances", "bonus", "overtime"];
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
@@ -89,6 +91,14 @@ export default function ProcessPayrollForm({
     initialBatch?.paymentMethod ?? PAYMENT_METHODS[0],
   );
   const [rows, setRows] = useState<any[]>([]);
+  const previewDeduction = usePreviewPayrollDeduction();
+  const debounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  useEffect(() => {
+    return () => {
+      Object.values(debounceTimers.current).forEach(clearTimeout);
+    };
+  }, []);
 
   useEffect(() => {
     if (employees && employees.length > 0) {
@@ -110,9 +120,53 @@ export default function ProcessPayrollForm({
     setSelected(updated);
     setSelectAll(updated.every(Boolean));
   };
+  // Re-fetch the statutory deduction from the backend's PAYE engine whenever
+  // an earning field changes — it depends on gross pay (NHF/NHIS/pension %,
+  // and which tax band chargeable income falls into), so it can't stay fixed
+  // at the value suggested before the admin started editing.
+  const recomputeStatutoryDed = (idx: number, row: any) => {
+    const employeeId = row.id;
+    clearTimeout(debounceTimers.current[employeeId]);
+    debounceTimers.current[employeeId] = setTimeout(() => {
+      previewDeduction.mutate(
+        {
+          employeeId,
+          basicSalary: Number(row.basicSalary) || 0,
+          allowances: Number(row.allowances) || 0,
+          bonus: Number(row.bonus) || 0,
+          overtime: Number(row.overtime) || 0,
+        },
+        {
+          onSuccess: (res: any) => {
+            const statutoryDed = res?.data?.statutoryDed ?? 0;
+            setRows((prev) =>
+              prev.map((r, i) =>
+                i === idx && r.id === employeeId
+                  ? {
+                      ...r,
+                      deductionsStat: statutoryDed,
+                      netPay:
+                        (Number(r.basicSalary) || 0) +
+                        (Number(r.allowances) || 0) +
+                        (Number(r.bonus) || 0) +
+                        (Number(r.overtime) || 0) -
+                        statutoryDed -
+                        (Number(r.deductionsOther) || 0),
+                    }
+                  : r,
+              ),
+            );
+          },
+          // Non-fatal on failure — the previous suggestion stays on screen,
+          // and the backend recomputes this authoritatively on submit anyway.
+        },
+      );
+    }, 400);
+  };
+
   const handleRowChange = (idx: number, key: string, value: any) => {
     const updated = [...rows];
-    updated[idx][key] = value;
+    updated[idx] = { ...updated[idx], [key]: value };
     // recalc net pay — treat a field still being edited (undefined/blank) as 0
     // for this live preview only; the field itself keeps showing blank.
     updated[idx].netPay =
@@ -123,6 +177,10 @@ export default function ProcessPayrollForm({
       (Number(updated[idx].deductionsStat) || 0) -
       (Number(updated[idx].deductionsOther) || 0);
     setRows(updated);
+
+    if (EARNING_FIELDS.includes(key)) {
+      recomputeStatutoryDed(idx, updated[idx]);
+    }
   };
 
   // --- Totals ---
@@ -355,15 +413,15 @@ export default function ProcessPayrollForm({
                   />
                 </div>
 
-                {/* Statutory Ded. */}
+                {/* Statutory Ded. — computed from active statutory deductions (PAYE, NHF, NHIS, pension, etc.), not editable */}
                 <div>
                   <p className="text-xs text-gray-500 mb-1">Statutory Ded.</p>
-                  <NumberInput
-                    className="rounded-xl bg-gray-50"
-                    value={row.deductionsStat}
-                    onChange={(val) =>
-                      handleRowChange(idx, "deductionsStat", val)
-                    }
+                  <Input
+                    type="text"
+                    className="rounded-xl bg-gray-100 text-center"
+                    value={Number(row.deductionsStat || 0).toLocaleString()}
+                    readOnly
+                    tabIndex={-1}
                   />
                 </div>
 

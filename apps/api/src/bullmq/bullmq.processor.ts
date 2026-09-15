@@ -9,6 +9,7 @@ import * as path from 'path';
 import { seedDefaultChartOfAccounts } from '../../seeders/seed-account-chart';
 import { seedDefaultCurrencies } from '../../seeders/seed-currency';
 import { seedDefaultEntityAccounts } from '../../seeders/seed-entity-accounts';
+import { seedDefaultStatutoryDeductions } from '../../seeders/seed-statutory-deductions';
 import { ItemsType, InvoiceActivityType } from 'prisma/generated/enums';
 import { BadRequestException } from '@nestjs/common';
 import { generateJournalReference } from '@/auth/utils/helper';
@@ -436,6 +437,17 @@ export class BullmqProcessor extends WorkerHost {
       } catch (err) {
         this.logger.error(
           `[Job ${job.id}] Failed to seed entity accounts: ${err}`,
+        );
+        // Don't throw - continue with other setup steps
+      }
+
+      // 2. Seed default statutory deductions (NHF, NHIS, Pension, PAYE)
+      try {
+        await seedDefaultStatutoryDeductions(entityId, groupId);
+        this.logger.debug(`[Job ${job.id}] Seeded default statutory deductions for entity`);
+      } catch (err) {
+        this.logger.error(
+          `[Job ${job.id}] Failed to seed statutory deductions: ${err}`,
         );
         // Don't throw - continue with other setup steps
       }
@@ -2410,6 +2422,7 @@ export class BullmqProcessor extends WorkerHost {
       try {
         const recordData = {
           ...record,
+          deductionsTotal: (record.statutoryDed ?? 0) + (record.otherDed ?? 0),
           batch: { batchName: batch.batchName, period: batch.period, paymentDate: batch.paymentDate, paymentMethod: batch.paymentMethod, status: batch.status },
         };
         const pdfBuffer = await this.pdfService.generate('payslip', { record: recordData, primaryColor });

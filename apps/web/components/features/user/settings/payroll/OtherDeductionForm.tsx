@@ -10,10 +10,12 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import {
@@ -35,6 +37,7 @@ const schema = z.object({
   type: z.enum(["PERCENTAGE", "FIXED_AMOUNT"]),
   rate: z.number().min(0, "Rate/amount must be 0 or more"),
   description: z.string().optional(),
+  status: z.enum(["active", "inactive"]).optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -62,6 +65,7 @@ export default function OtherDeductionForm({ deduction, onSuccess }: Props) {
       type: deduction?.type ?? "FIXED_AMOUNT",
       rate: deduction?.rate ?? (undefined as any),
       description: deduction?.description ?? "",
+      status: (deduction?.status as "active" | "inactive") ?? "active",
     },
   });
 
@@ -152,6 +156,27 @@ export default function OtherDeductionForm({ deduction, onSuccess }: Props) {
                 />
               </FormControl>
               <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="status"
+          render={({ field }) => (
+            <FormItem className="flex items-center justify-between rounded-md border px-3 py-2">
+              <div>
+                <FormLabel className="mb-0.5">Active</FormLabel>
+                <FormDescription className="text-xs">
+                  Inactive deductions are excluded from salary calculations
+                </FormDescription>
+              </div>
+              <FormControl>
+                <Switch
+                  checked={field.value !== "inactive"}
+                  onCheckedChange={(checked) => field.onChange(checked ? "active" : "inactive")}
+                />
+              </FormControl>
             </FormItem>
           )}
         />
