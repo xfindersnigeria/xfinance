@@ -4,9 +4,10 @@ import { apiClient } from "../client";
 /**
  * Asset Endpoints
  */
-export const getAssets = async (params?: { search?: string }) => {
+export const getAssets = async (params?: { search?: string; categoryId?: string }) => {
   const queryParams = new URLSearchParams();
   if (params?.search) queryParams.append("search", params.search);
+  if (params?.categoryId) queryParams.append("categoryId", params.categoryId);
 
   const queryString = queryParams.toString();
   const url = queryString ? `asset?${queryString}` : "asset";
@@ -17,62 +18,86 @@ export const getAssetById = async (id: string) => {
   return apiClient(`asset/${id}`, { method: "GET" });
 };
 
-export const createAsset = async (data: {
+export interface AssetPayload {
   name: string;
-  type: string;
-  departmentId: string;
-  assignedId: string;
-  description?: string;
-  purchaseDate: string;
+  categoryId: string;
+  status: "in_use" | "in_storage";
   purchaseCost: number;
-  currentValue: number;
-  expiryDate?: string;
-  depreciationMethod: string;
-  years: number;
-  salvageValue: number;
-  trackDepreciation: boolean;
-  activeAsset: boolean;
-}) => {
+  purchaseDate: string;
+  /** Carried-over accumulated depreciation; null clears it */
+  openingAccumulatedDepreciation?: number | null;
+}
+
+export const createAsset = async (data: AssetPayload) => {
   return apiClient("asset", {
     method: "POST",
     body: JSON.stringify(data),
-    // headers: {
-    //   "Content-Type": "application/json",
-    // },
   });
 };
 
-export const updateAsset = async (
-  id: string,
-  data: {
-    name?: string;
-    type?: string;
-    departmentId?: string;
-    assignedId?: string;
-    description?: string;
-    purchaseDate?: string;
-    purchaseCost?: number;
-    currentValue?: number;
-    expiryDate?: string;
-    depreciationMethod?: string;
-    years?: number;
-    salvageValue?: number;
-    trackDepreciation?: boolean;
-    activeAsset?: boolean;
-  },
-) => {
+export const updateAsset = async (id: string, data: Partial<AssetPayload>) => {
   return apiClient(`asset/${id}`, {
     method: "PATCH",
     body: JSON.stringify(data),
-    // headers: {
-      // "Content-Type": "application/json",
-    // },
   });
 };
 
 export const deleteAsset = async (id: string) => {
   return apiClient(`asset/${id}`, { method: "DELETE" });
 };
+
+// ────────────────────────────────────────────────
+// Asset Category Endpoints
+// ────────────────────────────────────────────────
+
+export interface AssetCategory {
+  id: string;
+  name: string;
+  depreciationRate: number;
+  description?: string | null;
+  assetCount: number;
+}
+
+export interface AssetCategoryPayload {
+  name: string;
+  depreciationRate: number;
+  description?: string;
+}
+
+export interface DepreciationScheduleRow {
+  categoryId: string | null;
+  name: string;
+  depreciationRate: number | null;
+  assetCount: number;
+  openingBalance: number;
+  additions: number;
+  totalCost: number;
+  depreciationForYear: number;
+  openingAccumulated: number;
+  totalAccumulated: number;
+  netBookValue: number;
+}
+
+export interface DepreciationSchedule {
+  fiscalYear: { start: string; end: string };
+  rows: DepreciationScheduleRow[];
+  totals: Omit<DepreciationScheduleRow, "categoryId" | "name" | "depreciationRate" | "assetCount">;
+}
+
+export const getAssetCategories = async () =>
+  apiClient<{ data: AssetCategory[] }>("asset-categories", { method: "GET" });
+
+export const getAssetDepreciationSchedule = async () =>
+  apiClient<{ data: DepreciationSchedule }>("asset-categories/schedule", { method: "GET" });
+
+export const createAssetCategory = async (data: AssetCategoryPayload) =>
+  apiClient("asset-categories", { method: "POST", body: JSON.stringify(data) });
+
+export const updateAssetCategory = async (id: string, data: Partial<AssetCategoryPayload>) =>
+  apiClient(`asset-categories/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+
+export const deleteAssetCategory = async (id: string) =>
+  apiClient(`asset-categories/${id}`, { method: "DELETE" });
 
 
 // ────────────────────────────────────────────────

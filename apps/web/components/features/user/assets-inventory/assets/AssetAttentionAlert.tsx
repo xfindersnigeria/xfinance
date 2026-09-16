@@ -1,20 +1,42 @@
 import { AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import type { AssetSummary } from "./AssetsHeader";
 
-export default function AssetAttentionAlert() {
+export default function AssetAttentionAlert({
+  summary,
+  onReviewUncategorised,
+}: {
+  summary: AssetSummary;
+  onReviewUncategorised: () => void;
+}) {
+  if (!summary.total) return null;
+
+  let message: string;
+  let action: React.ReactNode = null;
+  if (summary.uncategorised > 0) {
+    message = `${summary.uncategorised} asset(s) have no category and are not being depreciated. Edit them to assign a category.`;
+    action = (
+      <Button size="sm" variant="outline" className="shrink-0" onClick={onReviewUncategorised}>
+        Review
+      </Button>
+    );
+  } else if (summary.fullyDepreciated > 0) {
+    message = `${summary.fullyDepreciated} asset(s) are fully depreciated and carry zero book value. Review them for disposal.`;
+  } else {
+    message =
+      "Depreciation is computed at each category's rate for the current financial year. Click on any category to view individual assets.";
+  }
+
   return (
-    <div className="flex items-start gap-3 p-4 mb-4 rounded-xl border border-red-100 bg-linear-to-br from-red-50 to-white mt-3">
-      <span className="mt-1 text-red-500">
-        <AlertCircle className="w-5 h-5" />
-      </span>
-      <div>
-        <div className="font-semibold text-red-700">
-          Asset Attention Required:
-          <span className="font-normal text-gray-700"> You have 1 asset(s) with low or zero value.</span>
-        </div>
-        <div className="text-sm text-gray-500">
-          Click "Review" on highlighted assets to dispose them and remove from records.
-        </div>
+    <div className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-start gap-3 text-sm">
+        <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+        <p>
+          <span className="font-semibold text-amber-700">Asset Attention Required: </span>
+          <span className="text-foreground">{message}</span>
+        </p>
       </div>
+      {action}
     </div>
   );
 }

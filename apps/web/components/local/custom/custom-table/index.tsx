@@ -158,14 +158,14 @@ export function CustomTable<T extends { [key: string]: any }>({
 
   return (
     <div className={cn("w-full bg-white p-4 rounded-2xl shadow-md", className)}>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div>
           <h2 className="font-normal text-base">{tableTitle}</h2>
           {tableSubtitle && (
             <p className="text-sm text-gray-500">{tableSubtitle}</p>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {headerActions}
           {selectableRows && selectedRows.length > 0 && (
             <Button

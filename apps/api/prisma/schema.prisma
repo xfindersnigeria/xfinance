@@ -93,6 +93,7 @@ model Entity {
   updatedAt            DateTime               @default(now()) @updatedAt
   account              Account[]
   asset                Asset[]
+  assetCategories      AssetCategory[]
   attendance           AttendanceLog[]
   bills                Bills[]
   budget               Budget[]
@@ -634,33 +635,58 @@ model CollectionStoreItem {
 }
 
 model Asset {
-  id                 String      @id @default(cuid())
-  serialNumber       String      @unique
-  name               String
-  type               String
-  departmentId       String?
-  department         Department? @relation(fields: [departmentId], references: [id])
-  assignedId         String
-  assigned           Employee    @relation(fields: [assignedId], references: [id])
-  description        String
-  purchaseDate       DateTime
-  purchaseCost       Int
-  currentValue       Int
-  expiryDate         DateTime?
-  trackDepreciation  Boolean     @default(false)
-  depreciationMethod String
-  years              Int
-  salvageValue       Int
-  activeAsset        Boolean     @default(false)
-  status             AssetStatus @default(in_use)
-  entityId           String
-  groupId            String // denormalized — extraction handle
-  createdAt          DateTime    @default(now())
-  updatedAt          DateTime    @default(now()) @updatedAt
-  entity             Entity      @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  id                             String         @id @default(cuid())
+  serialNumber                   String         @unique
+  name                           String
+  type                           String
+  categoryId                     String?
+  category                       AssetCategory? @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  departmentId                   String?
+  department                     Department?    @relation(fields: [departmentId], references: [id])
+  assignedId                     String?
+  assigned                       Employee?      @relation(fields: [assignedId], references: [id])
+  description                    String
+  purchaseDate                   DateTime
+  purchaseCost                   Int
+  currentValue                   Int
+  expiryDate                     DateTime?
+  trackDepreciation              Boolean        @default(false)
+  depreciationMethod             String
+  years                          Int
+  salvageValue                   Int
+  // Accumulated depreciation carried over from previous books, as at the
+  // start of the fiscal year containing openingAccumAsOf (legacy assets only)
+  openingAccumulatedDepreciation Int?
+  openingAccumAsOf               DateTime?
+  activeAsset                    Boolean        @default(false)
+  status                         AssetStatus    @default(in_use)
+  entityId                       String
+  groupId                        String // denormalized — extraction handle
+  createdAt                      DateTime       @default(now())
+  updatedAt                      DateTime       @default(now()) @updatedAt
+  entity                         Entity         @relation(fields: [entityId], references: [id], onDelete: Cascade)
 
   @@index([id, entityId])
   @@index([groupId])
+  @@index([categoryId])
+}
+
+model AssetCategory {
+  id               String   @id @default(cuid())
+  name             String
+  // Straight-line annual depreciation rate on cost, in percent (e.g. 20 = 20%)
+  depreciationRate Float
+  description      String?
+  entityId         String
+  groupId          String // denormalized — extraction handle
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @default(now()) @updatedAt
+  entity           Entity   @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  assets           Asset[]
+
+  @@unique([entityId, name])
+  @@index([groupId])
+  @@index([entityId])
 }
 
 model AccountType {

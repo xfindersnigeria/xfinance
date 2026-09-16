@@ -22,6 +22,7 @@ import { StoreItemsModule } from './product/store-items/store-items.module';
 import { CollectionsModule } from './product/collections/collections.module';
 import { InventoryModule } from './product/inventory/inventory.module';
 import { AssetModule } from './assets-inventory/asset/asset.module';
+import { AssetCategoryModule } from './assets-inventory/asset-category/asset-category.module';
 import { AccountModule } from './accounts/account/account.module';
 import { AccountTypeModule } from './accounts/account-type/account-type.module';
 import { AccountCategoryModule } from './accounts/account-category/account-category.module';
@@ -93,6 +94,7 @@ import { ReportsModule } from './reports/reports.module';
     CollectionsModule,
     InventoryModule,
     AssetModule,
+    AssetCategoryModule,
     // OpeningBalanceModule must be registered before AccountModule: its routes
     // live under 'account/opening-balances', which AccountController's
     // 'account/:id' route would otherwise shadow (Express matches in

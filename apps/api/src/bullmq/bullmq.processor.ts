@@ -10,6 +10,7 @@ import { seedDefaultChartOfAccounts } from '../../seeders/seed-account-chart';
 import { seedDefaultCurrencies } from '../../seeders/seed-currency';
 import { seedDefaultEntityAccounts } from '../../seeders/seed-entity-accounts';
 import { seedDefaultStatutoryDeductions } from '../../seeders/seed-statutory-deductions';
+import { seedDefaultAssetCategories } from '../../seeders/seed-asset-categories';
 import { ItemsType, InvoiceActivityType } from 'prisma/generated/enums';
 import { BadRequestException } from '@nestjs/common';
 import { generateJournalReference } from '@/auth/utils/helper';
@@ -465,6 +466,17 @@ export class BullmqProcessor extends WorkerHost {
       } catch (err) {
         this.logger.error(
           `[Job ${job.id}] Failed to seed statutory deductions: ${err}`,
+        );
+        // Don't throw - continue with other setup steps
+      }
+
+      // 3. Seed default fixed-asset categories (with depreciation rates)
+      try {
+        await seedDefaultAssetCategories(entityId, groupId);
+        this.logger.debug(`[Job ${job.id}] Seeded default asset categories for entity`);
+      } catch (err) {
+        this.logger.error(
+          `[Job ${job.id}] Failed to seed asset categories: ${err}`,
         );
         // Don't throw - continue with other setup steps
       }

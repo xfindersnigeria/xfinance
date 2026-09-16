@@ -15,7 +15,7 @@ export default function AssetsActions({ row }: { row: any }) {
       <Button
         variant="ghost"
         size="icon"
-        className="hover:bg-gray-100"
+        aria-label={`Edit ${row.name}`}
         onClick={() => openModal(editKey)}
       >
         <Edit3 className="w-5 h-5" />
@@ -24,7 +24,7 @@ export default function AssetsActions({ row }: { row: any }) {
         title={`Edit Asset: ${row.name}`}
         open={isOpen(editKey)}
         onOpenChange={(v) => (v ? openModal(editKey) : closeModal(editKey))}
-        module={MODULES.SALES}
+        module={MODULES.ASSETS}
       >
         <AssetsForm assets={row} isEditMode />
       </CustomModal>

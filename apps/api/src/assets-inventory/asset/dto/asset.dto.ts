@@ -7,178 +7,71 @@ import {
   Min,
   IsBoolean,
   IsDateString,
+  IsIn,
 } from 'class-validator';
+
 export class CreateAssetDto {
-  @ApiProperty({ example: 'Dell laptop', description: 'Name of the asset' })
+  @ApiProperty({ example: 'Toyota Hilux 2024', description: 'Name of the asset' })
   @IsString()
   @IsNotEmpty()
   name: string;
 
-  @ApiProperty({ example: 'ComputerEquipment', description: 'Asset type' })
+  @ApiProperty({ example: 'clx...', description: 'Asset category id — drives the depreciation rate' })
   @IsString()
   @IsNotEmpty()
-  type: string;
+  categoryId: string;
 
-  @ApiProperty({ example: 'IT', description: 'Asset Department.' })
-  @IsString()
-  @IsNotEmpty()
-  departmentId: string;
-
-  @ApiProperty({ example: 'employeeId', description: 'Employee id assigned to asset' })
-  @IsString()
-  @IsNotEmpty()
-  assignedId: string;
-
-  @ApiProperty({
-    example: 'Short note..',
-    description: 'Description of the asset',
-  })
-  @IsString()
+  @ApiPropertyOptional({ example: 'in_use', enum: ['in_use', 'in_storage'] })
+  @IsIn(['in_use', 'in_storage'])
   @IsOptional()
-  description?: string;
+  status?: 'in_use' | 'in_storage';
 
-  @ApiProperty({
-    example: '2024-03-25',
-    description: 'Purchase date of the asset',
-  })
+  @ApiProperty({ example: '2024-03-25', description: 'Purchase date of the asset' })
   @IsDateString()
   purchaseDate: string;
 
-  @ApiProperty({ example: 5000, description: 'Purchase cost of the asset' })
+  @ApiProperty({ example: 15000000, description: 'Purchase cost of the asset' })
   @IsInt()
   @Min(0)
   purchaseCost: number;
 
-  @ApiProperty({ example: 10, description: 'Current value of the asset' })
-  @IsInt()
-  @Min(0)
-  @IsOptional()
-  currentValue?: number;
-
-  @ApiProperty({
-    example: '2025-03-25',
-    description: 'Expiry date of the asset',
-  })
-  @IsDateString()
-  @IsOptional()
-  expiryDate?: string;
-
-  @ApiProperty({ example: 'Straight Line', description: 'Depreciation method' })
-  @IsString()
-  @IsOptional()
-  depreciationMethod?: string;
-
-  @ApiProperty({ example: 5, description: 'Number of years for depreciation' })
-  @IsInt()
-  @Min(0)
-  @IsOptional()
-  years?: number;
-
-  @ApiProperty({ example: 10, description: 'Salvage value of the asset' })
-  @IsInt()
-  @Min(0)
-  @IsOptional()
-  salvageValue?: number;
-
-  @ApiProperty({ example: true, description: 'Track depreciation' })
-  @IsBoolean()
-  trackDepreciation: boolean;
-
-  @ApiProperty({ example: true, description: 'Is asset active?' })
-  @IsBoolean()
-  activeAsset: boolean;
-}
-
-export class UpdateAssetDto {
   @ApiPropertyOptional({
-    example: 'Dell laptop',
-    description: 'Name of the asset',
+    example: 7200000,
+    description:
+      'Accumulated depreciation from previous books as at the start of the current fiscal year. ' +
+      'Only applies to assets bought before the current fiscal year; otherwise computed from purchase date.',
   })
-  @IsString()
-  name?: string;
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  openingAccumulatedDepreciation?: number | null;
 
-  @ApiPropertyOptional({
-    example: 'ComputerEquipment',
-    description: 'Asset type',
-  })
-  @IsString()
-  type?: string; // e.g. "laptop", "vehicle", "furniture"
+  // ── Optional legacy fields (kept so existing API callers keep working) ──
 
-  @ApiPropertyOptional({ example: 'IT', description: 'Asset Department.' })
+  @ApiPropertyOptional({ description: 'Department id' })
   @IsString()
+  @IsOptional()
   departmentId?: string;
 
-  @ApiPropertyOptional({ example: 'employeeId', description: 'Employee id assigned to asset' })
+  @ApiPropertyOptional({ description: 'Employee id assigned to asset' })
   @IsString()
+  @IsOptional()
   assignedId?: string;
 
-  @ApiPropertyOptional({
-    example: 'Short note..',
-    description: 'Description of the asset',
-  })
+  @ApiPropertyOptional({ example: 'Short note..' })
   @IsString()
+  @IsOptional()
   description?: string;
 
-  @ApiPropertyOptional({
-    example: '25-03-2024',
-    description: 'Purchase date of the asset',
-  })
+  @ApiPropertyOptional({ example: '2025-03-25', description: 'Warranty expiry date' })
   @IsDateString()
-  purchaseDate?: string; // ISO string → Prisma converts to DateTime
-
-  @ApiPropertyOptional({
-    example: 5000,
-    description: 'Purchase cost of the asset',
-  })
-  @IsInt()
-  @Min(0)
-  purchaseCost?: number;
-
-  @ApiPropertyOptional({
-    example: 10,
-    description: 'Current value of the asset',
-  })
-  @IsInt()
-  @Min(0)
-  currentValue?: number;
-
-  @ApiPropertyOptional({
-    example: '25-03-2025',
-    description: 'Expiry date of the asset',
-  })
-  @IsDateString()
+  @IsOptional()
   expiryDate?: string;
 
-  @ApiPropertyOptional({
-    example: 'Straight Line',
-    description: 'Depreciation method',
-  })
-  @IsString()
-  depreciationMethod?: string;
-
-  @ApiPropertyOptional({
-    example: 5,
-    description: 'Number of years for depreciation',
-  })
-  @IsInt()
-  @Min(0)
-  years?: number;
-
-  @ApiPropertyOptional({
-    example: 10,
-    description: 'Salvage value of the asset',
-  })
-  @IsInt()
-  @Min(0)
-  salvageValue?: number;
-
-  @ApiPropertyOptional({ example: true, description: 'Track depreciation' })
-  @IsBoolean()
-  @IsOptional()
-  trackDepreciation?: boolean;
-
-  @ApiPropertyOptional({ example: true, description: 'Is asset active?' })
+  @ApiPropertyOptional({ description: 'Deprecated — use status' })
   @IsBoolean()
   @IsOptional()
   activeAsset?: boolean;
 }
+
+export class UpdateAssetDto extends PartialType(CreateAssetDto) {}

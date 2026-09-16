@@ -2,123 +2,78 @@
 import { Badge } from "@/components/ui/badge";
 import { Column } from "@/components/local/custom/custom-table";
 import AssetsActions from "./AssetsActions";
-
-// export const assetsData = [
-//   {
-//     id: 1,
-//     name: "Dell Laptop - XPS 15",
-//     code: "AST-001",
-//     category: "Computer Equipment",
-//     purchaseDate: "2024-01-15",
-//     location: "Office - Floor 3",
-//     purchaseCost: 2500,
-//     currentValue: 2000,
-//     status: "In Use",
-//   },
-//   {
-//     id: 2,
-//     name: "Conference Room Table",
-//     code: "AST-002",
-//     category: "Furniture",
-//     purchaseDate: "2023-06-20",
-//     location: "Conference Room A",
-//     purchasePrice: 1800,
-//     currentValue: 1500,
-//     status: "In Use",
-//   },
-//   {
-//     id: 3,
-//     name: "Backup Server - HP ProLiant",
-//     code: "AST-003",
-//     category: "IT Equipment",
-//     purchaseDate: "2023-03-10",
-//     location: "Storage Room B",
-//     purchasePrice: 5500,
-//     currentValue: 4200,
-//     status: "In Storage",
-//   },
-//   {
-//     id: 4,
-//     name: "Old Desktop Computer",
-//     code: "AST-004",
-//     category: "Computer Equipment",
-//     purchaseDate: "2018-05-12",
-//     location: "Storage Room B",
-//     purchasePrice: 1200,
-//     currentValue: 0,
-//     status: "In Storage",
-//   },
-// ];
+import { formatAmount, formatDate } from "./utils/format";
 
 export function createAssetsColumns(sym: string): Column<any>[] {
   return [
     {
       key: "name",
       title: "Asset",
-      className: "text-xs",
-      render: (value, row) => (
+      render: (_, row) => (
         <div>
-          <div className="font-normal text-gray-900 line-clamp-1">{row.name}</div>
-          <div className="text-xs text-gray-400 line-clamp-1">
+          <div className="font-medium line-clamp-1">{row.name}</div>
+          <div className="font-mono text-xs text-muted-foreground line-clamp-1">
             {row.serialNumber}
           </div>
         </div>
       ),
     },
     {
+      key: "category",
+      title: "Category",
+      render: (_, row) =>
+        row.category ? (
+          <Badge variant="outline" className="rounded-full bg-muted px-3 py-1 font-normal whitespace-nowrap">
+            {row.category.name}
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="rounded-full border-amber-200 bg-amber-50 px-3 py-1 font-normal text-amber-700">
+            Uncategorised
+          </Badge>
+        ),
+    },
+    {
       key: "purchaseDate",
       title: "Purchase Date",
-      className: "text-xs",
-      render: (value) =>
-        value
-          ? new Date(value).toLocaleDateString("en-US", {
-              year: "numeric",
-              month: "short",
-              day: "2-digit",
-            })
-          : "",
+      render: (value) => <span className="whitespace-nowrap">{formatDate(value)}</span>,
     },
     {
       key: "purchaseCost",
       title: "Purchase Cost",
-      className: "text-xs",
       render: (value) => (
-        <span className="text-gray-700">{sym}{value.toLocaleString()}</span>
+        <span className="font-mono tabular-nums whitespace-nowrap">{formatAmount(sym, value)}</span>
       ),
     },
     {
       key: "currentValue",
       title: "Current Value",
-      className: "text-xs",
-      render: (value) => (
-        <span className="text-gray-700">{sym}{value.toLocaleString()}</span>
+      render: (value, row) => (
+        <div className="whitespace-nowrap">
+          <div className="font-mono tabular-nums">{formatAmount(sym, value)}</div>
+          {row.fullyDepreciated && (
+            <div className="text-xs text-muted-foreground">Fully depreciated</div>
+          )}
+        </div>
       ),
     },
     {
       key: "status",
       title: "Status",
-      className: "text-xs",
-      render: (value, row) => {
-        console.log(row)
-        if (value === "in_use")
-          return (
-            <Badge className="bg-green-100 text-green-700 px-3 py-1 rounded-full font-medium">
-              In Use
-            </Badge>
-          );
-        if (value === "in_storage")
-          return (
-            <Badge className="bg-red-100 text-red-700 px-3 py-1 rounded-full font-medium">
-              In Storage
-            </Badge>
-          );
-        return null;
-      },
+      render: (value) =>
+        value === "in_storage" ? (
+          <Badge className="rounded-full bg-gray-100 px-3 py-1 font-medium text-gray-700">
+            In Storage
+          </Badge>
+        ) : (
+          <Badge className="rounded-full bg-green-100 px-3 py-1 font-medium text-green-700">
+            In Use
+          </Badge>
+        ),
     },
     {
       key: "actions",
       title: "Actions",
-      className: "w-16 text-xs",
+      className: "w-16",
       render: (_, row) => <AssetsActions row={row} />,
       searchable: false,
     },

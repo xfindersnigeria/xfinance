@@ -24,9 +24,10 @@ import {
   useMutation,
   useQueryClient,
   UseMutationOptions,
+  keepPreviousData,
 } from "@tanstack/react-query";
 import * as assetsService from "../services/assetsService";
-import { CreateAssetInput, UpdateAssetInput } from "./types/assetsTypes";
+import type { AssetCategoryPayload, AssetPayload } from "../services/assetsService";
 import { useModal } from "@/components/providers/ModalProvider";
 import { MODAL } from "@/lib/data/modal-data";
 import { toast } from "sonner";
@@ -35,15 +36,12 @@ import { toast } from "sonner";
 // Assets
 // ────────────────────────────────────────────────
 
-export const useAssets = (params?: {
-  search?: string;
-  page?: number;
-  limit?: number;
-}) => {
+export const useAssets = (params?: { search?: string; categoryId?: string }) => {
   return useQuery({
-    queryKey: ["assets", params?.search, params?.page, params?.limit],
+    queryKey: ["assets", params?.search, params?.categoryId],
     queryFn: () => assetsService.getAssets(params),
-    placeholderData: undefined,
+    // Keep the summary cards and rows on screen while a new search/filter loads
+    placeholderData: keepPreviousData,
     refetchOnWindowFocus: true,
   });
 };
@@ -58,15 +56,21 @@ export const useAsset = (id: string) => {
   });
 };
 
+/** Everything derived from assets: register, categories (asset counts), schedule */
+const invalidateAssetViews = (queryClient: ReturnType<typeof useQueryClient>) => {
+  queryClient.invalidateQueries({ queryKey: ["assets"] });
+  queryClient.invalidateQueries({ queryKey: ["asset-categories"] });
+};
+
 export const useCreateAsset = (
-  options?: UseMutationOptions<any, Error, any>,
+  options?: UseMutationOptions<any, Error, AssetPayload>,
 ) => {
   const queryClient = useQueryClient();
   const { closeModal } = useModal();
   return useMutation({
     mutationFn: assetsService.createAsset,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["assets"] });
+      invalidateAssetViews(queryClient);
       toast.success("Asset created successfully");
       closeModal(MODAL.ASSET_CREATE);
     },
@@ -83,7 +87,7 @@ export const useUpdateAsset = (
   options?: UseMutationOptions<
     any,
     Error,
-    { id: string; data: UpdateAssetInput }
+    { id: string; data: Partial<AssetPayload> }
   >,
 ) => {
   const queryClient = useQueryClient();
@@ -92,12 +96,7 @@ export const useUpdateAsset = (
   return useMutation({
     mutationFn: ({ id, data }) => assetsService.updateAsset(id, data),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["assets"] });
-      if (variables?.id) {
-        queryClient.invalidateQueries({
-          queryKey: ["assets", "detail", variables.id],
-        });
-      }
+      invalidateAssetViews(queryClient);
       toast.success("Asset updated successfully");
       closeModal(MODAL.ASSET_EDIT + "-" + variables.id);
     },
@@ -119,12 +118,7 @@ export const useDeleteAsset = (
   return useMutation({
     mutationFn: assetsService.deleteAsset,
     onSuccess: (_, id) => {
-      queryClient.invalidateQueries({ queryKey: ["assets"] });
-      if (id) {
-        queryClient.invalidateQueries({
-          queryKey: ["assets", "detail", id],
-        });
-      }
+      invalidateAssetViews(queryClient);
       toast.success("Asset deleted successfully");
       closeModal(MODAL.ASSET_DELETE + "-" + id);
     },
@@ -134,6 +128,73 @@ export const useDeleteAsset = (
       );
     },
     ...options,
+  });
+};
+
+// ────────────────────────────────────────────────
+// Asset Categories
+// ────────────────────────────────────────────────
+
+export const useAssetCategories = () =>
+  useQuery({
+    queryKey: ["asset-categories"],
+    queryFn: assetsService.getAssetCategories,
+    staleTime: 2 * 60 * 1000,
+    refetchOnWindowFocus: true,
+  });
+
+export const useAssetDepreciationSchedule = () =>
+  useQuery({
+    queryKey: ["asset-categories", "schedule"],
+    queryFn: assetsService.getAssetDepreciationSchedule,
+    refetchOnWindowFocus: true,
+  });
+
+export const useCreateAssetCategory = () => {
+  const queryClient = useQueryClient();
+  const { closeModal } = useModal();
+  return useMutation({
+    mutationFn: assetsService.createAssetCategory,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["asset-categories"] });
+      toast.success("Asset category created successfully");
+      closeModal(MODAL.ASSET_CATEGORY_CREATE);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to create asset category");
+    },
+  });
+};
+
+export const useUpdateAssetCategory = () => {
+  const queryClient = useQueryClient();
+  const { closeModal } = useModal();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<AssetCategoryPayload> }) =>
+      assetsService.updateAssetCategory(id, data),
+    onSuccess: (_, variables) => {
+      // A rate or name change revalues every asset in the category
+      invalidateAssetViews(queryClient);
+      toast.success("Asset category updated successfully");
+      closeModal(`${MODAL.ASSET_CATEGORY_EDIT}-${variables.id}`);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to update asset category");
+    },
+  });
+};
+
+export const useDeleteAssetCategory = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: assetsService.deleteAssetCategory,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["asset-categories"] });
+      toast.success("Asset category deleted successfully");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to delete asset category");
+    },
   });
 };
 
