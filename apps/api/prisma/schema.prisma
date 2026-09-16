@@ -134,6 +134,7 @@ model Entity {
   inventoryMovements   InventoryMovement[]
   payrollBatches       PayrollBatch[]
   payrollRecords       PayrollRecord[]
+  payrollPayments      PayrollPayment[]
 
   @@index([name, taxId, email])
   @@index([groupId])
@@ -173,6 +174,7 @@ model User {
   payrollBatchesCreated       PayrollBatch[]         @relation("PayrollCreatedBy")
   payrollBatchesApproved      PayrollBatch[]         @relation("PayrollApprovedBy")
   reconciliationCompletedBy   BankReconciliation[]
+  payrollPayments             PayrollPayment[]
 
   @@unique([provider, providerId])
   @@index([email, groupId, isActive])
@@ -689,16 +691,16 @@ model AccountCategory {
 }
 
 model AccountSubCategory {
-  id          String          @id @default(cuid())
-  code        String
-  name        String
-  description String?
-  categoryId  String
-  groupId     String // denormalized — extraction handle
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @default(now()) @updatedAt
-  category    AccountCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  accounts    Account[]
+  id           String          @id @default(cuid())
+  code         String
+  name         String
+  description  String?
+  categoryId   String
+  groupId      String // denormalized — extraction handle
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @default(now()) @updatedAt
+  category     AccountCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  accounts     Account[]
   groupBudgets GroupBudget[]
   forecasts    Forecast[]
 
@@ -735,6 +737,7 @@ model Account {
   receipts            Receipt[]
   items               Items[]
   statutoryDeductions StatutoryDeduction[]
+  payrollPayments     PayrollPayment[]
 
   @@unique([entityId, code])
   @@index([id, entityId])
@@ -1111,52 +1114,92 @@ model OtherDeduction {
 }
 
 model PayrollBatch {
-  id             String          @id @default(cuid())
-  batchName      String
-  period         String
-  paymentDate    DateTime
-  paymentMethod  String
-  status         PayrollStatus   @default(Draft)
-  totalAmount    Float           @default(0)
-  totalEmployees Int             @default(0)
-  notes          String?
-  entityId       String
-  groupId        String
-  createdById    String?
-  approvedById   String?
-  approvedAt     DateTime?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @default(now()) @updatedAt
-  records        PayrollRecord[]
-  entity         Entity          @relation(fields: [entityId], references: [id], onDelete: Cascade)
-  createdBy      User?           @relation("PayrollCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  approvedBy     User?           @relation("PayrollApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  id                  String               @id @default(cuid())
+  batchName           String
+  period              String
+  paymentDate         DateTime
+  paymentMethod       String
+  status              PayrollStatus        @default(Draft)
+  totalAmount         Float                @default(0)
+  totalEmployees      Int                  @default(0)
+  notes               String?
+  entityId            String
+  groupId             String
+  createdById         String?
+  approvedById        String?
+  approvedAt          DateTime?
+  // Approval posting (Dr Salaries & Wages Expense / Cr statutory + other deduction
+  // payables / Cr Wages Payable) — mirrors Bills' own postingStatus fields.
+  netPayableAccountId String?
+  postingStatus       JournalPostingStatus @default(Pending)
+  journalReference    String?
+  postedAt            DateTime?
+  errorMessage        String?
+  errorCode           String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @default(now()) @updatedAt
+  records             PayrollRecord[]
+  payments            PayrollPayment[]
+  entity              Entity               @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  createdBy           User?                @relation("PayrollCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  approvedBy          User?                @relation("PayrollApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
 
   @@index([entityId])
   @@index([groupId])
   @@index([status])
 }
 
+/**
+ * Records the "Mark as Paid" event (Dr Wages Payable / Cr Bank-Cash) for an
+ * approved payroll batch — mirrors PaymentMade's relationship to Bills.
+ */
+model PayrollPayment {
+  id               String               @id @default(cuid())
+  batchId          String
+  batch            PayrollBatch         @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  paymentDate      DateTime
+  amount           Float
+  accountId        String
+  account          Account              @relation(fields: [accountId], references: [id])
+  reference        String?
+  note             String?
+  entityId         String
+  groupId          String
+  entity           Entity               @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  createdById      String?
+  createdBy        User?                @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  postingStatus    JournalPostingStatus @default(Pending)
+  journalReference String?
+  postedAt         DateTime?
+  errorMessage     String?
+  errorCode        String?
+  createdAt        DateTime             @default(now())
+
+  @@index([entityId])
+  @@index([batchId])
+  @@index([groupId])
+}
+
 model PayrollRecord {
-  id           String       @id @default(cuid())
-  batchId      String
-  employeeId   String
-  basicSalary  Float
-  allowances   Float        @default(0)
-  bonus        Float        @default(0)
-  overtime     Float        @default(0)
+  id                 String       @id @default(cuid())
+  batchId            String
+  employeeId         String
+  basicSalary        Float
+  allowances         Float        @default(0)
+  bonus              Float        @default(0)
+  overtime           Float        @default(0)
   statutoryDed       Float        @default(0)
   otherDed           Float        @default(0)
   grossPay           Float
   deductionBreakdown Json?
-  netPay       Float
-  entityId     String
-  groupId      String
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @default(now()) @updatedAt
-  batch        PayrollBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  employee     Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  entity       Entity       @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  netPay             Float
+  entityId           String
+  groupId            String
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @default(now()) @updatedAt
+  batch              PayrollBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  employee           Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  entity             Entity       @relation(fields: [entityId], references: [id], onDelete: Cascade)
 
   @@index([batchId])
   @@index([employeeId])
@@ -1906,6 +1949,8 @@ enum AccountTransactionType {
   EXPENSE_POSTING
   BILL_POSTING
   PAYMENT_MADE_POSTING
+  PAYROLL_POSTING
+  PAYROLL_PAYMENT_POSTING
 }
 
 enum TransactionPostingStatus {
@@ -1938,6 +1983,7 @@ enum PayrollStatus {
   Pending
   Approved
   Rejected
+  Paid
 }
 
 model PasswordResetOtp {

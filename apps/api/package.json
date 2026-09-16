@@ -25,7 +25,8 @@
     "seed:admin-role": "ts-node seeders/seed-admin-role-template.ts",
     "setup:standalone": "ts-node -r tsconfig-paths/register scripts/standalone-setup.ts",
     "seed:subscription": "ts-node seeders/seed-subscription-tiers.ts",
-    "backfill:statutory-deductions": "ts-node seeders/backfill-statutory-deductions.ts"
+    "backfill:statutory-deductions": "ts-node seeders/backfill-statutory-deductions.ts",
+    "backfill:payroll-accounts": "ts-node seeders/backfill-payroll-accounts.ts"
   },
   "dependencies": {
     "@nestjs-modules/ioredis": "^2.0.2",

@@ -3,6 +3,11 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { CreatePayrollBatchDto, PayrollStatus, UpdatePayrollBatchDto } from './dto/payroll.dto';
 import { BullmqService } from '@/bullmq/bullmq.service';
 
+// The queue has no default retry policy, so without this a single transient
+// DB error leaves a batch stuck Approved/Failed. Safe to retry: each posting
+// handler's writes happen in one atomic transaction.
+const POSTING_JOB_OPTIONS = { attempts: 3, backoff: { type: 'exponential', delay: 5000 } };
+
 @Injectable()
 export class PayrollService {
   constructor(
@@ -73,11 +78,11 @@ export class PayrollService {
 
     const statutory = eligibleDeds.map((d) => {
       const line = paye.deductionLines.find((l) => l.id === d.id);
-      return { id: d.id, name: d.name, type: d.type, amount: Math.round(((line?.amount ?? 0) / 12) * 100) / 100 };
+      return { id: d.id, name: d.name, type: d.type, accountId: d.accountId ?? null, amount: Math.round(((line?.amount ?? 0) / 12) * 100) / 100 };
     });
 
     if (tieredDed) {
-      statutory.push({ id: tieredDed.id, name: tieredDed.name, type: tieredDed.type, amount: paye.monthlyTax });
+      statutory.push({ id: tieredDed.id, name: tieredDed.name, type: tieredDed.type, accountId: tieredDed.accountId ?? null, amount: paye.monthlyTax });
     }
 
     const other = otherDeductions.map((d) => {
@@ -134,7 +139,7 @@ export class PayrollService {
       this.prisma.employee.findFirst({ where: { id: employeeId, entityId }, select: { annualRent: true } }),
       this.prisma.statutoryDeduction.findMany({
         where: { entityId, status: 'active' },
-        select: { id: true, name: true, type: true, rate: true, fixedAmount: true, minAmount: true, tiers: { orderBy: { from: 'asc' } } },
+        select: { id: true, name: true, type: true, rate: true, fixedAmount: true, minAmount: true, accountId: true, tiers: { orderBy: { from: 'asc' } } },
       }),
       this.prisma.otherDeduction.findMany({
         where: { entityId, status: 'active' },
@@ -164,7 +169,7 @@ export class PayrollService {
       }),
       this.prisma.statutoryDeduction.findMany({
         where: { entityId, status: 'active' },
-        select: { id: true, name: true, type: true, rate: true, fixedAmount: true, minAmount: true, tiers: { orderBy: { from: 'asc' } } },
+        select: { id: true, name: true, type: true, rate: true, fixedAmount: true, minAmount: true, accountId: true, tiers: { orderBy: { from: 'asc' } } },
       }),
       this.prisma.otherDeduction.findMany({
         where: { entityId, status: 'active' },
@@ -208,7 +213,7 @@ export class PayrollService {
       const [statutoryDeductions, otherDeductions, employeeRents] = await Promise.all([
         this.prisma.statutoryDeduction.findMany({
           where: { entityId, status: 'active' },
-          select: { id: true, name: true, type: true, rate: true, fixedAmount: true, minAmount: true, tiers: { orderBy: { from: 'asc' } } },
+          select: { id: true, name: true, type: true, rate: true, fixedAmount: true, minAmount: true, accountId: true, tiers: { orderBy: { from: 'asc' } } },
         }),
         this.prisma.otherDeduction.findMany({
           where: { entityId, status: 'active' },
@@ -274,7 +279,7 @@ export class PayrollService {
         ? await Promise.all([
             this.prisma.statutoryDeduction.findMany({
               where: { entityId, status: 'active' },
-              select: { id: true, name: true, type: true, rate: true, fixedAmount: true, minAmount: true, tiers: { orderBy: { from: 'asc' } } },
+              select: { id: true, name: true, type: true, rate: true, fixedAmount: true, minAmount: true, accountId: true, tiers: { orderBy: { from: 'asc' } } },
             }),
             this.prisma.otherDeduction.findMany({
               where: { entityId, status: 'active' },
@@ -410,10 +415,111 @@ export class PayrollService {
   /**
    * Change batch status.
    */
+  /**
+   * Resolve default accounts and aggregate the balanced journal lines for a
+   * payroll approval posting (Dr Salaries & Wages Expense = total gross,
+   * Cr each statutory deduction's linked payable account, Cr Other
+   * Deductions Payable, Cr Wages Payable = total net). Pure validation +
+   * aggregation, called BEFORE the batch status is updated, so a missing
+   * default account fails the whole request instead of leaving the batch
+   * marked Approved with nothing actually queued for posting.
+   */
+  private async buildPayrollApprovalPostingData(batch: any, entityId: string) {
+    const records: any[] = batch.records ?? [];
+    const totalGross = Math.round(records.reduce((s, r) => s + r.grossPay, 0) * 100) / 100;
+    const totalNet = Math.round(records.reduce((s, r) => s + r.netPay, 0) * 100) / 100;
+    const totalOther = Math.round(records.reduce((s, r) => s + r.otherDed, 0) * 100) / 100;
+
+    const [salariesExpenseAccount, wagesPayableAccount, otherDeductionsPayableAccount, currentDeductions] = await Promise.all([
+      this.prisma.account.findFirst({ where: { entityId, code: '5210-01' }, select: { id: true } }),
+      this.prisma.account.findFirst({ where: { entityId, code: '2120-01' }, select: { id: true } }),
+      this.prisma.account.findFirst({ where: { entityId, code: '2195-01' }, select: { id: true } }),
+      this.prisma.statutoryDeduction.findMany({ where: { entityId }, select: { id: true, accountId: true } }),
+    ]);
+
+    // Records created before deduction->account linking existed have no
+    // accountId in their snapshot; fall back to the deduction's current link.
+    const currentAccountByDeduction = new Map(currentDeductions.map((d) => [d.id, d.accountId]));
+
+    const statutoryByAccount = new Map<string, number>();
+    const unlinked = new Set<string>();
+    for (const r of records) {
+      const lines: any[] = (r.deductionBreakdown as any)?.statutory ?? [];
+      const linesTotal = lines.reduce((s, l) => s + (l.amount ?? 0), 0);
+      if (Math.abs(linesTotal - r.statutoryDed) > 0.01) {
+        throw new HttpException(
+          'A record in this batch has no itemized deduction breakdown (it predates breakdown tracking). Edit and re-save the batch before approving so its deductions are recomputed.',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      for (const line of lines) {
+        if (!line.amount) continue;
+        const accountId = line.accountId ?? currentAccountByDeduction.get(line.id);
+        if (!accountId) {
+          unlinked.add(line.name);
+          continue;
+        }
+        statutoryByAccount.set(accountId, (statutoryByAccount.get(accountId) ?? 0) + line.amount);
+      }
+    }
+
+    if (unlinked.size > 0) {
+      throw new HttpException(
+        `These statutory deductions have no linked payable account: ${[...unlinked].join(', ')}. Set one under Settings > Payroll > Statutory Deductions, then approve again.`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!salariesExpenseAccount || !wagesPayableAccount) {
+      throw new HttpException(
+        'Default Salaries & Wages / Wages Payable accounts not found for this entity — run the account backfill first.',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    if (totalOther > 0 && !otherDeductionsPayableAccount) {
+      throw new HttpException(
+        'Default Other Deductions Payable account not found for this entity — run the account backfill first.',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    return {
+      totalGross,
+      totalNet,
+      totalOther,
+      salariesExpenseAccountId: salariesExpenseAccount.id,
+      wagesPayableAccountId: wagesPayableAccount.id,
+      otherDeductionsPayableAccountId: otherDeductionsPayableAccount?.id ?? null,
+      statutoryLines: Array.from(statutoryByAccount.entries()).map(([accountId, amount]) => ({
+        accountId,
+        amount: Math.round(amount * 100) / 100,
+      })),
+    };
+  }
+
   async changeStatus(id: string, status: PayrollStatus, entityId: string, groupId: string, userId?: string | null) {
     try {
-      const batch = await this.prisma.payrollBatch.findFirst({ where: { id, entityId } });
+      if (status === PayrollStatus.Paid) {
+        throw new HttpException('Use the mark-as-paid action to record payment of an approved batch', HttpStatus.BAD_REQUEST);
+      }
+
+      const batch = await this.prisma.payrollBatch.findFirst({
+        where: { id, entityId },
+        include: { records: true },
+      });
       if (!batch) throw new HttpException('Payroll batch not found', HttpStatus.NOT_FOUND);
+
+      if (batch.status === PayrollStatus.Approved || batch.status === PayrollStatus.Paid) {
+        throw new HttpException(`Cannot change status of a batch that is already ${batch.status} — the ledger has already been posted`, HttpStatus.FORBIDDEN);
+      }
+
+      // Resolve + validate everything the posting needs BEFORE committing the
+      // status change, so a missing default account never leaves the batch
+      // marked Approved with no posting queued.
+      const postingData = status === PayrollStatus.Approved
+        ? await this.buildPayrollApprovalPostingData(batch, entityId)
+        : null;
+
       const updated = await this.prisma.payrollBatch.update({
         where: { id },
         data: {
@@ -421,12 +527,84 @@ export class PayrollService {
           ...(status === PayrollStatus.Approved && userId
             ? { approvedById: userId, approvedAt: new Date() }
             : {}),
+          ...(postingData ? { netPayableAccountId: postingData.wagesPayableAccountId } : {}),
         },
       });
-      if (status === PayrollStatus.Approved) {
+
+      if (status === PayrollStatus.Approved && postingData) {
         await this.bullmqService.addJob('send-payslip-emails', { batchId: id, entityId, groupId });
+        await this.bullmqService.addJob('post-payroll-journal', {
+          batchId: id,
+          entityId,
+          groupId,
+          postingData: { reference: batch.batchName, ...postingData },
+        }, POSTING_JOB_OPTIONS);
       }
+
       return { data: updated, message: `Payroll batch ${status.toLowerCase()} successfully`, statusCode: 200 };
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      throw new HttpException(error instanceof Error ? error.message : String(error), HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  /**
+   * Record payment of an approved, already-posted payroll batch:
+   * Dr Wages Payable (the same account credited at approval) / Cr the
+   * chosen bank/cash account. Creates a PayrollPayment row (mirrors
+   * PaymentMade's relationship to Bills) and queues its own posting job.
+   */
+  async markAsPaid(id: string, entityId: string, groupId: string, cashAccountId: string, userId?: string | null) {
+    try {
+      const batch = await this.prisma.payrollBatch.findFirst({ where: { id, entityId } });
+      if (!batch) throw new HttpException('Payroll batch not found', HttpStatus.NOT_FOUND);
+      if (batch.status !== PayrollStatus.Approved) {
+        throw new HttpException('Only an approved payroll batch can be marked as paid', HttpStatus.FORBIDDEN);
+      }
+      if (batch.postingStatus !== 'Success') {
+        throw new HttpException('This batch has not finished posting to the ledger yet — wait for posting to complete (or resolve its posting error) before marking it as paid', HttpStatus.FORBIDDEN);
+      }
+      if (!batch.netPayableAccountId) {
+        throw new HttpException('No net-salaries-payable account recorded for this batch', HttpStatus.BAD_REQUEST);
+      }
+
+      const cashAccount = await this.prisma.account.findFirst({ where: { id: cashAccountId, entityId }, select: { id: true } });
+      if (!cashAccount) throw new HttpException('Selected bank/cash account not found for this entity', HttpStatus.NOT_FOUND);
+
+      const existingPayment = await this.prisma.payrollPayment.findFirst({
+        where: { batchId: id, postingStatus: { in: ['Pending', 'Processing', 'Success'] } },
+      });
+      if (existingPayment) {
+        throw new HttpException('This batch has already been marked as paid', HttpStatus.CONFLICT);
+      }
+
+      const payment = await this.prisma.payrollPayment.create({
+        data: {
+          batchId: id,
+          paymentDate: new Date(),
+          amount: batch.totalAmount,
+          accountId: cashAccountId,
+          entityId,
+          groupId,
+          createdById: userId ?? null,
+        },
+      });
+
+      await this.prisma.payrollBatch.update({ where: { id }, data: { status: PayrollStatus.Paid } });
+
+      await this.bullmqService.addJob('post-payroll-payment-journal', {
+        paymentId: payment.id,
+        batchId: id,
+        entityId,
+        groupId,
+        paymentData: {
+          amount: batch.totalAmount,
+          netPayableAccountId: batch.netPayableAccountId,
+          cashAccountId,
+        },
+      }, POSTING_JOB_OPTIONS);
+
+      return { data: payment, message: 'Payroll batch marked as paid', statusCode: 200 };
     } catch (error) {
       if (error instanceof HttpException) throw error;
       throw new HttpException(error instanceof Error ? error.message : String(error), HttpStatus.INTERNAL_SERVER_ERROR);
@@ -528,7 +706,7 @@ export class PayrollService {
         }),
         this.prisma.statutoryDeduction.findMany({
           where: { entityId, status: 'active' },
-          select: { id: true, name: true, type: true, rate: true, fixedAmount: true, minAmount: true, tiers: { orderBy: { from: 'asc' } } },
+          select: { id: true, name: true, type: true, rate: true, fixedAmount: true, minAmount: true, accountId: true, tiers: { orderBy: { from: 'asc' } } },
         }),
         this.prisma.otherDeduction.findMany({
           where: { entityId, status: 'active' },
@@ -573,7 +751,7 @@ export class PayrollService {
         }),
         this.prisma.statutoryDeduction.findMany({
           where: { entityId, status: 'active' },
-          select: { id: true, name: true, type: true, rate: true, fixedAmount: true, minAmount: true, tiers: { orderBy: { from: 'asc' } } },
+          select: { id: true, name: true, type: true, rate: true, fixedAmount: true, minAmount: true, accountId: true, tiers: { orderBy: { from: 'asc' } } },
         }),
       ]);
 

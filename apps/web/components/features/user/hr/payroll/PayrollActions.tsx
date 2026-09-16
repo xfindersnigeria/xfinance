@@ -1,7 +1,14 @@
 "use client";
-import React from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, XCircle, Trash2, Eye, Pencil } from "lucide-react";
+import { MoreVertical, CheckCircle2, XCircle, Trash2, Eye, Pencil, Banknote, AlertTriangle } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { CustomModal } from "@/components/local/custom/modal";
 import ConfirmationForm from "@/components/local/shared/ConfirmationForm";
 import { MODULES } from "@/lib/types/enums";
@@ -10,72 +17,90 @@ import { MODAL } from "@/lib/data/modal-data";
 import { useChangePayrollStatus, useDeletePayrollBatch } from "@/lib/api/hooks/useHR";
 import PayrollBatchViewModal from "./PayrollBatchViewModal";
 import PayrollBatchEditSheet from "./PayrollBatchEditSheet";
+import MarkPayrollPaidForm from "./MarkPayrollPaidForm";
 
 export default function PayrollActions({ row }: { row: any }) {
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const { isOpen, openModal, closeModal } = useModal();
   const changeStatus = useChangePayrollStatus();
   const deleteBatch = useDeletePayrollBatch();
 
-  const viewKey   = `${MODAL.PAYROLL_BATCH_VIEW}-${row.id}`;
-  const editKey   = `${MODAL.PAYROLL_BATCH_EDIT}-${row.id}`;
-  const deleteKey = `${MODAL.PAYROLL_BATCH_DELETE}-${row.id}`;
+  const viewKey     = `${MODAL.PAYROLL_BATCH_VIEW}-${row.id}`;
+  const editKey     = `${MODAL.PAYROLL_BATCH_EDIT}-${row.id}`;
+  const deleteKey   = `${MODAL.PAYROLL_BATCH_DELETE}-${row.id}`;
+  const markPaidKey = `${MODAL.PAYROLL_BATCH_MARK_PAID}-${row.id}`;
 
-  const canEdit = row.status !== "Approved" && row.status !== "Rejected";
+  const canEdit = row.status !== "Approved" && row.status !== "Rejected" && row.status !== "Paid";
+  const canMarkPaid = row.status === "Approved" && row.postingStatus === "Success";
+  const postingFailed = row.status === "Approved" && row.postingStatus === "Failed";
+
+  const openDelayed = (key: string) => {
+    setDropdownOpen(false);
+    setTimeout(() => openModal(key), 100);
+  };
 
   return (
     <>
-      <div className="flex gap-1 items-center">
-        {/* View */}
-        <Button variant="ghost" size="icon" className="hover:bg-blue-50" title="View Batch"
-          onClick={() => openModal(viewKey)}
-        >
-          <Eye className="w-4 h-4 text-blue-500" />
-        </Button>
-
-        {/* Edit — only Draft / Pending */}
-        {canEdit && (
-          <Button variant="ghost" size="icon" className="hover:bg-amber-50" title="Edit Batch"
-            onClick={() => openModal(editKey)}
-          >
-            <Pencil className="w-4 h-4 text-amber-500" />
+      <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="relative hover:bg-gray-100" title={postingFailed ? "Ledger posting failed — see batch details" : undefined}>
+            <MoreVertical className="w-5 h-5" />
+            {postingFailed && <AlertTriangle className="w-3 h-3 text-red-500 absolute top-0.5 right-0.5" />}
           </Button>
-        )}
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem onSelect={(e) => { e.preventDefault(); openDelayed(viewKey); }}>
+            <Eye className="size-4 mr-2" /> View
+          </DropdownMenuItem>
 
-        {/* Status transitions */}
-        {row.status === "Draft" && (
-          <Button variant="ghost" size="icon" className="hover:bg-yellow-50" title="Submit for Approval"
-            disabled={changeStatus.isPending}
-            onClick={() => changeStatus.mutate({ id: row.id, status: "Pending" })}
-          >
-            <CheckCircle2 className="w-4 h-4 text-yellow-600" />
-          </Button>
-        )}
-        {row.status === "Pending" && (
-          <>
-            <Button variant="ghost" size="icon" className="hover:bg-green-50" title="Approve"
+          {canEdit && (
+            <DropdownMenuItem onSelect={(e) => { e.preventDefault(); openDelayed(editKey); }}>
+              <Pencil className="size-4 mr-2" /> Edit
+            </DropdownMenuItem>
+          )}
+
+          {row.status === "Draft" && (
+            <DropdownMenuItem
               disabled={changeStatus.isPending}
-              onClick={() => changeStatus.mutate({ id: row.id, status: "Approved" })}
+              onSelect={(e) => { e.preventDefault(); setDropdownOpen(false); changeStatus.mutate({ id: row.id, status: "Pending" }); }}
             >
-              <CheckCircle2 className="w-4 h-4 text-green-600" />
-            </Button>
-            <Button variant="ghost" size="icon" className="hover:bg-red-50" title="Reject"
-              disabled={changeStatus.isPending}
-              onClick={() => changeStatus.mutate({ id: row.id, status: "Rejected" })}
-            >
-              <XCircle className="w-4 h-4 text-red-500" />
-            </Button>
-          </>
-        )}
+              <CheckCircle2 className="size-4 mr-2 text-yellow-600" /> Submit for Approval
+            </DropdownMenuItem>
+          )}
 
-        {/* Delete — only non-approved */}
-        {canEdit && (
-          <Button variant="ghost" size="icon" className="hover:bg-red-50" title="Delete"
-            onClick={() => openModal(deleteKey)}
-          >
-            <Trash2 className="w-4 h-4 text-red-400" />
-          </Button>
-        )}
-      </div>
+          {row.status === "Pending" && (
+            <>
+              <DropdownMenuItem
+                disabled={changeStatus.isPending}
+                onSelect={(e) => { e.preventDefault(); setDropdownOpen(false); changeStatus.mutate({ id: row.id, status: "Approved" }); }}
+              >
+                <CheckCircle2 className="size-4 mr-2 text-green-600" /> Approve
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={changeStatus.isPending}
+                onSelect={(e) => { e.preventDefault(); setDropdownOpen(false); changeStatus.mutate({ id: row.id, status: "Rejected" }); }}
+              >
+                <XCircle className="size-4 mr-2 text-red-500" /> Reject
+              </DropdownMenuItem>
+            </>
+          )}
+
+          {canMarkPaid && (
+            <DropdownMenuItem onSelect={(e) => { e.preventDefault(); openDelayed(markPaidKey); }}>
+              <Banknote className="size-4 mr-2 text-blue-600" /> Mark as Paid
+            </DropdownMenuItem>
+          )}
+
+          {canEdit && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem data-variant="destructive" onSelect={(e) => { e.preventDefault(); openDelayed(deleteKey); }}>
+                <Trash2 className="size-4 mr-2" /> Delete
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       {/* View modal */}
       <CustomModal
@@ -95,6 +120,24 @@ export default function PayrollActions({ row }: { row: any }) {
           open={isOpen(editKey)}
           onClose={() => closeModal(editKey)}
         />
+      )}
+
+      {/* Mark as Paid modal */}
+      {canMarkPaid && (
+        <CustomModal
+          title="Mark Payroll as Paid"
+          description="Record that this approved payroll has been paid out"
+          open={isOpen(markPaidKey)}
+          onOpenChange={(open) => open ? openModal(markPaidKey) : closeModal(markPaidKey)}
+          module={MODULES.HR_PAYROLL}
+        >
+          <MarkPayrollPaidForm
+            batchId={row.id}
+            batchName={row.batchName}
+            totalAmount={row.totalAmount}
+            onSuccess={() => closeModal(markPaidKey)}
+          />
+        </CustomModal>
       )}
 
       {/* Delete confirm */}

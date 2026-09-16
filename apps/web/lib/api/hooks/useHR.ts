@@ -309,6 +309,21 @@ export const useChangePayrollStatus = () => {
   });
 };
 
+export const useMarkPayrollPaid = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, cashAccountId }: { id: string; cashAccountId: string }) =>
+      hrService.markPayrollPaid(id, cashAccountId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["payroll-batches"] });
+      toast.success("Payroll batch marked as paid");
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to mark payroll as paid");
+    },
+  });
+};
+
 export const useDeletePayrollBatch = () => {
   const queryClient = useQueryClient();
   return useMutation({

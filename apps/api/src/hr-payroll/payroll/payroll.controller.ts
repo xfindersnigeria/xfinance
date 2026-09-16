@@ -18,6 +18,7 @@ import {
   ChangePayrollStatusDto,
   UpdatePayrollBatchDto,
   PreviewDeductionDto,
+  MarkPayrollPaidDto,
 } from './dto/payroll.dto';
 import { AuthGuard } from '@/auth/guards/auth.guard';
 import {
@@ -314,6 +315,19 @@ export class PayrollController {
     const groupId = getEffectiveGroupId(req) ?? '';
     const userId = req.user?.id ?? null;
     return this.payrollService.changeStatus(id, dto.status, entityId, groupId, userId);
+  }
+
+  @Patch(':id/mark-paid')
+  markAsPaid(
+    @Param('id') id: string,
+    @Body() dto: MarkPayrollPaidDto,
+    @Req() req: any,
+  ) {
+    const entityId = getEffectiveEntityId(req);
+    if (!entityId) throw new UnauthorizedException('Access denied');
+    const groupId = getEffectiveGroupId(req) ?? '';
+    const userId = req.user?.id ?? null;
+    return this.payrollService.markAsPaid(id, entityId, groupId, dto.cashAccountId, userId);
   }
 
   @Delete(':id')

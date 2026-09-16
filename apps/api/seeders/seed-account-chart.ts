@@ -67,6 +67,11 @@ const defaultChartOfAccounts = {
           { code: '2130', name: 'Short-term Debt', description: 'Loans due within one year' },
           { code: '2140', name: 'Income Tax Payable', description: 'Taxes owed to government' },
           { code: '2150', name: 'Deferred Revenue', description: 'Money received in advance' },
+          { code: '2160', name: 'PAYE Payable', description: 'PAYE tax withheld from employees, owed to tax authority' },
+          { code: '2170', name: 'Pension Payable - Employee', description: 'Employee pension contributions withheld, owed to pension fund administrator' },
+          { code: '2180', name: 'NHF Payable', description: 'National Housing Fund contributions withheld, owed to NHF' },
+          { code: '2190', name: 'NHIS Payable', description: 'National Health Insurance Scheme contributions withheld, owed to NHIS' },
+          { code: '2195', name: 'Other Deductions Payable', description: 'Non-statutory payroll deductions withheld (loans, union dues, etc.), owed to the respective payee' },
         ],
       },
       {
@@ -183,7 +188,7 @@ async function seedDefaultChartOfAccounts(groupId: string) {
 
       // Create categories
       for (const categoryData of typeData.categories) {
-        const category = await prisma.accountCategory.findFirst({
+        let category = await prisma.accountCategory.findFirst({
           where: {
             code: categoryData.code,
             groupId,
@@ -191,7 +196,7 @@ async function seedDefaultChartOfAccounts(groupId: string) {
         });
 
         if (!category) {
-          const newCategory = await prisma.accountCategory.create({
+          category = await prisma.accountCategory.create({
             data: {
               code: categoryData.code,
               name: categoryData.name,
@@ -203,35 +208,37 @@ async function seedDefaultChartOfAccounts(groupId: string) {
           console.log(
             `  ✓ Created category: ${categoryData.name} (${categoryData.code})`,
           );
-
-          // Create subcategories
-          for (const subcategoryData of categoryData.subCategories) {
-            const subCategory = await prisma.accountSubCategory.findFirst({
-              where: {
-                code: subcategoryData.code,
-                categoryId: newCategory.id,
-              },
-            });
-
-            if (!subCategory) {
-              await prisma.accountSubCategory.create({
-                data: {
-                  code: subcategoryData.code,
-                  name: subcategoryData.name,
-                  description: subcategoryData.description,
-                  categoryId: newCategory.id,
-                  groupId: newCategory.groupId,
-                },
-              });
-              console.log(
-                `    ✓ Created subcategory: ${subcategoryData.name} (${subcategoryData.code})`,
-              );
-            }
-          }
         } else {
           console.log(
             `  • Category already exists: ${categoryData.name}`,
           );
+        }
+
+        // Create any subcategories still missing — runs whether the category
+        // was just created or already existed, so adding new entries to this
+        // list and re-running fills in the gaps for existing groups too.
+        for (const subcategoryData of categoryData.subCategories) {
+          const subCategory = await prisma.accountSubCategory.findFirst({
+            where: {
+              code: subcategoryData.code,
+              categoryId: category.id,
+            },
+          });
+
+          if (!subCategory) {
+            await prisma.accountSubCategory.create({
+              data: {
+                code: subcategoryData.code,
+                name: subcategoryData.name,
+                description: subcategoryData.description,
+                categoryId: category.id,
+                groupId: category.groupId,
+              },
+            });
+            console.log(
+              `    ✓ Created subcategory: ${subcategoryData.name} (${subcategoryData.code})`,
+            );
+          }
         }
       }
     }

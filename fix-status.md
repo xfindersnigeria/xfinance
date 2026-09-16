@@ -138,6 +138,8 @@ AccountType  (global — seeded once, never changes)
 | **5300** | **Other Expenses** | **P&L below-the-line** |
 
 ### SubCategory codes under each category (examples)
+- 2100 → 2110 Accounts Payable, 2120 Wages Payable, 2130 Short-term Debt, 2140 Income Tax Payable, 2150 Deferred Revenue, 2160 PAYE Payable, 2170 Pension Payable - Employee, 2180 NHF Payable, 2190 NHIS Payable, 2195 Other Deductions Payable
+- Each subcategory gets one Account per entity, coded `{subCategoryCode}-01` (e.g. Wages Payable = `2120-01`) — live code resolves default accounts by that code
 - 4100 → 4110 Product Sales Revenue, 4120 Service Revenue, 4130 Rental Income
 - 4200 → 4210 Interest Income, 4220 Gain on Sale of Assets, 4230 Misc Income
 - 5100 → 5110 Raw Materials, 5120 Direct Labor, 5130 Manufacturing Overhead
@@ -155,8 +157,14 @@ Every business event creates `AccountTransaction` rows (one debit, one credit pe
 | Expense approved | Expense account (5xxx) | Cash or Payable |
 | Bill created | Expense account (5xxx) | AP (2110) |
 | Bill paid | AP (2110) | Cash/Bank (1110) |
+| Payroll batch approved | Salaries & Wages (5210) = total gross | each statutory deduction's linked payable (PAYE 2160 / Pension 2170 / NHF 2180 / NHIS 2190), Other Deductions Payable (2195) = total other deductions, Wages Payable (2120) = total net |
+| Payroll batch marked paid | Wages Payable (2120) | Cash/Bank (account chosen when marking paid) |
 
-All posting is via `journal-posting.service.ts` which calls `createJournalEntry()` → writes `AccountTransaction` rows.
+**Where posting actually happens:** BullMQ job handlers in `apps/api/src/bullmq/bullmq.processor.ts` (`handleInvoiceJournalPosting`, `handleBillJournalPosting`, `handleExpenseJournalPosting`, `handlePaymentMadeJournalPosting`, `handlePayrollApprovalPosting`, `handlePayrollPaymentPosting`, …), enqueued by each module's service via `bullmqService.addJob('post-…-journal', …)`. Each handler, inside one `$transaction`, writes a `Journal` row, updates `Account.balance` via `resolveAccountMeta()` + `balanceDelta()`, writes one `AccountTransaction` per line with running balance, and sets the source document's `postingStatus` / `journalReference` / `postedAt` (or `errorMessage` / `errorCode` on failure). Accounts are resolved by the enqueuing service and passed in the job data — handlers don't look up defaults themselves.
+
+⚠ **`apps/api/src/accounts/journal/journal-posting.service.ts` is NOT used** — dead scaffolding; its only caller (`invoice.service.ts`) is commented out. Don't add posting logic there.
+
+⚠ **The queue has no default retry policy** — `BullModule.forRoot` sets no `defaultJobOptions` and `addJob` passes none unless the caller does, so jobs run exactly once. The `// Rethrow to trigger retry` comments in the processor are misleading for every job except the two payroll postings, which pass `attempts: 3` explicitly. Don't add a global default without checking idempotency first — `send-payslip-emails` would re-send every email on retry.
 
 ### P&L aggregation rule
 - **Revenue** accounts (typeCode '4000'): `net = creditAmount - debitAmount` (credits increase revenue)
@@ -193,7 +201,7 @@ Needs:
 | `apps/api/prisma/schema.prisma` lines 1497-1527 | AccountTransaction model |
 | `apps/api/seeders/seed-account-chart.ts` | Category/subcategory codes reference |
 | `apps/api/seeders/seed-account-types.ts` | Type codes reference |
-| `apps/api/src/accounts/journal/journal-posting.service.ts` | How postings are written |
+| `apps/api/src/bullmq/bullmq.processor.ts` | How postings are actually written (`journal-posting.service.ts` is unused) |
 | `apps/web/components/features/user/reports/details/profit-and-loss/index.tsx` | P&L component (needs wiring) |
 | `apps/web/components/features/user/reports/details/profit-and-loss/mock-data.ts` | Types + mock to replace |
 | `apps/web/lib/api/hooks/useCurrencyFormat.ts` | `useEntityCurrencySymbol()` — use this, not hardcoded ₦ |

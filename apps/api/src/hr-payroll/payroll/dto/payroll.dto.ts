@@ -6,6 +6,7 @@ export enum PayrollStatus {
   Pending = 'Pending',
   Approved = 'Approved',
   Rejected = 'Rejected',
+  Paid = 'Paid',
 }
 
 export class PreviewDeductionDto {
@@ -14,6 +15,10 @@ export class PreviewDeductionDto {
   @IsOptional() @IsNumber() allowances?: number;
   @IsOptional() @IsNumber() bonus?: number;
   @IsOptional() @IsNumber() overtime?: number;
+}
+
+export class MarkPayrollPaidDto {
+  @IsNotEmpty() @IsString() cashAccountId: string;
 }
 
 export class PayrollEmployeeDto {

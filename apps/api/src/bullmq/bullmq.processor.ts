@@ -97,6 +97,10 @@ export class BullmqProcessor extends WorkerHost {
       return this.handlePaymentMadeJournalPosting(job);
     } else if (job.name === 'post-manual-journal') {
       return this.handleManualJournalPosting(job);
+    } else if (job.name === 'post-payroll-journal') {
+      return this.handlePayrollApprovalPosting(job);
+    } else if (job.name === 'post-payroll-payment-journal') {
+      return this.handlePayrollPaymentPosting(job);
     } else if (job.name === 'assign-tier-modules') {
       return this.handleAssignTierModules(job);
     } else if (job.name === 'mark-attendance-batch') {
@@ -430,6 +434,19 @@ export class BullmqProcessor extends WorkerHost {
     );
 
     try {
+      // 0. Ensure the group's chart of accounts is current — defensive, since
+      // a group created before a chart addition (e.g. the payroll payable
+      // accounts) won't otherwise pick up new entries until a manual backfill.
+      try {
+        await seedDefaultChartOfAccounts(groupId);
+        this.logger.debug(`[Job ${job.id}] Ensured group chart of accounts is current`);
+      } catch (err) {
+        this.logger.error(
+          `[Job ${job.id}] Failed to seed group chart of accounts: ${err}`,
+        );
+        // Don't throw - continue with other setup steps
+      }
+
       // 1. Seed default accounts for the entity
       try {
         await seedDefaultEntityAccounts(entityId, groupId);
@@ -2125,6 +2142,299 @@ export class BullmqProcessor extends WorkerHost {
       } catch (updateError) {
         this.logger.error(
           `[Job ${job.id}] Failed to update payment made status to Failed: ${updateError instanceof Error ? updateError.message : String(updateError)}`,
+        );
+      }
+
+      throw error; // Rethrow to trigger retry
+    }
+  }
+
+  /**
+   * Handle payroll approval journal posting
+   * Dr Salaries & Wages Expense = total gross
+   * Cr each statutory deduction's linked payable account (PAYE/Pension/NHF/NHIS)
+   * Cr Other Deductions Payable = total other deductions (if any)
+   * Cr Wages Payable = total net pay
+   * All accounts are resolved and validated by PayrollService BEFORE this job
+   * is queued, so a missing default account never lands here silently.
+   */
+  async handlePayrollApprovalPosting(job: Job): Promise<any> {
+    const { batchId, entityId, groupId, postingData } = job.data as {
+      batchId: string;
+      entityId: string;
+      groupId: string;
+      postingData: {
+        reference: string;
+        totalGross: number;
+        totalNet: number;
+        totalOther: number;
+        salariesExpenseAccountId: string;
+        wagesPayableAccountId: string;
+        otherDeductionsPayableAccountId: string | null;
+        statutoryLines: Array<{ accountId: string; amount: number }>;
+      };
+    };
+
+    this.logger.log(
+      `[Job ${job.id}] Processing payroll approval journal posting for batch: ${postingData.reference}`,
+    );
+
+    try {
+      // Mark as Processing
+      await this.prisma.payrollBatch.update({
+        where: { id: batchId },
+        data: { postingStatus: 'Processing' },
+      });
+
+      // Build journal lines
+      const journalLines: Array<{ accountId: string; debit: number; credit: number }> = [];
+
+      journalLines.push({
+        accountId: postingData.salariesExpenseAccountId,
+        debit: postingData.totalGross,
+        credit: 0,
+      });
+
+      for (const line of postingData.statutoryLines) {
+        journalLines.push({ accountId: line.accountId, debit: 0, credit: line.amount });
+      }
+
+      if (postingData.totalOther > 0 && postingData.otherDeductionsPayableAccountId) {
+        journalLines.push({
+          accountId: postingData.otherDeductionsPayableAccountId,
+          debit: 0,
+          credit: postingData.totalOther,
+        });
+      }
+
+      journalLines.push({
+        accountId: postingData.wagesPayableAccountId,
+        debit: 0,
+        credit: postingData.totalNet,
+      });
+
+      const totalDebit = journalLines.reduce((sum, line) => sum + line.debit, 0);
+      const totalCredit = journalLines.reduce((sum, line) => sum + line.credit, 0);
+
+      if (Math.abs(totalDebit - totalCredit) > 0.01) {
+        throw new Error(
+          `Journal entry does not balance. Debit: ${totalDebit}, Credit: ${totalCredit}, Difference: ${totalDebit - totalCredit}. ` +
+          `This usually means a statutory deduction on this batch has no linked payable account — check Settings > Payroll > Statutory Deductions.`,
+        );
+      }
+
+      await this.prisma.$transaction(async (tx) => {
+        const journalRef = generateJournalReference('PYR');
+        const postedAt = new Date();
+
+        await tx.journal.create({
+          data: {
+            description: `Payroll ${postingData.reference} posted`,
+            date: postedAt,
+            reference: journalRef,
+            entityId,
+            groupId,
+            lines: journalLines,
+          },
+        });
+
+        const accountMeta = await Promise.all(
+          journalLines.map((line) => this.resolveAccountMeta(tx, line.accountId)),
+        );
+
+        const updatedAccounts = await Promise.all(
+          journalLines.map((line, index) =>
+            tx.account.update({
+              where: { id: line.accountId },
+              data: {
+                balance: {
+                  increment: this.balanceDelta(accountMeta[index].isDebitNormal, line.debit, line.credit),
+                },
+              },
+              select: { balance: true },
+            }),
+          ),
+        );
+
+        await Promise.all(
+          journalLines.map((line, index) => {
+            const accountWithBank = accountMeta[index];
+            return tx.accountTransaction.create({
+              data: {
+                date: postedAt,
+                description: `Payroll ${postingData.reference} posted to journal`,
+                reference: journalRef,
+                type: accountWithBank?.hasBankAccount ? 'BANK' : 'PAYROLL_POSTING',
+                status: 'Success',
+                accountId: line.accountId,
+                debitAmount: line.debit,
+                creditAmount: line.credit,
+                runningBalance: updatedAccounts[index].balance,
+                entityId,
+                groupId,
+                relatedEntityId: batchId,
+                relatedEntityType: 'PayrollBatch',
+                metadata: { reference: postingData.reference, journalReference: journalRef },
+              },
+            });
+          }),
+        );
+
+        await tx.payrollBatch.update({
+          where: { id: batchId },
+          data: { postingStatus: 'Success', journalReference: journalRef, postedAt },
+        });
+      });
+
+      this.logger.log(
+        `[Job ${job.id}] Successfully posted payroll ${postingData.reference} to journal`,
+      );
+
+      return { success: true, batchId };
+    } catch (error) {
+      this.logger.error(
+        `[Job ${job.id}] Failed to post payroll journal: ${error instanceof Error ? error.message : String(error)}`,
+      );
+
+      try {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        await this.prisma.payrollBatch.update({
+          where: { id: batchId },
+          data: {
+            postingStatus: 'Failed',
+            errorMessage: errorMessage.substring(0, 500),
+            errorCode: 'JOURNAL_POSTING_FAILED',
+          },
+        });
+      } catch (updateError) {
+        this.logger.error(
+          `[Job ${job.id}] Failed to update payroll batch status to Failed: ${updateError instanceof Error ? updateError.message : String(updateError)}`,
+        );
+      }
+
+      throw error; // Rethrow to trigger retry
+    }
+  }
+
+  /**
+   * Handle payroll payment journal posting ("Mark as Paid")
+   * Dr Wages Payable (same account credited at approval) = net pay
+   * Cr the bank/cash account chosen when marking as paid
+   */
+  async handlePayrollPaymentPosting(job: Job): Promise<any> {
+    const { paymentId, batchId, entityId, groupId, paymentData } = job.data as {
+      paymentId: string;
+      batchId: string;
+      entityId: string;
+      groupId: string;
+      paymentData: {
+        amount: number;
+        netPayableAccountId: string;
+        cashAccountId: string;
+      };
+    };
+
+    this.logger.log(
+      `[Job ${job.id}] Processing payroll payment journal posting for batch: ${batchId}`,
+    );
+
+    try {
+      await this.prisma.payrollPayment.update({
+        where: { id: paymentId },
+        data: { postingStatus: 'Processing' },
+      });
+
+      const journalLines = [
+        { accountId: paymentData.netPayableAccountId, debit: paymentData.amount, credit: 0 },
+        { accountId: paymentData.cashAccountId, debit: 0, credit: paymentData.amount },
+      ];
+
+      await this.prisma.$transaction(async (tx) => {
+        const journalRef = generateJournalReference('PYRPMT');
+        const postedAt = new Date();
+
+        await tx.journal.create({
+          data: {
+            description: `Payroll payment for batch ${batchId} posted`,
+            date: postedAt,
+            reference: journalRef,
+            entityId,
+            groupId,
+            lines: journalLines,
+          },
+        });
+
+        const accountMeta = await Promise.all(
+          journalLines.map((line) => this.resolveAccountMeta(tx, line.accountId)),
+        );
+
+        const updatedAccounts = await Promise.all(
+          journalLines.map((line, index) =>
+            tx.account.update({
+              where: { id: line.accountId },
+              data: {
+                balance: {
+                  increment: this.balanceDelta(accountMeta[index].isDebitNormal, line.debit, line.credit),
+                },
+              },
+              select: { balance: true },
+            }),
+          ),
+        );
+
+        await Promise.all(
+          journalLines.map((line, index) => {
+            const accountWithBank = accountMeta[index];
+            return tx.accountTransaction.create({
+              data: {
+                date: postedAt,
+                description: `Payroll payment for batch ${batchId} posted to journal`,
+                reference: journalRef,
+                type: accountWithBank?.hasBankAccount ? 'BANK' : 'PAYROLL_PAYMENT_POSTING',
+                status: 'Success',
+                accountId: line.accountId,
+                debitAmount: line.debit,
+                creditAmount: line.credit,
+                runningBalance: updatedAccounts[index].balance,
+                entityId,
+                groupId,
+                relatedEntityId: batchId,
+                relatedEntityType: 'PayrollBatch',
+                metadata: { journalReference: journalRef },
+              },
+            });
+          }),
+        );
+
+        await tx.payrollPayment.update({
+          where: { id: paymentId },
+          data: { postingStatus: 'Success', journalReference: journalRef, postedAt },
+        });
+      });
+
+      this.logger.log(
+        `[Job ${job.id}] Successfully posted payroll payment for batch ${batchId} to journal`,
+      );
+
+      return { success: true, paymentId };
+    } catch (error) {
+      this.logger.error(
+        `[Job ${job.id}] Failed to post payroll payment journal: ${error instanceof Error ? error.message : String(error)}`,
+      );
+
+      try {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        await this.prisma.payrollPayment.update({
+          where: { id: paymentId },
+          data: {
+            postingStatus: 'Failed',
+            errorMessage: errorMessage.substring(0, 500),
+            errorCode: 'JOURNAL_POSTING_FAILED',
+          },
+        });
+      } catch (updateError) {
+        this.logger.error(
+          `[Job ${job.id}] Failed to update payroll payment status to Failed: ${updateError instanceof Error ? updateError.message : String(updateError)}`,
         );
       }
 
