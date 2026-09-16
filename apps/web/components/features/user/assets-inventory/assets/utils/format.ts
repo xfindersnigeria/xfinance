@@ -1,6 +1,3 @@
-export const formatAmount = (sym: string, value: number | null | undefined) =>
-  `${sym}${Math.round(value ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
-
 export const formatDate = (iso: string | Date | null | undefined) =>
   iso
     ? new Date(iso).toLocaleDateString("en-US", {

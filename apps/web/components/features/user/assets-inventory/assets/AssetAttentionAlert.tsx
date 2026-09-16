@@ -28,13 +28,15 @@ export default function AssetAttentionAlert({
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex items-start gap-3 text-sm">
-        <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
-        <p>
-          <span className="font-semibold text-amber-700">Asset Attention Required: </span>
-          <span className="text-foreground">{message}</span>
-        </p>
+    <div className="flex flex-col gap-3 p-4 rounded-xl border border-red-100 bg-linear-to-br from-red-50 to-white sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-start gap-3">
+        <span className="mt-1 text-red-500">
+          <AlertCircle className="w-5 h-5" />
+        </span>
+        <div className="font-semibold text-red-700">
+          Asset Attention Required:
+          <span className="font-normal text-gray-700"> {message}</span>
+        </div>
       </div>
       {action}
     </div>

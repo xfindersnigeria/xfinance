@@ -66,7 +66,7 @@ export default function AssetCategoryForm({ category }: { category?: AssetCatego
                 Category Name <span className="text-red-500">*</span>
               </FormLabel>
               <FormControl>
-                <Input placeholder="e.g. Motor vehicle" {...field} />
+                <Input className="rounded-2xl" placeholder="e.g. Motor vehicle" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -82,7 +82,7 @@ export default function AssetCategoryForm({ category }: { category?: AssetCatego
                 Annual Depreciation Rate (%) <span className="text-red-500">*</span>
               </FormLabel>
               <FormControl>
-                <NumberInput placeholder="e.g. 20" value={field.value} onChange={field.onChange} />
+                <NumberInput className="rounded-2xl" placeholder="e.g. 20" value={field.value} onChange={field.onChange} />
               </FormControl>
               <FormDescription>
                 Straight-line on cost, full year&apos;s charge in the year of purchase.
@@ -105,7 +105,7 @@ export default function AssetCategoryForm({ category }: { category?: AssetCatego
             <FormItem>
               <FormLabel className="font-semibold">Description</FormLabel>
               <FormControl>
-                <Textarea rows={2} placeholder="Optional" {...field} />
+                <Textarea className="rounded-2xl" rows={2} placeholder="Optional" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>

@@ -25,14 +25,16 @@ export default function AssetCategoryActions({ category }: { category: AssetCate
         <Button
           variant="ghost"
           size="icon"
+          className="hover:bg-gray-100"
           aria-label={`Edit ${category.name}`}
           onClick={() => openModal(editKey)}
         >
-          <Pencil className="w-4 h-4 text-muted-foreground" />
+          <Pencil className="w-4 h-4 text-gray-500" />
         </Button>
         <Button
           variant="ghost"
           size="icon"
+          className="hover:bg-red-50"
           aria-label={`Delete ${category.name}`}
           title={inUse ? `${category.assetCount} asset(s) use this category` : undefined}
           disabled={inUse}

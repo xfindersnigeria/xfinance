@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 import AssetsStatCardSmall from "./AssetsStatCardSmall";
 import AssetAttentionAlert from "./AssetAttentionAlert";
-import { formatAmount } from "./utils/format";
+import { fmtAmount } from "@/lib/api/hooks/useCurrencyFormat";
 
 export interface AssetSummary {
   total: number;
@@ -40,16 +40,11 @@ export default function AssetsHeader({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-4 rounded-2xl border bg-card p-4 shadow-sm sm:p-6 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-4 rounded-2xl bg-white p-4 shadow-md lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider">
-            Fixed Assets <span className="mx-1 text-muted-foreground">•</span>
-            <span className="font-normal normal-case tracking-normal text-muted-foreground">
-              Capital Registry
-            </span>
-          </p>
-          <h2 className="mt-1 text-2xl font-bold">Asset Management</h2>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground">Fixed Assets • Capital Registry</p>
+          <h2 className="text-2xl font-bold text-primary">Asset Management</h2>
+          <p className="text-muted-foreground">
             Declare, update, and manage your capital asset registry for tax valuation and
             automated depreciation.
           </p>
@@ -78,26 +73,30 @@ export default function AssetsHeader({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <AssetsStatCardSmall
           title="Total Assets"
-          value={summary.total}
-          subtitle={<span className="font-mono">Worth {formatAmount(sym, summary.totalCost)}</span>}
+          value={<span className="text-3xl font-bold text-primary">{summary.total}</span>}
+          subtitle={<span>Worth {fmtAmount(summary.totalCost, sym)}</span>}
           loading={loading}
         />
         <AssetsStatCardSmall
           title="In Use"
-          value={summary.inUse}
-          subtitle="Active assets"
+          value={<span className="text-3xl font-bold text-primary">{summary.inUse}</span>}
+          subtitle={<span>Active assets</span>}
           loading={loading}
         />
         <AssetsStatCardSmall
           title="In Storage"
-          value={summary.inStorage}
-          subtitle="Available in inventory"
+          value={<span className="text-3xl font-bold text-primary">{summary.inStorage}</span>}
+          subtitle={<span>Available in inventory</span>}
           loading={loading}
         />
         <AssetsStatCardSmall
           title="Depreciable Value"
-          value={<span className="font-mono">{formatAmount(sym, summary.depreciableValue)}</span>}
-          subtitle="Tracked for depreciation"
+          value={
+            <span className="text-3xl font-bold text-primary">
+              {fmtAmount(summary.depreciableValue, sym)}
+            </span>
+          }
+          subtitle={<span>Tracked for depreciation</span>}
           loading={loading}
         />
       </div>

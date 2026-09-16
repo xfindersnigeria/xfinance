@@ -27,6 +27,7 @@ docker compose up -d
 
 **4. Run migrations and seeders in this exact order:**
 ```bash
+docker compose exec api npx prisma migrate deploy
 docker compose exec api npm run seed:permissions
 docker compose exec api npm run seed:admin-role
 docker compose exec api npm run seed:modules
@@ -122,8 +123,21 @@ When the XFinance team releases an update:
 ```bash
 docker compose pull
 docker compose up -d
+docker compose exec api npx prisma migrate deploy
 ```
-Migrations run automatically on startup.
+Migrations do **not** run on container startup — always run `migrate deploy`
+after pulling (it is a no-op when there is nothing new).
+
+Some releases also need a one-off backfill so existing data picks up new
+defaults. Each is idempotent (safe to re-run) and new entities get these
+automatically. Run them after `migrate deploy`, in this order:
+```bash
+# Payroll payable accounts, then link statutory deductions to them
+docker compose exec api npm run backfill:payroll-accounts
+docker compose exec api npm run backfill:statutory-deductions
+# Default fixed-asset categories (skips entities that already have any)
+docker compose exec api npm run backfill:asset-categories
+```
 
 ---
 

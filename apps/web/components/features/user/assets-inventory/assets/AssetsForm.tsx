@@ -105,7 +105,7 @@ export default function AssetsForm({ assets, isEditMode = false }: AssetsFormPro
                 Asset Name <span className="text-red-500">*</span>
               </FormLabel>
               <FormControl>
-                <Input placeholder="e.g. Toyota Hilux 2024 or Perkins Generator" {...field} />
+                <Input className="rounded-2xl" placeholder="e.g. Toyota Hilux 2024 or Perkins Generator" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -123,7 +123,7 @@ export default function AssetsForm({ assets, isEditMode = false }: AssetsFormPro
                 </FormLabel>
                 <Select value={field.value} onValueChange={field.onChange}>
                   <FormControl>
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger className="w-full rounded-2xl">
                       <SelectValue
                         placeholder={categoriesLoading ? "Loading..." : "Select category"}
                       />
@@ -157,7 +157,7 @@ export default function AssetsForm({ assets, isEditMode = false }: AssetsFormPro
                 </FormLabel>
                 <Select value={field.value} onValueChange={field.onChange}>
                   <FormControl>
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger className="w-full rounded-2xl">
                       <SelectValue />
                     </SelectTrigger>
                   </FormControl>
@@ -181,6 +181,7 @@ export default function AssetsForm({ assets, isEditMode = false }: AssetsFormPro
                 </FormLabel>
                 <FormControl>
                   <NumberInput
+                    className="rounded-2xl"
                     placeholder="e.g. 15,000,000"
                     value={field.value}
                     onChange={field.onChange}
@@ -200,7 +201,7 @@ export default function AssetsForm({ assets, isEditMode = false }: AssetsFormPro
                   Purchase Date <span className="text-red-500">*</span>
                 </FormLabel>
                 <FormControl>
-                  <Input type="date" {...field} />
+                  <Input type="date" className="rounded-2xl" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -219,6 +220,7 @@ export default function AssetsForm({ assets, isEditMode = false }: AssetsFormPro
                 </FormLabel>
                 <FormControl>
                   <NumberInput
+                    className="rounded-2xl"
                     placeholder="Optional"
                     value={field.value}
                     onChange={field.onChange}

@@ -18,7 +18,8 @@ import {
 import type { DepreciationScheduleRow } from "@/lib/api/services/assetsService";
 import AssetCategoryActions from "./AssetCategoryActions";
 import AssetCategoryForm from "./AssetCategoryForm";
-import { formatAmount, formatDate } from "./utils/format";
+import { fmtAmount } from "@/lib/api/hooks/useCurrencyFormat";
+import { formatDate } from "./utils/format";
 
 const AMOUNT_KEYS = [
   "openingBalance",
@@ -60,9 +61,9 @@ export default function AssetCategoriesTable({
     [rows],
   );
 
-  const amount = (v: number) => formatAmount(sym, v);
-  const headCell = "px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap";
-  const numCell = "px-4 py-3 text-right font-mono tabular-nums whitespace-nowrap";
+  const amount = (v: number) => fmtAmount(v, sym);
+  const headCell = "px-4 py-2 text-left font-semibold text-gray-700 whitespace-nowrap";
+  const numCell = "px-4 py-2 text-right text-gray-700 whitespace-nowrap";
 
   const renderAmounts = (r: Pick<DepreciationScheduleRow, (typeof AMOUNT_KEYS)[number]>) => (
     <>
@@ -70,21 +71,21 @@ export default function AssetCategoriesTable({
       <td className={cn(numCell, "text-green-700")}>
         {r.additions > 0 ? `+${amount(r.additions)}` : amount(0)}
       </td>
-      <td className={cn(numCell, "font-semibold")}>{amount(r.totalCost)}</td>
+      <td className={cn(numCell, "font-semibold text-gray-900")}>{amount(r.totalCost)}</td>
     </>
   );
 
   return (
-    <div className="w-full rounded-2xl border bg-card shadow-sm">
-      <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between sm:p-6">
+    <div className="w-full bg-white p-4 rounded-2xl shadow-md">
+      <div className="flex flex-col gap-3 mb-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-lg font-semibold">Asset Categories</h3>
-            <span className="rounded-full bg-muted px-3 py-0.5 text-xs font-medium">
+            <h2 className="font-normal text-base">Asset Categories</h2>
+            <span className="rounded-full bg-gray-100 px-3 py-0.5 text-xs text-gray-700">
               Depreciation Schedule
             </span>
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="text-sm text-gray-500">
             {schedule
               ? `Financial year ${formatDate(schedule.fiscalYear.start)} – ${formatDate(schedule.fiscalYear.end)}. `
               : ""}
@@ -93,23 +94,23 @@ export default function AssetCategoriesTable({
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <div className="relative w-full sm:w-64">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <Input
               placeholder="Search category..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
+              className="pl-9 bg-gray-100 rounded-2xl"
             />
           </div>
-          <Button onClick={() => openModal(MODAL.ASSET_CATEGORY_CREATE)}>
+          <Button className="rounded-2xl" onClick={() => openModal(MODAL.ASSET_CATEGORY_CREATE)}>
             <Plus /> New Category
           </Button>
         </div>
       </div>
 
-      <div className="overflow-x-auto border-t">
-        <table className="min-w-full text-sm">
-          <thead className="bg-muted/50 text-left">
+      <div className="overflow-x-auto rounded-md border">
+        <table className="min-w-full bg-white text-xs">
+          <thead>
             <tr>
               <th className={headCell}>S/N</th>
               <th className={headCell}>Asset Category</th>
@@ -129,7 +130,7 @@ export default function AssetCategoriesTable({
             {isLoading &&
               Array.from({ length: 4 }).map((_, i) => (
                 <tr key={i} className="border-t">
-                  <td colSpan={10} className="px-4 py-3">
+                  <td colSpan={10} className="px-4 py-2">
                     <Skeleton className="h-5 w-full" />
                   </td>
                 </tr>
@@ -137,7 +138,7 @@ export default function AssetCategoriesTable({
 
             {!isLoading && rows.length === 0 && (
               <tr className="border-t">
-                <td colSpan={10} className="px-4 py-10 text-center text-muted-foreground">
+                <td colSpan={10} className="text-center py-8 text-gray-400">
                   {search ? "No categories match your search." : "No asset categories yet."}
                 </td>
               </tr>
@@ -146,13 +147,13 @@ export default function AssetCategoriesTable({
             {rows.map((r, i) => {
               const category = r.categoryId ? categoriesById.get(r.categoryId) : undefined;
               return (
-                <tr key={r.categoryId ?? "uncategorised"} className="border-t hover:bg-muted/30">
-                  <td className="px-4 py-3 text-muted-foreground">{i + 1}</td>
-                  <td className="px-4 py-3">
+                <tr key={r.categoryId ?? "uncategorised"} className="border-t hover:bg-gray-50">
+                  <td className="px-4 py-2 text-gray-500">{i + 1}</td>
+                  <td className="px-4 py-2">
                     <button
                       type="button"
                       className={cn(
-                        "text-left font-medium hover:text-primary hover:underline",
+                        "text-left font-normal text-gray-900 hover:text-primary hover:underline",
                         !r.categoryId && "text-amber-700",
                       )}
                       onClick={() =>
@@ -161,14 +162,14 @@ export default function AssetCategoriesTable({
                     >
                       {r.name}
                     </button>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-xs text-gray-400">
                       {r.assetCount} asset{r.assetCount === 1 ? "" : "s"}
                     </div>
                   </td>
                   {renderAmounts(r)}
-                  <td className="px-4 py-3 text-center">
+                  <td className="px-4 py-2 text-center">
                     {r.depreciationRate != null ? (
-                      <span className="rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 font-mono text-xs font-semibold text-amber-700">
+                      <span className="rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">
                         {r.depreciationRate}%
                       </span>
                     ) : (
@@ -176,11 +177,11 @@ export default function AssetCategoriesTable({
                     )}
                   </td>
                   <td className={cn(numCell, "text-red-600")}>{amount(r.depreciationForYear)}</td>
-                  <td className={cn(numCell, "text-muted-foreground")}>
+                  <td className={cn(numCell, "text-gray-500")}>
                     {amount(r.openingAccumulated)}
                   </td>
-                  <td className={cn(numCell, "font-semibold")}>{amount(r.totalAccumulated)}</td>
-                  <td className="px-2 py-3">
+                  <td className={cn(numCell, "font-semibold text-gray-900")}>{amount(r.totalAccumulated)}</td>
+                  <td className="px-2 py-2">
                     {category && <AssetCategoryActions category={category} />}
                   </td>
                 </tr>
@@ -188,17 +189,17 @@ export default function AssetCategoriesTable({
             })}
 
             {!isLoading && rows.length > 0 && (
-              <tr className="border-t bg-muted/50 font-semibold">
-                <td className="px-4 py-3 uppercase" colSpan={2}>
+              <tr className="border-t bg-gray-50 font-semibold">
+                <td className="px-4 py-2 text-gray-900" colSpan={2}>
                   Total
                 </td>
                 {renderAmounts(totals)}
-                <td className="px-4 py-3 text-center">—</td>
+                <td className="px-4 py-2 text-center">—</td>
                 <td className={cn(numCell, "text-red-600")}>{amount(totals.depreciationForYear)}</td>
-                <td className={cn(numCell, "text-muted-foreground")}>
+                <td className={cn(numCell, "text-gray-500")}>
                   {amount(totals.openingAccumulated)}
                 </td>
-                <td className={numCell}>{amount(totals.totalAccumulated)}</td>
+                <td className={cn(numCell, "text-gray-900")}>{amount(totals.totalAccumulated)}</td>
                 <td />
               </tr>
             )}
