@@ -32,6 +32,9 @@ import { useRouter } from "next/navigation";
 import { useSessionStore } from "@/lib/store/session";
 import { useLogout } from "@/lib/api/hooks/useAuth";
 import { toast } from "sonner";
+import { useModal } from "@/components/providers/ModalProvider";
+import { MODAL } from "@/lib/data/modal-data";
+import PosOverlay from "@/components/features/user/products/pos/PosOverlay";
 
 function hasProductsMenu(menu: any[]): boolean {
   return menu.some((item) => item.label === "Products");
@@ -59,6 +62,7 @@ export default function Header({
   const router = useRouter();
   const whoami = useSessionStore((state) => state.whoami);
   const result = hasProductsMenu(whoami?.menus || []);
+  const { openModal } = useModal();
   // console.log("Header whoami:", whoami); // Debug log to check whoami data
   const contextLabel =
     activeContext?.effectiveRole === ENUM_ROLE.USER
@@ -118,7 +122,10 @@ export default function Header({
           <span className="font-semibold">Demo Mode</span>
         </Button> */}
           {result && (
-            <Button className="hidden items-center gap-2 bg-green-600 font-semibold text-white hover:bg-green-700 sm:flex">
+            <Button
+              onClick={() => openModal(MODAL.POS)}
+              className="hidden items-center gap-2 bg-green-600 font-semibold text-white hover:bg-green-700 sm:flex"
+            >
               <Store className="size-4" />
               Quick Sale
             </Button>
@@ -215,6 +222,8 @@ export default function Header({
         open={accountSheetOpen}
         onOpenChange={setAccountSheetOpen}
       />
+      {/* Full-screen POS — opened by Quick Sale above or "New sale" on the Orders page */}
+      {result && <PosOverlay />}
     </>
   );
 }

@@ -25,7 +25,9 @@ import { BullmqService } from '@/bullmq/bullmq.service';
 import { PdfService } from '@/pdf/pdf.service';
 import { EmailService } from '@/email/email.service';
 import { CacheService } from '@/cache/cache.service';
-import { computeSalesTax, resolveSalesTaxRate } from '../sales-tax.util';
+import { computeDocumentTotals, resolveDocumentTax } from '../sales-tax.util';
+import { resolveInvoiceCustomer, withInvoiceParty } from '../party.util';
+import { DocumentEmailService } from '@/email/document-email.service';
 
 @Injectable()
 export class InvoiceService {
@@ -37,7 +39,27 @@ export class InvoiceService {
     private pdfService: PdfService,
     private emailService: EmailService,
     private cacheService: CacheService,
+    private documentEmail: DocumentEmailService,
   ) {}
+
+  /**
+   * "Invoice Emails" switch (Settings → Email): email the invoice to the
+   * customer as soon as it is sent. Runs in the background — a missing
+   * address or mail failure never blocks sending the invoice.
+   */
+  private autoEmailOnSend(invoiceId: string, entityId: string, performedBy: string) {
+    void this.documentEmail
+      .autoSendInvoice(invoiceId, entityId)
+      .then((to) =>
+        to
+          ? this.logActivity(invoiceId, InvoiceActivityType.Sent, `Invoice emailed to ${to}`, performedBy, {
+              recipientEmail: to,
+              automatic: true,
+            })
+          : undefined,
+      )
+      .catch(() => undefined);
+  }
 
   /**
    * Log an activity for an invoice
@@ -341,7 +363,23 @@ export class InvoiceService {
       const invoiceNumber = generateRandomInvoiceNumber({ prefix: 'INV' });
 
       // Extract items and status from body
-      const { items, status = InvoiceStatus.Draft, taxRate: requestedTaxRate, ...invoiceData } = body;
+      const {
+        items,
+        status = InvoiceStatus.Draft,
+        taxRate: requestedTaxRate,
+        taxName: requestedTaxName,
+        customerId,
+        customerName,
+        customerEmail,
+        ...invoiceData
+      } = body;
+
+      // A saved customer, or a typed-in name
+      const party = await resolveInvoiceCustomer(this.prisma, entityId, {
+        customerId,
+        customerName,
+        customerEmail,
+      });
 
       // Fetch item details to check for taxable items
       const itemDetails =
@@ -362,12 +400,10 @@ export class InvoiceService {
           : [];
 
       // Calculate item totals and invoice totals
-      let subtotal = 0;
       const taxLines: Array<{ total: number; taxable: boolean }> = [];
       const invoiceItemsData = (items || []).map((item) => {
         const itemDetail = itemDetails.find((i) => i.id === item.itemId);
         const total = item.rate * item.quantity;
-        subtotal += total;
         taxLines.push({ total, taxable: !!itemDetail?.isTaxable });
         return {
           itemId: item.itemId,
@@ -377,22 +413,28 @@ export class InvoiceService {
         };
       });
 
-      // Tax at the user-chosen rate (or the entity default) on taxable lines
-      const taxRate = await resolveSalesTaxRate(this.prisma, entityId, requestedTaxRate);
-      const tax = computeSalesTax(taxLines, taxRate);
-      const total = subtotal + tax;
+      // Tax the user picked, or the entity default (Settings → Tax)
+      const docTax = await resolveDocumentTax(this.prisma, entityId, {
+        taxRate: requestedTaxRate,
+        taxName: requestedTaxName,
+      });
+      const { subtotal, tax, total } = computeDocumentTotals(taxLines, docTax.rate, docTax.inclusive);
+      const taxRate = docTax.rate;
 
       // Create invoice and items in a transaction
       const result = await this.prisma.$transaction(async (tx) => {
         const invoice = await tx.invoice.create({
           data: {
             ...invoiceData,
+            ...party,
             invoiceNumber,
             entityId,
             groupId,
             subtotal,
             tax,
             taxRate,
+            taxName: docTax.name,
+            taxInclusive: docTax.inclusive,
             total,
             status,
           },
@@ -449,6 +491,7 @@ export class InvoiceService {
       if (status === InvoiceStatus.Sent) {
         try {
           // Queue the journal posting job instead of doing it synchronously
+          this.autoEmailOnSend(result.id, entityId, performedBy);
           await this.bullmqService.addJob('post-invoice-journal', {
             invoiceId: result.id,
             invoiceData: {
@@ -474,8 +517,9 @@ export class InvoiceService {
       }
 
       await this.cacheService.invalidateEntityDashboardCache(entityId);
-      return result;
+      return withInvoiceParty(result);
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       throw new HttpException(
         `Failed to create invoice: ${error instanceof Error ? error.message : String(error)}`,
         HttpStatus.CONFLICT,
@@ -516,6 +560,7 @@ export class InvoiceService {
           {
             customer: { name: { contains: query.search, mode: 'insensitive' } },
           },
+          { customerName: { contains: query.search, mode: 'insensitive' } },
         ];
       }
 
@@ -554,7 +599,7 @@ export class InvoiceService {
 
       const enrichedInvoices = invoices.map(({ paymentReceived, ...inv }) => {
         const totalPaid = paymentReceived.reduce((s, p) => s + p.amount, 0);
-        return { ...inv, outstandingBalance: inv.total - totalPaid };
+        return withInvoiceParty({ ...inv, outstandingBalance: inv.total - totalPaid });
       });
 
       return {
@@ -608,6 +653,7 @@ export class InvoiceService {
           {
             customer: { name: { contains: query.search, mode: 'insensitive' } },
           },
+          { customerName: { contains: query.search, mode: 'insensitive' } },
         ];
       }
 
@@ -676,8 +722,8 @@ export class InvoiceService {
       const transformedInvoices = paidInvoices.map((invoice) => ({
         id: invoice.id,
         invoiceNumber: invoice.invoiceNumber,
-        customerName: invoice.customer.name,
-        customerId: invoice.customer.id,
+        customerName: invoice.customer?.name ?? invoice.customerName ?? '',
+        customerId: invoice.customerId,
         total: invoice.total,
         invoiceDate: invoice.invoiceDate.toISOString(),
         dueDate: invoice.dueDate.toISOString(),
@@ -739,7 +785,7 @@ export class InvoiceService {
         );
       }
 
-      return invoice;
+      return withInvoiceParty(invoice);
     } catch (error) {
       if (error instanceof HttpException) throw error;
       throw new HttpException(
@@ -785,12 +831,34 @@ export class InvoiceService {
       }
 
       // Extract items and status from body
-      const { items, status = invoice.status, taxRate: requestedTaxRate, ...invoiceData } = body;
+      const {
+        items,
+        status = invoice.status,
+        taxRate: requestedTaxRate,
+        taxName: requestedTaxName,
+        customerId,
+        customerName,
+        customerEmail,
+        ...invoiceData
+      } = body;
+
+      // Customer change: switch between a saved customer and a typed-in name
+      const party =
+        customerId !== undefined || customerName !== undefined
+          ? await resolveInvoiceCustomer(this.prisma, entityId, {
+              customerId,
+              customerName,
+              customerEmail,
+            })
+          : customerEmail !== undefined && !invoice.customerId
+            ? { customerEmail: customerEmail?.trim() || null }
+            : {};
 
       // For Draft invoices, allow editing. For Sent invoices, only allow status changes
       let subtotal = invoice.subtotal;
       let tax = invoice.tax;
       let taxRate = invoice.taxRate;
+      let taxName = invoice.taxName;
       let total = invoice.total;
       let invoiceItemsData: any[] = [];
       let hasItems = false;
@@ -818,12 +886,10 @@ export class InvoiceService {
         });
 
         // Calculate new invoice items and totals
-        subtotal = 0;
         const taxLines: Array<{ total: number; taxable: boolean }> = [];
         invoiceItemsData = items.map((item) => {
           const itemDetail = itemDetails.find((i) => i.id === item.itemId);
           const total = item.rate * item.quantity;
-          subtotal += total;
           taxLines.push({ total, taxable: !!itemDetail?.isTaxable });
           return {
             itemId: item.itemId,
@@ -832,9 +898,12 @@ export class InvoiceService {
             total,
           };
         });
-        taxRate = requestedTaxRate ?? invoice.taxRate;
-        tax = computeSalesTax(taxLines, taxRate);
-        total = subtotal + tax;
+        // Keep the invoice's own rate and pricing basis unless the user picks another tax
+        if (requestedTaxRate !== undefined && requestedTaxRate !== null) {
+          taxRate = requestedTaxRate;
+          taxName = requestedTaxName?.trim() || null;
+        }
+        ({ subtotal, tax, total } = computeDocumentTotals(taxLines, taxRate, invoice.taxInclusive));
         hasItems = true;
       }
 
@@ -861,10 +930,12 @@ export class InvoiceService {
           where: { id: invoiceId },
           data: {
             ...invoiceData,
+            ...party,
             status,
             subtotal,
             tax,
             taxRate,
+            taxName,
             total,
           },
           include: {
@@ -911,6 +982,7 @@ export class InvoiceService {
               }));
 
           // Queue the journal posting job
+          this.autoEmailOnSend(invoiceId, entityId, performedBy);
           await this.bullmqService.addJob('post-invoice-journal', {
             invoiceId,
             invoiceData: {
@@ -936,7 +1008,7 @@ export class InvoiceService {
       }
 
       await this.cacheService.invalidateEntityDashboardCache(entityId);
-      return updatedInvoice;
+      return withInvoiceParty(updatedInvoice);
     } catch (error) {
       if (
         error instanceof HttpException ||
@@ -1283,6 +1355,7 @@ export class InvoiceService {
           }));
 
           // Queue the journal posting job via BullMQ (async)
+          this.autoEmailOnSend(invoiceId, entityId, performedBy);
           await this.bullmqService.addJob('post-invoice-journal', {
             invoiceId,
             invoiceData: {
@@ -1308,7 +1381,7 @@ export class InvoiceService {
       }
 
       await this.cacheService.invalidateEntityDashboardCache(entityId);
-      return updated;
+      return withInvoiceParty(updated);
     } catch (error) {
       if (
         error instanceof HttpException ||
@@ -1364,18 +1437,16 @@ export class InvoiceService {
   }
 
   /**
-   * Generate invoice PDF and email it to the customer.
-   * Also marks the invoice as Sent if it was in Draft/Pending.
+   * Email the invoice PDF to the customer (Settings → Email template, through
+   * the entity's own SMTP or the platform mailer). `to` overrides the
+   * recipient — required for a typed-in customer with no email on file.
+   * Also marks the invoice as Sent if it was a Draft.
    */
-  async sendInvoice(invoiceId: string, entityId: string, performedBy: string) {
+  async sendInvoice(invoiceId: string, entityId: string, performedBy: string, to?: string) {
     try {
       const invoice = await this.prisma.invoice.findFirst({
         where: { OR: [{ id: invoiceId }, { invoiceNumber: invoiceId }] },
-        include: {
-          customer: true,
-          entity: true,
-          invoiceItem: { include: { item: true } },
-        },
+        select: { id: true, entityId: true, status: true, groupId: true },
       });
 
       if (!invoice) {
@@ -1385,105 +1456,7 @@ export class InvoiceService {
         throw new HttpException('Access denied', HttpStatus.FORBIDDEN);
       }
 
-      const customerEmail = invoice.customer?.email;
-      if (!customerEmail) {
-        throw new HttpException(
-          'Customer has no email address on file',
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-
-      // Fetch entity's first bank account for payment details in PDF
-      // const bankAccountRaw = await this.prisma.bankAccount.findFirst({
-      //   where: { entityId },
-      //   select: { bankName: true, accountName: true, accountNumber: true, routingNumber: true },
-      // });
-
-      const settings = await this.prisma.settings.findFirst({
-        where: { entityId },
-      });
-
-      const bankAccountRaw = settings
-        ? {
-            bankName: settings.bankName,
-            accountName: settings.bankAccountName,
-            accountNumber: settings.bankAccountNumber,
-            routingNumber: settings.bankRoutingNumber,
-            bankSwiftCode: settings.bankSwiftCode,
-            // invoiceNotes: settings.invoiceNotes,
-          }
-        : null;
-
-      // Generate PDF
-      const customization = await this.prisma.groupCustomization.findUnique({
-        where: { groupId: invoice.groupId },
-        select: { primaryColor: true },
-      });
-      const primaryColor = customization?.primaryColor ?? '#4152B6';
-      const pdfBuffer = await this.pdfService.generate('invoice', {
-        invoice: {
-          ...invoice,
-          notes: (settings && settings.invoiceNotes) || '',
-        },
-        customer: invoice.customer,
-        entity: invoice.entity,
-        bankAccount: bankAccountRaw ?? null,
-        primaryColor,
-      });
-
-      // Build HTML email body
-      const dueDate = invoice.dueDate
-        ? new Date(invoice.dueDate).toLocaleDateString('en-GB', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric',
-          })
-        : '';
-      const total = (Number(invoice.total) || 0).toLocaleString('en-US', {
-        minimumFractionDigits: 2,
-      });
-      const entityName = (invoice.entity as any)?.name || 'Your supplier';
-
-      const emailHtml = `
-        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1a1a1a">
-          <h2 style="color:#3b4fea;margin-bottom:8px">Invoice from ${entityName}</h2>
-          <p>Dear ${invoice.customer?.name || 'Customer'},</p>
-          <p>Please find your invoice <strong>${invoice.invoiceNumber}</strong> attached to this email.</p>
-          <table style="width:100%;border-collapse:collapse;margin:16px 0">
-            <tr>
-              <td style="padding:8px;border:1px solid #e5e7eb;background:#f9fafb;font-weight:600">Invoice Number</td>
-              <td style="padding:8px;border:1px solid #e5e7eb">${invoice.invoiceNumber}</td>
-            </tr>
-            <tr>
-              <td style="padding:8px;border:1px solid #e5e7eb;background:#f9fafb;font-weight:600">Amount Due</td>
-              <td style="padding:8px;border:1px solid #e5e7eb"><strong>${invoice.currency || 'USD'} ${total}</strong></td>
-            </tr>
-            ${
-              dueDate
-                ? `<tr>
-              <td style="padding:8px;border:1px solid #e5e7eb;background:#f9fafb;font-weight:600">Due Date</td>
-              <td style="padding:8px;border:1px solid #e5e7eb">${dueDate}</td>
-            </tr>`
-                : ''
-            }
-          </table>
-          <p>Please open the attached PDF for full invoice details.</p>
-          <p style="margin-top:24px;color:#6b7280;font-size:13px">
-            If you have any questions about this invoice, please reply to this email.
-          </p>
-          <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0"/>
-          <p style="color:#9ca3af;font-size:12px">Sent via XFinance</p>
-        </div>`;
-
-      await this.emailService.sendEmailWithAttachment({
-        to: customerEmail,
-        toName: invoice.customer?.name,
-        senderName: entityName,
-        subject: `Invoice ${invoice.invoiceNumber} from ${entityName}`,
-        html: emailHtml,
-        attachment: pdfBuffer,
-        attachmentName: `invoice-${invoice.invoiceNumber}.pdf`,
-      });
+      const { to: recipient, via } = await this.documentEmail.sendInvoiceEmail(invoice.id, entityId, to);
 
       // Mark invoice as Sent if it was Draft
       if (
@@ -1500,15 +1473,15 @@ export class InvoiceService {
       await this.logActivity(
         invoice.id,
         InvoiceActivityType.Sent,
-        `Invoice sent to ${customerEmail}`,
+        `Invoice sent to ${recipient}`,
         performedBy,
-        { recipientEmail: customerEmail },
+        { recipientEmail: recipient, via },
         invoice.groupId,
       );
 
       await this.cacheService.invalidateEntityDashboardCache(entityId);
       return {
-        message: `Invoice sent successfully to ${customerEmail}`,
+        message: `Invoice sent successfully to ${recipient}`,
         statusCode: 200,
       };
     } catch (error) {

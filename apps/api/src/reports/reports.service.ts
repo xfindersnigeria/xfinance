@@ -69,6 +69,21 @@ interface AccountBucket {
 
 type SectionMap = Record<CategoryCode, { accounts: Map<string, AccountBucket>; total: number }>;
 
+/**
+ * Invoices and bills can name a customer/vendor that isn't a saved record
+ * (free-text customerName / vendorName). Reports group those by name so each
+ * typed-in party still gets its own row.
+ */
+function partyOf(
+  id: string | null,
+  savedName: string | null | undefined,
+  typedName: string | null | undefined,
+  fallback: string,
+): { key: string; id: string | null; name: string } {
+  const name = savedName || typedName?.trim() || fallback;
+  return { key: id ?? `name:${name.toLowerCase()}`, id, name };
+}
+
 @Injectable()
 export class ReportsService {
   private readonly logger = new Logger(ReportsService.name);
@@ -1067,24 +1082,26 @@ export class ReportsService {
     const [invoices, prevInvoices] = await Promise.all([
       this.prisma.invoice.findMany({
         where: { entityId, invoiceDate: { gte: startDate, lte: endDate }, status: { not: 'Draft' as any } },
-        select: { customerId: true, total: true, customer: { select: { name: true } } },
+        select: { customerId: true, customerName: true, total: true, customer: { select: { name: true } } },
       }),
       this.prisma.invoice.findMany({
         where: { entityId, invoiceDate: { gte: prevStart, lte: prevEnd }, status: { not: 'Draft' as any } },
-        select: { customerId: true, total: true },
+        select: { customerId: true, customerName: true, total: true, customer: { select: { name: true } } },
       }),
     ]);
 
     const prevMap = new Map<string, number>();
     for (const inv of prevInvoices) {
-      prevMap.set(inv.customerId, (prevMap.get(inv.customerId) ?? 0) + inv.total);
+      const { key } = partyOf(inv.customerId, inv.customer?.name, inv.customerName, 'Unknown customer');
+      prevMap.set(key, (prevMap.get(key) ?? 0) + inv.total);
     }
 
     const map = new Map<string, { name: string; total: number; count: number }>();
     for (const inv of invoices) {
-      const existing = map.get(inv.customerId);
+      const party = partyOf(inv.customerId, inv.customer?.name, inv.customerName, 'Unknown customer');
+      const existing = map.get(party.key);
       if (existing) { existing.total += inv.total; existing.count++; }
-      else map.set(inv.customerId, { name: inv.customer.name, total: inv.total, count: 1 });
+      else map.set(party.key, { name: party.name, total: inv.total, count: 1 });
     }
 
     const totalSales = invoices.reduce((s, i) => s + i.total, 0);
@@ -1202,7 +1219,7 @@ export class ReportsService {
         invoiceNumber: inv.invoiceNumber,
         invoiceDate: inv.invoiceDate.toISOString(),
         dueDate: inv.dueDate.toISOString(),
-        customerName: inv.customer.name,
+        customerName: inv.customer?.name ?? inv.customerName ?? '',
         paymentTerms: inv.paymentTerms,
         total: inv.total,
         paid,
@@ -1266,11 +1283,12 @@ export class ReportsService {
       if (outstanding <= 0) continue;
 
       const isOverdue = inv.dueDate < asOfDate;
-      const key = inv.customerId;
+      const party = partyOf(inv.customerId, inv.customer?.name, inv.customerName, 'Unknown customer');
+      const key = party.key;
       if (!custMap.has(key)) {
         custMap.set(key, {
-          customerId: inv.customer.id, customerName: inv.customer.name,
-          paymentTerms: inv.customer.paymentTerms, creditLimit: inv.customer.creditLimit,
+          customerId: key, customerName: party.name,
+          paymentTerms: inv.customer?.paymentTerms ?? inv.paymentTerms, creditLimit: inv.customer?.creditLimit ?? '',
           totalReceivable: 0, current: 0, overdue: 0, invoiceCount: 0, lastPaymentDate: null,
         });
       }
@@ -1334,8 +1352,9 @@ export class ReportsService {
       if (outstanding <= 0) continue;
 
       const days = Math.floor((asOfDate.getTime() - inv.dueDate.getTime()) / 86400000);
-      const key = inv.customerId;
-      if (!customerMap.has(key)) customerMap.set(key, { name: inv.customer.name, current: 0, d1_30: 0, d31_60: 0, d61_90: 0, d91_120: 0, d120p: 0 });
+      const party = partyOf(inv.customerId, inv.customer?.name, inv.customerName, 'Unknown customer');
+      const key = party.key;
+      if (!customerMap.has(key)) customerMap.set(key, { name: party.name, current: 0, d1_30: 0, d31_60: 0, d61_90: 0, d91_120: 0, d120p: 0 });
       const row = customerMap.get(key)!;
 
       if (days <= 0)        row.current  += outstanding;
@@ -1383,9 +1402,10 @@ export class ReportsService {
     const map = new Map<string, CustEntry>();
 
     for (const inv of invoices) {
-      const cid = inv.customerId;
+      const party = partyOf(inv.customerId, inv.customer?.name, inv.customerName, 'Unknown customer');
+      const cid = party.key;
       if (!map.has(cid)) {
-        map.set(cid, { name: inv.customer.name, email: inv.customer.email, preInvoiced: 0, prePaid: 0, periodInvoiced: 0, periodPaid: 0, lastDate: null });
+        map.set(cid, { name: party.name, email: inv.customer?.email ?? inv.customerEmail ?? '', preInvoiced: 0, prePaid: 0, periodInvoiced: 0, periodPaid: 0, lastDate: null });
       }
       const c = map.get(cid)!;
       const invDate = new Date(inv.invoiceDate);
@@ -1454,7 +1474,7 @@ export class ReportsService {
     const payments = await this.prisma.paymentReceived.findMany({
       where: { entityId, paidAt: { gte: startDate, lte: endDate } },
       include: {
-        invoice: { select: { invoiceNumber: true, customer: { select: { name: true } } } },
+        invoice: { select: { invoiceNumber: true, customerName: true, customer: { select: { name: true } } } },
       },
       orderBy: { paidAt: 'desc' },
     });
@@ -1526,7 +1546,7 @@ export class ReportsService {
     const recentTransactions = payments.slice(0, 20).map(p => ({
       id: p.id,
       date: p.paidAt.toISOString(),
-      customerName: p.invoice.customer.name,
+      customerName: p.invoice.customer?.name ?? p.invoice.customerName ?? '',
       invoiceNumber: p.invoice.invoiceNumber,
       paymentMethod: p.paymentMethod || 'Unknown',
       amount: p.amount,
@@ -1573,11 +1593,12 @@ export class ReportsService {
       if (outstanding <= 0) continue;
 
       const isOverdue = bill.dueDate < asOfDate;
-      const vid = bill.vendorId;
+      const party = partyOf(bill.vendorId, bill.vendor?.name, bill.vendorName, 'Unknown vendor');
+      const vid = party.key;
 
       if (!vendorMap.has(vid)) {
         vendorMap.set(vid, {
-          vendorId: vid, vendorName: bill.vendor.name, paymentTerms: bill.vendor.paymentTerms,
+          vendorId: vid, vendorName: party.name, paymentTerms: bill.vendor?.paymentTerms ?? bill.paymentTerms,
           current: 0, overdue: 0, billCount: 0, lastPaymentDate: null,
         });
       }
@@ -1639,8 +1660,9 @@ export class ReportsService {
       if (outstanding <= 0) continue;
 
       const days = Math.floor((asOfDate.getTime() - bill.dueDate.getTime()) / 86400000);
-      const key = bill.vendorId;
-      if (!vendorMap.has(key)) vendorMap.set(key, { name: bill.vendor.name, current: 0, d1_30: 0, d31_60: 0, d61_90: 0, d91_120: 0, d120p: 0 });
+      const party = partyOf(bill.vendorId, bill.vendor?.name, bill.vendorName, 'Unknown vendor');
+      const key = party.key;
+      if (!vendorMap.has(key)) vendorMap.set(key, { name: party.name, current: 0, d1_30: 0, d31_60: 0, d61_90: 0, d91_120: 0, d120p: 0 });
       const row = vendorMap.get(key)!;
 
       if (days <= 0)        row.current  += outstanding;
@@ -1687,9 +1709,10 @@ export class ReportsService {
     const map = new Map<string, VendorAcc>();
 
     for (const bill of allBills) {
-      const vid = bill.vendorId;
+      const party = partyOf(bill.vendorId, bill.vendor?.name, bill.vendorName, 'Unknown vendor');
+      const vid = party.key;
       if (!map.has(vid)) {
-        map.set(vid, { name: bill.vendor.name, email: bill.vendor.email, openingBilled: 0, openingPaid: 0, periodBilled: 0, periodPaid: 0, lastDate: null });
+        map.set(vid, { name: party.name, email: bill.vendor?.email ?? '', openingBilled: 0, openingPaid: 0, periodBilled: 0, periodPaid: 0, lastDate: null });
       }
       const acc = map.get(vid)!;
       const billDate = new Date(bill.billDate);
@@ -1811,14 +1834,15 @@ export class ReportsService {
   ): Promise<ExpenseByVendorDto> {
     const bills = await this.prisma.bills.findMany({
       where: { entityId, billDate: { gte: startDate, lte: endDate }, status: { not: 'draft' as any } },
-      select: { vendorId: true, total: true, vendor: { select: { name: true } } },
+      select: { vendorId: true, vendorName: true, total: true, vendor: { select: { name: true } } },
     });
 
     const map = new Map<string, { name: string; total: number; count: number }>();
     for (const bill of bills) {
-      const existing = map.get(bill.vendorId);
+      const party = partyOf(bill.vendorId, bill.vendor?.name, bill.vendorName, 'Unknown vendor');
+      const existing = map.get(party.key);
       if (existing) { existing.total += bill.total; existing.count++; }
-      else map.set(bill.vendorId, { name: bill.vendor.name, total: bill.total, count: 1 });
+      else map.set(party.key, { name: party.name, total: bill.total, count: 1 });
     }
 
     const totalExpenses = bills.reduce((s, b) => s + b.total, 0);
@@ -1853,7 +1877,7 @@ export class ReportsService {
       return {
         billId: bill.id, billNumber: bill.billNumber,
         billDate: bill.billDate.toISOString(), dueDate: bill.dueDate.toISOString(),
-        vendorName: bill.vendor.name,
+        vendorName: bill.vendor?.name ?? bill.vendorName ?? '',
         subtotal: bill.subtotal, tax: bill.tax, total: bill.total, status: bill.status as string,
         items: parsedItems.map((item: any) => ({
           description: item.description || item.name || '',
@@ -2393,7 +2417,7 @@ export class ReportsService {
     const [invoices, receipts, bills, expenses, vatAccounts] = await Promise.all([
       this.prisma.invoice.findMany({
         where: { entityId, status: { notIn: ['Draft'] as any }, invoiceDate: { gte: trendStart, lte: endDate } },
-        select: { id: true, invoiceNumber: true, invoiceDate: true, subtotal: true, tax: true, taxRate: true, customer: { select: { name: true } } },
+        select: { id: true, invoiceNumber: true, invoiceDate: true, subtotal: true, tax: true, taxRate: true, customerName: true, customer: { select: { name: true } } },
       }),
       this.prisma.receipt.findMany({
         where: { entityId, status: 'Completed' as any, date: { gte: trendStart, lte: endDate } },
@@ -2401,7 +2425,7 @@ export class ReportsService {
       }),
       this.prisma.bills.findMany({
         where: { entityId, status: { not: 'draft' as any }, billDate: { gte: trendStart, lte: endDate } },
-        select: { id: true, billNumber: true, billDate: true, subtotal: true, tax: true, vendor: { select: { name: true } } },
+        select: { id: true, billNumber: true, billDate: true, subtotal: true, tax: true, vendorName: true, vendor: { select: { name: true } } },
       }),
       this.prisma.expenses.findMany({
         where: { entityId, status: 'approved' as any, date: { gte: trendStart, lte: endDate } },
@@ -2417,7 +2441,7 @@ export class ReportsService {
     const docs: Doc[] = [
       ...invoices.map((d) => ({
         id: d.id, when: d.invoiceDate, date: d.invoiceDate.toISOString(), type: 'Invoice' as const, direction: 'Output' as const,
-        source: 'Invoices' as const, reference: d.invoiceNumber, party: d.customer?.name ?? '',
+        source: 'Invoices' as const, reference: d.invoiceNumber, party: d.customer?.name ?? d.customerName ?? '',
         rate: d.taxRate, taxableAmount: ratedBase(d.tax, d.taxRate, d.subtotal), tax: d.tax,
       })),
       ...receipts.map((d) => ({
@@ -2427,7 +2451,7 @@ export class ReportsService {
       })),
       ...bills.map((d) => ({
         id: d.id, when: d.billDate, date: d.billDate.toISOString(), type: 'Bill' as const, direction: 'Input' as const,
-        source: 'Bills' as const, reference: d.billNumber, party: d.vendor?.name ?? '',
+        source: 'Bills' as const, reference: d.billNumber, party: d.vendor?.name ?? d.vendorName ?? '',
         rate: null, taxableAmount: d.tax > 0 ? d.subtotal : 0, tax: d.tax,
       })),
       ...expenses.map((d) => {

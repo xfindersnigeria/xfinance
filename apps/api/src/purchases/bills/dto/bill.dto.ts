@@ -38,9 +38,15 @@ export class CreateBillDto {
   @Type(() => Date)
   billDate: Date;
 
-  @ApiProperty({ example: 'vendor_uuid', description: 'Vendor ID' })
+  @ApiPropertyOptional({ example: 'vendor_uuid', description: 'Vendor ID (or send vendorName)' })
+  @IsOptional()
   @IsString()
-  vendorId: string;
+  vendorId?: string;
+
+  @ApiPropertyOptional({ example: 'Mama Put Supplies', description: 'Typed-in vendor name when not a saved vendor' })
+  @IsOptional()
+  @IsString()
+  vendorName?: string;
 
    @IsOptional()
   @IsString()
@@ -96,10 +102,23 @@ export class CreateBillDto {
   @IsOptional()
   @IsString()
   discount?: string;
-  @ApiPropertyOptional({ example: '10000', description: 'Tax' })
+  @ApiPropertyOptional({ example: '7.5', description: 'Deprecated: tax rate (%) — use taxRate' })
   @IsOptional()
   @IsString()
   tax?: string;
+
+  @ApiPropertyOptional({ example: '7.5', description: 'Tax rate (%) on (subtotal − discount); defaults to the entity default tax' })
+  @IsOptional()
+  taxRate?: string | number;
+
+  @ApiPropertyOptional({ example: 'VAT', description: 'Tax rate / group / exemption the rate was picked from' })
+  @IsOptional()
+  @IsString()
+  taxName?: string;
+
+  @ApiPropertyOptional({ example: false, description: 'Reverse charge VAT (only when enabled in Settings → Tax)' })
+  @IsOptional()
+  reverseCharge?: string | boolean;
 
   @ApiPropertyOptional({
     example: 'draft',
@@ -140,6 +159,24 @@ export class UpdateBillDto {
   @IsOptional()
   @IsString()
   vendorId?: string;
+
+  @ApiPropertyOptional({ example: 'Mama Put Supplies', description: 'Typed-in vendor name when not a saved vendor' })
+  @IsOptional()
+  @IsString()
+  vendorName?: string;
+
+  @ApiPropertyOptional({ example: '7.5', description: 'Tax rate (%)' })
+  @IsOptional()
+  taxRate?: string | number;
+
+  @ApiPropertyOptional({ example: 'VAT' })
+  @IsOptional()
+  @IsString()
+  taxName?: string;
+
+  @ApiPropertyOptional({ example: false })
+  @IsOptional()
+  reverseCharge?: string | boolean;
 
   @ApiPropertyOptional({
     example: '2025-01-24T00:00:00Z',

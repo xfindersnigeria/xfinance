@@ -141,6 +141,7 @@ const defaultChartOfAccounts = {
           { code: '5110', name: 'Raw Materials', description: 'Materials used in production' },
           { code: '5120', name: 'Direct Labor', description: 'Production worker wages' },
           { code: '5130', name: 'Manufacturing Overhead', description: 'Factory overhead costs' },
+          { code: '5140', name: 'Cost of Goods Sold', description: 'Cost of stock sold to customers (POS / online store)' },
         ],
       },
       {
@@ -155,6 +156,7 @@ const defaultChartOfAccounts = {
           { code: '5250', name: 'Marketing & Advertising', description: 'Promotional expenses' },
           { code: '5260', name: 'Depreciation Expense', description: 'Depreciation charges' },
           { code: '5270', name: 'Insurance Expense', description: 'Insurance premiums' },
+          { code: '5280', name: 'General & Administrative Expenses', description: 'Professional fees, repairs, travel, IT and other running costs' },
         ],
       },
       {

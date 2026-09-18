@@ -11,7 +11,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import InvoiceDetailsActions from "./InvoiceDetailsActions";
-import { useSendInvoice, useDownloadInvoice } from "@/lib/api/hooks/useSales";
+import { useDownloadInvoice } from "@/lib/api/hooks/useSales";
+import SendInvoiceDialog from "../SendInvoiceDialog";
 
 interface InvoiceDetailsHeaderProps {
   invoice: any;
@@ -22,7 +23,7 @@ export default function InvoiceDetailsHeader({
   invoice,
   onBack,
 }: InvoiceDetailsHeaderProps) {
-  const sendInvoice = useSendInvoice();
+  const [sendOpen, setSendOpen] = useState(false);
   const downloadInvoice = useDownloadInvoice();
 
   const getStatusColor = (status: string) => {
@@ -96,18 +97,12 @@ export default function InvoiceDetailsHeader({
             <Button
               size="sm"
               className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 flex-1 sm:flex-none"
-              disabled={sendInvoice.isPending}
-              onClick={() => sendInvoice.mutate(invoice.id)}
+              onClick={() => setSendOpen(true)}
             >
-              {sendInvoice.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Send className="w-4 h-4" />
-              )}
-              <span className="text-xs sm:text-sm">
-                {sendInvoice.isPending ? "Sending…" : "Send to Customer"}
-              </span>
+              <Send className="w-4 h-4" />
+              <span className="text-xs sm:text-sm">Send to Customer</span>
             </Button>
+            <SendInvoiceDialog invoice={invoice} open={sendOpen} onOpenChange={setSendOpen} />
             <InvoiceDetailsActions invoice={invoice} />
           </div>
         </div>

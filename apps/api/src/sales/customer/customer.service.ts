@@ -148,9 +148,22 @@ export class CustomerService {
         );
       }
 
-      // Delete invoices first, then customer to avoid FK issues
+      // Keep the customer's invoices, receipts and orders — they are
+      // accounting records. Stamp the name on them so they still show who
+      // they were for once the link is cleared (FKs are ON DELETE SET NULL).
       await this.prisma.$transaction([
-        this.prisma.invoice.deleteMany({ where: { customerId } }),
+        this.prisma.invoice.updateMany({
+          where: { customerId },
+          data: { customerName: customer.name, customerEmail: customer.email },
+        }),
+        this.prisma.receipt.updateMany({
+          where: { customerId },
+          data: { customerName: customer.name },
+        }),
+        this.prisma.order.updateMany({
+          where: { customerId, customerName: null },
+          data: { customerName: customer.name },
+        }),
         this.prisma.customer.delete({ where: { id: customerId } }),
       ]);
 

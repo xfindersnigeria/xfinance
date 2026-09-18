@@ -66,6 +66,9 @@ import { ProductBrandModule } from './settings/product/brand/brand.module';
 import { CurrencyModule } from './settings/currency/currency.module';
 import { ConfigModule } from './settings/config/config.module';
 import { ReportsModule } from './reports/reports.module';
+import { TaxSettingsModule } from './settings/tax/tax.module';
+import { EmailSettingsModule } from './settings/email/email-settings.module';
+import { OrdersModule } from './product/orders/orders.module';
 
 @Module({
   imports: [
@@ -134,6 +137,9 @@ import { ReportsModule } from './reports/reports.module';
     ConfigModule,
     CustomizationModule,
     ReportsModule,
+    TaxSettingsModule,
+    EmailSettingsModule,
+    OrdersModule,
   ],
   controllers: [AppController],
   providers: [

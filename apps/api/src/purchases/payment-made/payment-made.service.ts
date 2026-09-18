@@ -20,7 +20,6 @@ export class PaymentMadeService {
       amount,
       billId,
       paymentDate,
-      vendorId,
       note,
       reference,
       paymentMethod,
@@ -78,7 +77,8 @@ export class PaymentMadeService {
           amount,
           billId,
           paymentDate,
-          vendorId,
+          // The bill's vendor (null when the bill's vendor was typed in)
+          vendorId: bill.vendorId,
           entityId,
           groupId,
           note,
@@ -198,7 +198,7 @@ export class PaymentMadeService {
         include: {
           vendor: true,
           account: true,
-          bill: { select: { id: true, billNumber: true } },
+          bill: { select: { id: true, billNumber: true, vendorName: true } },
         },
         orderBy: {
           paymentDate: 'desc',
@@ -232,7 +232,7 @@ export class PaymentMadeService {
         include: {
           vendor: true,
           account: true,
-          bill: { select: { id: true, billNumber: true } },
+          bill: { select: { id: true, billNumber: true, vendorName: true } },
       }});
 
       if (!paymentMade) {

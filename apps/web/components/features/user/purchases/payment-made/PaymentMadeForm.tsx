@@ -37,6 +37,9 @@ import { paymentMethodOptions } from "../../income/payment-received/PaymentRecei
 import { useEffect, useState } from "react";
 import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
+// Bills whose vendor was typed in (no saved vendor) are listed under this choice
+const TYPED_VENDOR = "none";
+
 const paymentSchema = z.object({
   vendorId: z.string().min(1, "Vendor is required"),
   billId: z.string().min(1, "Bill is required"),
@@ -76,9 +79,10 @@ export default function PaymentMadeForm({
 }: PaymentMadeFormProps = {}) {
   const { closeModal } = useModal();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedVendorId, setSelectedVendorId] = useState<string>(
-    propVendorId || payment?.vendorId || "",
-  );
+  // Opened from a bill with a typed-in vendor → that bill has no vendorId
+  const initialVendorId =
+    propVendorId || payment?.vendorId || (propBillId || payment?.billId ? TYPED_VENDOR : "");
+  const [selectedVendorId, setSelectedVendorId] = useState<string>(initialVendorId);
   const sym = useEntityCurrencySymbol();
   const [selectedBillId, setSelectedBillId] = useState<string>(
     propBillId || payment?.billId || "",
@@ -120,7 +124,7 @@ export default function PaymentMadeForm({
   const form = useForm<PaymentFormType>({
     resolver: zodResolver(paymentSchema),
     defaultValues: {
-      vendorId: propVendorId || payment?.vendorId || "",
+      vendorId: initialVendorId,
       billId: propBillId || payment?.billId || "",
       paymentDate: payment?.paymentDate
         ? new Date(payment.paymentDate)
@@ -152,6 +156,8 @@ export default function PaymentMadeForm({
 
       const payload = {
         ...values,
+        // The server takes the vendor from the bill; none for typed-in vendors
+        vendorId: values.vendorId === TYPED_VENDOR ? undefined : values.vendorId,
         amount: Number(values.amount),
         paymentDate:
           values.paymentDate instanceof Date
@@ -201,7 +207,7 @@ export default function PaymentMadeForm({
                         setSelectedBillId("");
                       }}
                       value={field.value}
-                      disabled={vendorsLoading || !!propVendorId}
+                      disabled={vendorsLoading || !!propVendorId || !!propBillId}
                     >
                       <SelectTrigger className="w-full bg-white">
                         <SelectValue
@@ -213,17 +219,13 @@ export default function PaymentMadeForm({
                         />
                       </SelectTrigger>
                       <SelectContent>
-                        {Array.isArray(vendors) && vendors.length > 0 ? (
+                        {Array.isArray(vendors) &&
                           vendors.map((v: any) => (
                             <SelectItem key={v.id} value={v.id}>
                               {v.displayName || v.name}
                             </SelectItem>
-                          ))
-                        ) : (
-                          <SelectItem value="no-vendors" disabled>
-                            No vendors found
-                          </SelectItem>
-                        )}
+                          ))}
+                        <SelectItem value={TYPED_VENDOR}>Typed-in vendor (not saved)</SelectItem>
                       </SelectContent>
                     </Select>
                   </FormControl>
@@ -265,6 +267,7 @@ export default function PaymentMadeForm({
                             <SelectItem key={b.id} value={b.id}>
                               {b.billNumber || b.id} - ({sym}
                               {b.total.toLocaleString()})
+                              {selectedVendorId === TYPED_VENDOR && b.vendorName ? ` · ${b.vendorName}` : ""}
                             </SelectItem>
                           ))
                         ) : (

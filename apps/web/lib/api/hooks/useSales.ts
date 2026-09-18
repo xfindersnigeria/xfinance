@@ -252,12 +252,14 @@ export const useVoidInvoice = (
 };
 
 export const useSendInvoice = (
-  options?: UseMutationOptions<any, Error, string>,
+  options?: UseMutationOptions<any, Error, string | { id: string; to?: string }>,
 ) => {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: salesService.sendInvoice,
-    onSuccess: () => {
-      toast.success("Invoice sent to customer");
+    onSuccess: (res: any) => {
+      toast.success(res?.message || "Invoice sent to customer");
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Failed to send invoice");

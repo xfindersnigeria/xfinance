@@ -11,6 +11,7 @@ import {
   Patch,
   HttpCode,
   HttpStatus,
+  BadRequestException,
 } from '@nestjs/common';
 import { ReceiptService } from './receipt.service';
 import { AuthGuard } from '@/auth/guards/auth.guard';
@@ -120,6 +121,25 @@ export class ReceiptController {
     const entityId = getEffectiveEntityId(req);
     if (!entityId) throw new UnauthorizedException('Access denied!');
     return this.receiptService.updateReceipt(receiptId, entityId, body);
+  }
+
+  @Post(':receiptId/email')
+  @UseGuards(AuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Email the receipt to an address (Settings → Email receipt template)' })
+  @ApiParam({ name: 'receiptId', description: 'Receipt ID', type: 'string' })
+  async emailReceipt(
+    @Req() req,
+    @Param('receiptId') receiptId: string,
+    @Body() body: { to?: string },
+  ) {
+    const entityId = getEffectiveEntityId(req);
+    if (!entityId) throw new UnauthorizedException('Access denied!');
+    const to = body?.to?.trim();
+    if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+      throw new BadRequestException('Enter a valid email address');
+    }
+    return this.receiptService.emailReceipt(receiptId, entityId, to);
   }
 
   @Patch(':receiptId/toggle-status')

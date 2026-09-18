@@ -154,6 +154,8 @@ export const useCreateStoreItem = (
     mutationFn: productsService.createStoreItem,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["store-items"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory-movements"] });
       toast.success("Store Item created successfully");
       closeModal(MODAL.ITEM_CREATE);
     },
@@ -209,7 +211,7 @@ export const useDeleteStoreItem = (
         });
       }
       toast.success("Store item deleted successfully");
-      closeModal(MODAL.ITEM_DELETE);
+      closeModal(MODAL.STORE_ITEM_DELETE + "-" + id);
     },
     onError: (error) => {
       toast.error(

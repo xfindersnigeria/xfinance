@@ -41,6 +41,10 @@ import { useProjects } from "@/lib/api/hooks/useProjects";
 import { useEntityConfig } from "@/lib/api/hooks/useSettings";
 import { getCurrencyByCode } from "@/lib/utils/currencies";
 import { toast } from "sonner";
+import { CreatableCombobox } from "@/components/ui/creatable-combobox";
+import { Checkbox } from "@/components/ui/checkbox";
+import { TaxSelect, useDefaultTax } from "@/components/local/shared/TaxSelect";
+import { useTaxOptions } from "@/lib/api/hooks/useTax";
 
 const lineItemSchema = z.object({
   name: z.string().min(1, "Item name required"),
@@ -49,22 +53,33 @@ const lineItemSchema = z.object({
   expenseAccountId: z.string().optional(),
 });
 
-const billSchema = z.object({
-  vendorId: z.string().min(1, "Vendor required"),
+const billSchema = z
+  .object({
+  // A saved vendor, or a typed-in vendorName (like expenses)
+  vendorId: z.string().optional(),
+  vendorName: z.string().optional(),
   billDate: z.date(),
   dueDate: z.date(),
   poNumber: z.string().optional(),
   paymentTerms: z.string().min(1, "Payment terms required"),
   lineItems: z.array(lineItemSchema).min(1, "At least 1 item"),
   discount: z.number().min(0, "Min 0"),
-  tax: z.number().min(0, "Min 0"),
+  // Tax rate (%) on (subtotal − discount); defaults to the entity's default tax
+  taxRate: z.number().min(0, "Min 0").max(100, "Max 100").optional(),
+  taxName: z.string().nullable().optional(),
+  // Reverse charge VAT (Settings → Tax): tax recorded, not owed to the vendor
+  reverseCharge: z.boolean().optional(),
   accountsPayableId: z.string().min(1, "Accounts Payable is required"),
   subject: z.string().optional(),
   notes: z.string().optional(),
   attachments: z.any().optional(),
   projectId: z.string().optional(),
   milestoneId: z.string().optional(),
-});
+  })
+  .refine((v) => !!v.vendorId || !!v.vendorName?.trim(), {
+    message: "Select a vendor or type a name",
+    path: ["vendorId"],
+  });
 
 type BillFormType = z.infer<typeof billSchema>;
 
@@ -77,13 +92,16 @@ function calcDueDate(billDate: Date, terms: string): Date {
 
 const defaultValues: BillFormType = {
   vendorId: "",
+  vendorName: "",
   billDate: new Date(),
   dueDate: new Date(),
   poNumber: "",
   paymentTerms: "Net 30",
   lineItems: [{ name: "", quantity: 1, rate: 0, expenseAccountId: "" }],
   discount: 0,
-  tax: 0,
+  taxRate: undefined,
+  taxName: null,
+  reverseCharge: false,
   accountsPayableId: "",
   subject: "",
   notes: "",
@@ -134,6 +152,14 @@ export default function BillsForm({
     mode: "onChange",
   });
 
+  // New bills start with the entity's default tax (Settings → Tax)
+  useDefaultTax(!bill, { taxRate: form.getValues("taxRate") }, ({ taxRate, taxName }) => {
+    form.setValue("taxRate", taxRate);
+    form.setValue("taxName", taxName);
+  });
+  const { data: taxOptions } = useTaxOptions();
+  const reverseChargeEnabled = !!taxOptions?.reverseChargeVat;
+
   const selectedProjectId = form.watch("projectId");
   const selectedProject = projects.find((p: any) => p.id === selectedProjectId);
   const milestones = selectedProject?.milestones || [];
@@ -150,6 +176,7 @@ export default function BillsForm({
       form.reset({
         vendorId:
           (bill as any).vendorId || ((bill as any).vendor as any)?.id || "",
+        vendorName: (bill as any).vendorId ? "" : (bill as any).vendorName || "",
         billDate: bill.billDate ? new Date(bill.billDate) : new Date(),
         dueDate: bill.dueDate ? new Date(bill.dueDate) : new Date(),
         poNumber: bill.poNumber || "",
@@ -159,7 +186,9 @@ export default function BillsForm({
             ? mappedItems
             : [{ name: "", quantity: 1, rate: 0, expenseAccountId: "" }],
         discount: Number(bill.discount) || 0,
-        tax: Number(bill.tax) || 0,
+        taxRate: Number((bill as any).taxRate) || 0,
+        taxName: (bill as any).taxName ?? null,
+        reverseCharge: !!(bill as any).reverseCharge,
         accountsPayableId: (bill as any)?.accountsPayableId || "",
         subject: bill?.subject || "",
         notes: bill.notes || "",
@@ -186,10 +215,13 @@ export default function BillsForm({
         sum + (Number(item.quantity) || 0) * (Number(item.rate) || 0),
       0,
     );
+  // Mirrors the server (bills.service computeBillTotals)
   const discount = Number(form.watch("discount")) || 0;
-  const taxPercent = Number(form.watch("tax")) || 0;
-  const taxAmount = ((subtotal - discount) * taxPercent) / 100;
-  const total = subtotal - discount + taxAmount;
+  const taxPercent = Number(form.watch("taxRate")) || 0;
+  const reverseCharge = reverseChargeEnabled && !!form.watch("reverseCharge");
+  const taxBase = Math.max(0, subtotal - discount);
+  const taxAmount = Math.round((taxBase * taxPercent) / 100);
+  const total = taxBase + (reverseCharge ? 0 : taxAmount);
 
   const onSubmit = async (
     values: BillFormType,
@@ -214,12 +246,16 @@ export default function BillsForm({
               values.billDate instanceof Date
                 ? values.billDate.toISOString()
                 : String(values.billDate),
-            vendorId: values.vendorId,
+            // A saved vendor, or the typed-in name
+            vendorId: values.vendorId || undefined,
+            vendorName: values.vendorId ? undefined : values.vendorName?.trim(),
             dueDate:
               values.dueDate instanceof Date
                 ? values.dueDate.toISOString()
                 : String(values.dueDate),
-            tax: Number(values.tax) || 0,
+            taxRate: Number(values.taxRate) || 0,
+            taxName: values.taxName || undefined,
+            reverseCharge: reverseChargeEnabled && !!values.reverseCharge,
             discount: Number(values.discount) || 0,
             ...(values.accountsPayableId && {
               accountsPayableId: values.accountsPayableId,
@@ -241,7 +277,8 @@ export default function BillsForm({
             ? values.billDate.toISOString()
             : String(values.billDate),
         );
-        formData.append("vendorId", values.vendorId);
+        if (values.vendorId) formData.append("vendorId", values.vendorId);
+        else formData.append("vendorName", values.vendorName?.trim() || "");
         formData.append(
           "dueDate",
           values.dueDate instanceof Date
@@ -254,7 +291,9 @@ export default function BillsForm({
           formData.append("accountsPayableId", values.accountsPayableId);
         if (values.subject) formData.append("subject", values.subject);
         if (values.notes) formData.append("notes", values.notes);
-        if (values.tax) formData.append("tax", String(Number(values.tax)));
+        formData.append("taxRate", String(Number(values.taxRate) || 0));
+        if (values.taxName) formData.append("taxName", values.taxName);
+        if (reverseChargeEnabled && values.reverseCharge) formData.append("reverseCharge", "true");
         if (values.discount)
           formData.append("discount", String(Number(values.discount)));
         if (values.projectId)
@@ -306,34 +345,27 @@ export default function BillsForm({
                   <FormItem className="md:col-span-2">
                     <FormLabel>Vendor *</FormLabel>
                     <FormControl>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value}
-                        disabled={vendorsLoading}
-                      >
-                        <SelectTrigger className="w-full bg-white">
-                          <SelectValue
-                            placeholder={
-                              vendorsLoading
-                                ? "Loading vendors..."
-                                : "Select vendor"
-                            }
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Array.isArray(vendors) && vendors.length > 0 ? (
-                            vendors.map((v: any) => (
-                              <SelectItem key={v.id} value={v.id}>
-                                {v.displayName || v.name}
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <SelectItem value="no-vendors" disabled>
-                              No vendors found
-                            </SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
+                      <CreatableCombobox
+                        options={(Array.isArray(vendors) ? vendors : []).map((v: any) => ({
+                          value: v.id,
+                          label: v.displayName || v.name,
+                        }))}
+                        selectedId={field.value}
+                        freeText={form.watch("vendorName")}
+                        isLoading={vendorsLoading}
+                        triggerClassName="bg-white"
+                        placeholder="Select or type vendor name"
+                        searchPlaceholder="Search vendors or type a new name..."
+                        emptyMessage="No vendors found."
+                        onSelect={(id) => {
+                          field.onChange(id);
+                          form.setValue("vendorName", "");
+                        }}
+                        onFreeText={(text) => {
+                          field.onChange("");
+                          form.setValue("vendorName", text, { shouldValidate: true });
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -676,23 +708,18 @@ export default function BillsForm({
                   )}
                 />
               </div>
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center gap-2">
                 <span>Tax</span>
-                <div className="flex items-center gap-1">
-                  <FormField
-                    control={form.control}
-                    name="tax"
-                    render={({ field }) => (
-                      <NumberInput
-                        value={field.value}
-                        onChange={field.onChange}
-                        placeholder="0"
-                        className="w-14"
-                      />
-                    )}
+                <div className="flex flex-1 items-center justify-end gap-2">
+                  <TaxSelect
+                    className="min-w-0 flex-1 max-w-52"
+                    value={{ taxRate: form.watch("taxRate"), taxName: form.watch("taxName") }}
+                    onChange={({ taxRate, taxName }) => {
+                      form.setValue("taxRate", taxRate);
+                      form.setValue("taxName", taxName);
+                    }}
                   />
-                  <span className="text-xs">%</span>
-                  <span className="ml-2">
+                  <span className={reverseCharge ? "text-gray-400 line-through" : ""}>
                     {currencySymbol}
                     {taxAmount.toLocaleString(undefined, {
                       minimumFractionDigits: 2,
@@ -700,6 +727,25 @@ export default function BillsForm({
                   </span>
                 </div>
               </div>
+              {reverseChargeEnabled && (
+                <FormField
+                  control={form.control}
+                  name="reverseCharge"
+                  render={({ field }) => (
+                    <label className="flex items-start gap-2 text-xs text-gray-600 cursor-pointer">
+                      <Checkbox
+                        className="mt-0.5"
+                        checked={!!field.value}
+                        onCheckedChange={(v) => field.onChange(v === true)}
+                      />
+                      <span>
+                        Reverse charge — you account for this tax yourself; it is recorded on the bill but
+                        not added to what you owe the vendor.
+                      </span>
+                    </label>
+                  )}
+                />
+              )}
               <div className="flex justify-between font-bold text-base mt-2">
                 <span>Total</span>
                 <span className="text-blue-700 text-xl">

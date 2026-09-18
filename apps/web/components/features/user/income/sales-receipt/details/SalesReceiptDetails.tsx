@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Printer, Send, Ban } from "lucide-react";
 import { format } from "date-fns";
 import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { taxLabel } from "@/lib/tax/totals";
 
 interface SalesReceiptDetailsProps {
     receipt: any;
@@ -107,7 +108,7 @@ export default function SalesReceiptDetails({ receipt, onClose }: SalesReceiptDe
                 </div>
                 {receipt.tax > 0 && (
                     <div className="flex justify-between items-center">
-                        <span className="text-gray-600">Tax</span>
+                        <span className="text-gray-600">{taxLabel(receipt.taxName, receipt.taxRate ?? 0, !!receipt.taxInclusive)}</span>
                         <span className="font-medium">{sym}{(receipt.tax || 0).toLocaleString()}</span>
                     </div>
                 )}

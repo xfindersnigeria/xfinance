@@ -201,7 +201,8 @@ export const getEntitiesByGroup = (
   groupId: string,
 ): Promise<{ entities: Entity[]; totalCount: number }> => {
   return apiClient<{ entities: Entity[]; totalCount: number }>(
-    `entities/by-group/${groupId}`,
+    // The list pages at 10 by default — groups can have 18+ entities
+    `entities/by-group/${groupId}?limit=500`,
     { method: 'GET' },
   );
 };

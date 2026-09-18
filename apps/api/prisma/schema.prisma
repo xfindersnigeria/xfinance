@@ -136,6 +136,16 @@ model Entity {
   payrollBatches       PayrollBatch[]
   payrollRecords       PayrollRecord[]
   payrollPayments      PayrollPayment[]
+  // Online store: public storefront at /store/{storeSlug}, only served while enabled
+  storeSlug            String?                @unique
+  onlineStoreEnabled   Boolean                @default(false)
+  orders               Order[]
+  taxRates             TaxRate[]
+  taxGroups            TaxGroup[]
+  taxExemptions        TaxExemption[]
+  taxJurisdictions     TaxJurisdiction[]
+  emailSettings        EmailSettings?
+  emailTemplates       EmailTemplate[]
 
   @@index([name, taxId, email])
   @@index([groupId])
@@ -182,29 +192,31 @@ model User {
 }
 
 model Customer {
-  id           String    @id @default(cuid())
-  type         String
-  name         String
-  email        String    @unique
-  phoneNumber  String
-  companyName  String
-  address      String
-  city         String
-  state        String
-  postalCode   String
-  paymentTerms String
-  creditLimit  String
-  note         String?
-  entityId     String
-  groupId      String // denormalized — extraction handle
-  isActive     Boolean   @default(true)
-  country      String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @default(now()) @updatedAt
-  entity       Entity    @relation(fields: [entityId], references: [id], onDelete: Cascade)
-  invoice      Invoice[]
-  receipt      Receipt[]
-  project      Project[]
+  id            String                 @id @default(cuid())
+  type          String
+  name          String
+  email         String                 @unique
+  phoneNumber   String
+  companyName   String
+  address       String
+  city          String
+  state         String
+  postalCode    String
+  paymentTerms  String
+  creditLimit   String
+  note          String?
+  entityId      String
+  groupId       String // denormalized — extraction handle
+  isActive      Boolean                @default(true)
+  country       String?
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @default(now()) @updatedAt
+  entity        Entity                 @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  invoice       Invoice[]
+  receipt       Receipt[]
+  project       Project[]
+  orders        Order[]
+  statementLogs CustomerStatementLog[]
 
   @@index([email, name])
   @@index([groupId])
@@ -212,7 +224,9 @@ model Customer {
 
 model Invoice {
   id               String               @id @default(cuid())
-  customerId       String
+  customerId       String?
+  customerName     String? // free-text customer name when not mapped to a Customer record
+  customerEmail    String? // recipient for a free-text customer (saved customers use Customer.email)
   entityId         String
   groupId          String // denormalized — extraction handle
   invoiceNumber    String               @unique
@@ -223,6 +237,8 @@ model Invoice {
   subtotal         Int
   tax              Int
   taxRate          Float                @default(0) // % applied to the invoice's taxable lines
+  taxName          String? // tax rate / group / exemption the rate came from
+  taxInclusive     Boolean              @default(false) // line rates already include tax
   total            Int
   notes            String?
   status           InvoiceStatus        @default(Draft)
@@ -233,13 +249,14 @@ model Invoice {
   updatedAt        DateTime             @default(now()) @updatedAt
   projectId        String?
   milestoneId      String?
-  customer         Customer             @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer         Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
   entity           Entity               @relation(fields: [entityId], references: [id], onDelete: Cascade)
   project          Project?             @relation(fields: [projectId], references: [id], onDelete: SetNull)
   milestone        Milestone?           @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
   paymentReceived  PaymentReceived[]
   invoiceItem      InvoiceItem[]
   activities       InvoiceActivity[]
+  reminderLogs     InvoiceReminderLog[]
 
   @@index([invoiceNumber, customerId, currency])
   @@index([projectId])
@@ -281,8 +298,8 @@ model InvoiceItem {
 
 model PaymentMade {
   id               String               @id @default(cuid())
-  vendorId         String
-  vendor           vendor               @relation(fields: [vendorId], references: [id])
+  vendorId         String? // null when paying a bill whose vendor was typed in (Bills.vendorName)
+  vendor           vendor?              @relation(fields: [vendorId], references: [id])
   billId           String?
   bill             Bills?               @relation(fields: [billId], references: [id], onDelete: SetNull)
   paymentDate      DateTime
@@ -423,13 +440,17 @@ model Bills {
   id                String               @id @default(cuid())
   billDate          DateTime
   billNumber        String               @unique
-  vendorId          String
+  vendorId          String?
+  vendorName        String? // free-text vendor name when not mapped to a Vendor record
   dueDate           DateTime
   poNumber          String?
   paymentTerms      String
   subtotal          Int
   subject           String
   tax               Int
+  taxRate           Float                @default(0) // % applied to (subtotal - discount)
+  taxName           String?
+  reverseCharge     Boolean              @default(false) // tax self-accounted: recorded, not added to the payable
   discount          Int
   total             Int
   notes             String?
@@ -449,7 +470,7 @@ model Bills {
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @default(now()) @updatedAt
   entity            Entity               @relation(fields: [entityId], references: [id], onDelete: Cascade)
-  vendor            vendor               @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  vendor            vendor?              @relation(fields: [vendorId], references: [id], onDelete: SetNull)
   project           Project?             @relation(fields: [projectId], references: [id], onDelete: SetNull)
   milestone         Milestone?           @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
   paymentRecord     PaymentRecord[]
@@ -489,6 +510,8 @@ model Receipt {
   subtotal         Int
   tax              Int
   taxRate          Float                @default(0) // % applied to the receipt's taxable lines
+  taxName          String?
+  taxInclusive     Boolean              @default(false)
   total            Int
   status           ReceiptStatus        @default(Void)
   postingStatus    JournalPostingStatus @default(Pending)
@@ -503,6 +526,7 @@ model Receipt {
   entity           Entity               @relation(fields: [entityId], references: [id], onDelete: Cascade)
   account          Account              @relation(fields: [depositTo], references: [id])
   receiptItem      ReceiptItem[]
+  order            Order?
 
   @@index([date])
   @@index([receiptNumber])
@@ -510,20 +534,25 @@ model Receipt {
 }
 
 model ReceiptItem {
-  id        String   @id @default(cuid())
-  itemId    String?
-  itemName  String? // free-text item name when not mapped to an Items record
-  item      Items?   @relation(fields: [itemId], references: [id], onDelete: SetNull)
-  quantity  Int
-  rate      Int
-  total     Int
-  receiptId String
-  receipt   Receipt  @relation(fields: [receiptId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
+  id          String      @id @default(cuid())
+  itemId      String?
+  itemName    String? // free-text item name when not mapped to an Items record
+  item        Items?      @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  // POS / online-store lines sell from the product catalog (StoreItems)
+  storeItemId String?
+  storeItem   StoreItems? @relation(fields: [storeItemId], references: [id], onDelete: SetNull)
+  costPrice   Int? // unit cost at time of sale — drives the COGS posting
+  quantity    Int
+  rate        Int
+  total       Int
+  receiptId   String
+  receipt     Receipt     @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @default(now()) @updatedAt
 
   @@index([receiptId])
   @@index([itemId])
+  @@index([storeItemId])
 }
 
 model StoreItems {
@@ -542,6 +571,9 @@ model StoreItems {
   type           StoreItemsType @default(product)
   trackInventory Boolean        @default(false)
   sellOnline     Boolean        @default(false)
+  image          Json? // { publicId, secureUrl } — shown on POS and the online store
+  receiptItems   ReceiptItem[]
+  orderItems     OrderItem[]
 
   entityId           String
   groupId            String // denormalized — extraction handle
@@ -1239,7 +1271,10 @@ model Settings {
   id                  String  @id @default(cuid())
   baseCurrency        String?
   multiCurrency       Boolean @default(false)
-  taxCalculation      Boolean @default(false)
+  taxCalculation      Boolean @default(true) // Tax settings: default tax is applied to new documents
+  taxInclusive        Boolean @default(false) // Tax settings: sales prices already include tax
+  compoundTax         Boolean @default(false) // Tax settings: tax groups apply tax-on-tax
+  reverseChargeVat    Boolean @default(false) // Tax settings: bills can be marked reverse charge
   dateFormat          String?
   numberFormat        String?
   invoicePrefix       String?
@@ -2023,4 +2058,231 @@ model PasswordResetOtp {
   createdAt DateTime @default(now())
 
   @@index([email])
+}
+
+// ─── Tax settings (Settings → Tax) ────────────────────────────────────────────
+
+model TaxJurisdiction {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  countryCode String? // ISO 3166 alpha-2, drives the flag shown in settings
+  isActive    Boolean   @default(true)
+  entityId    String
+  groupId     String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now()) @updatedAt
+  entity      Entity    @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  taxRates    TaxRate[]
+
+  @@unique([entityId, name])
+  @@index([entityId])
+  @@index([groupId])
+}
+
+model TaxRate {
+  id             String           @id @default(cuid())
+  name           String
+  type           String // VAT | Sales Tax | Withholding Tax | Other
+  rate           Float
+  isDefault      Boolean          @default(false)
+  isActive       Boolean          @default(true)
+  jurisdictionId String?
+  entityId       String
+  groupId        String
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @default(now()) @updatedAt
+  entity         Entity           @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  jurisdiction   TaxJurisdiction? @relation(fields: [jurisdictionId], references: [id], onDelete: SetNull)
+  groupLinks     TaxGroupRate[]
+
+  @@unique([entityId, name])
+  @@index([entityId])
+  @@index([groupId])
+}
+
+model TaxGroup {
+  id        String         @id @default(cuid())
+  name      String
+  isActive  Boolean        @default(true)
+  entityId  String
+  groupId   String
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @default(now()) @updatedAt
+  entity    Entity         @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  rates     TaxGroupRate[]
+
+  @@unique([entityId, name])
+  @@index([entityId])
+  @@index([groupId])
+}
+
+model TaxGroupRate {
+  id         String   @id @default(cuid())
+  taxGroupId String
+  taxRateId  String
+  sortOrder  Int      @default(0) // order matters for compound tax
+  groupId    String
+  taxGroup   TaxGroup @relation(fields: [taxGroupId], references: [id], onDelete: Cascade)
+  taxRate    TaxRate  @relation(fields: [taxRateId], references: [id], onDelete: Restrict)
+
+  @@unique([taxGroupId, taxRateId])
+  @@index([taxRateId])
+  @@index([groupId])
+}
+
+model TaxExemption {
+  id          String   @id @default(cuid())
+  name        String
+  code        String
+  description String?
+  isActive    Boolean  @default(true)
+  entityId    String
+  groupId     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+  entity      Entity   @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@unique([entityId, code])
+  @@index([entityId])
+  @@index([groupId])
+}
+
+// ─── Email settings (Settings → Email) ────────────────────────────────────────
+
+model EmailSettings {
+  id                  String   @id @default(cuid())
+  entityId            String   @unique
+  groupId             String
+  // Custom SMTP — when smtpHost is set, entity mail goes through it; otherwise the platform mailer
+  smtpHost            String?
+  smtpPort            Int?
+  smtpEncryption      String   @default("tls") // none | tls | ssl
+  smtpUsername        String?
+  smtpPassword        String? // AES-256-GCM encrypted, never returned by the API
+  fromEmail           String?
+  fromName            String?
+  // Automated emails (payment reminders live on Settings.paymentReminders)
+  invoiceEmails       Boolean  @default(false)
+  paymentConfirmation Boolean  @default(false)
+  receiptEmails       Boolean  @default(false)
+  monthlyStatements   Boolean  @default(false)
+  reminderSchedule    String   @default("3,7,14") // days before the due date
+  signature           String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+  entity              Entity   @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@index([groupId])
+}
+
+model EmailTemplate {
+  id        String   @id @default(cuid())
+  type      String // invoice | payment-reminder | payment-confirmation | receipt | monthly-statement
+  subject   String
+  body      String
+  entityId  String
+  groupId   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  entity    Entity   @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@unique([entityId, type])
+  @@index([groupId])
+}
+
+// One row per reminder sent — claimed before sending so a reminder goes out once
+model InvoiceReminderLog {
+  id        String   @id @default(cuid())
+  invoiceId String
+  kind      String // before | overdue
+  days      Int
+  groupId   String
+  sentAt    DateTime @default(now())
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@unique([invoiceId, kind, days])
+  @@index([groupId])
+}
+
+model CustomerStatementLog {
+  id         String   @id @default(cuid())
+  customerId String
+  period     String // YYYY-MM
+  entityId   String
+  groupId    String
+  sentAt     DateTime @default(now())
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, period])
+  @@index([entityId])
+  @@index([groupId])
+}
+
+// ─── Orders (POS + online store) ──────────────────────────────────────────────
+
+enum OrderSource {
+  POS
+  ONLINE
+}
+
+enum OrderStatus {
+  Pending
+  Completed
+  Cancelled
+}
+
+model Order {
+  id              String         @id @default(cuid())
+  orderNumber     String
+  source          OrderSource
+  status          OrderStatus    @default(Pending)
+  customerId      String?
+  customerName    String?
+  customerEmail   String?
+  customerPhone   String?
+  deliveryAddress String?
+  notes           String?
+  subtotal        Int
+  tax             Int
+  taxRate         Float          @default(0)
+  taxName         String?
+  taxInclusive    Boolean        @default(false)
+  total           Int
+  paymentMethod   PaymentMethod?
+  // The income receipt created when the order is paid — it carries the ledger posting
+  receiptId       String?        @unique
+  completedAt     DateTime?
+  cancelledAt     DateTime?
+  cancelReason    String?
+  createdById     String?
+  entityId        String
+  groupId         String
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @default(now()) @updatedAt
+  entity          Entity         @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  customer        Customer?      @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  receipt         Receipt?       @relation(fields: [receiptId], references: [id], onDelete: SetNull)
+  items           OrderItem[]
+
+  @@unique([entityId, orderNumber])
+  @@index([entityId, createdAt])
+  @@index([groupId])
+}
+
+model OrderItem {
+  id          String      @id @default(cuid())
+  orderId     String
+  storeItemId String?
+  name        String
+  quantity    Int
+  rate        Int
+  total       Int
+  groupId     String
+  order       Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  storeItem   StoreItems? @relation(fields: [storeItemId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([storeItemId])
+  @@index([groupId])
 }

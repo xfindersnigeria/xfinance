@@ -7,48 +7,50 @@ import { createStoreItemColumns } from "./StoreItemColumn";
 import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 import StoreItemHeader from "./StoreItemHeader";
 
+const TYPE_OPTIONS = ["All Types", "Products", "Services"];
+
 export default function StoreItem() {
   const sym = useEntityCurrencySymbol();
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [categoryFilter, setCategoryFilter] = useState("All Categories");
+  const [typeFilter, setTypeFilter] = useState("All Types");
   const [debouncedSearchTerm] = useDebounce(searchTerm, 300);
+  const rowsPerPage = 10;
 
   const { data, isLoading } = useStoreItems({
     page: currentPage,
     limit: rowsPerPage,
-    category: categoryFilter === 'All Categories' ? '' : categoryFilter , 
     search: debouncedSearchTerm,
+    type: typeFilter === "Products" ? "product" : typeFilter === "Services" ? "service" : undefined,
   });
 
   const items = (data as any)?.items || [];
-  // const totalCount = data?.total || 0;
-  // const totalInStock = data?.totalInStock || 0;
-  // const totalOutOfStock = data?.totalOutOfStock || 0;
-
-  console.log("Fetched items:", data); // Debug log to check fetched data
 
   return (
     <div className="space-y-4">
       <StoreItemHeader data={data as any} loading={isLoading} />
       <CustomTable
-        onSearchChange={setSearchTerm}
-        statusOptions={[
-          "All Categories",
-          "Electronics",
-          "Office Supplies",
-          "Furniture",
-          "Hardware",
-          "Software",
-        ]}
-        onStatusChange={setCategoryFilter}
+        onSearchChange={(v) => {
+          setSearchTerm(v);
+          setCurrentPage(1);
+        }}
+        statusOptions={TYPE_OPTIONS}
+        onStatusChange={(v) => {
+          setTypeFilter(v);
+          setCurrentPage(1);
+        }}
         searchPlaceholder="Search store items..."
         tableTitle="Store Items"
         columns={createStoreItemColumns(sym)}
         data={items}
         pageSize={rowsPerPage}
         loading={isLoading}
+        pagination={{
+          page: currentPage,
+          totalPages: data?.totalPages ?? 1,
+          total: data?.total,
+          onPageChange: setCurrentPage,
+        }}
         display={{
           statusComponent: true,
           searchComponent: true,

@@ -67,7 +67,7 @@ export class ReportExportDto {
   @IsArray()
   warnings?: string[];
 
-  /** Wide reports (e.g. one column per entity) render in landscape */
+  /** Deprecated — every report PDF is now landscape (A3 when very wide) */
   @IsOptional()
   landscape?: boolean;
 }

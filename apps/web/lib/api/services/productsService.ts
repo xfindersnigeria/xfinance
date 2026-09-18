@@ -73,57 +73,52 @@ export const getStoreItemById = async (id: string) => {
   return apiClient(`store-items/${id}`, { method: "GET" });
 };
 
-export const createStoreItem = async (data: {
-  name: string;
-  category: string;
-  sku: string;
-  unit: string;
+/** Body for POST/PUT store-items — amounts are whole currency units */
+export interface StoreItemPayload {
+  name?: string;
+  categoryId?: string;
+  unitId?: string;
+  sku?: string | null;
   description?: string;
-  sellingPrice: number;
-  costPrice?: number;
+  sellingPrice?: number;
+  costPrice?: number | null;
   rate?: number;
-  taxable: boolean;
-  currentStock: number;
-  lowStock: number;
-  type: "product" | "service";
-}) => {
+  taxable?: boolean;
+  currentStock?: number;
+  lowStock?: number;
+  type?: "product" | "service";
+  sellOnline?: boolean;
+  trackInventory?: boolean;
+}
+
+export const createStoreItem = async (data: StoreItemPayload) => {
   return apiClient("store-items", {
     method: "POST",
     body: JSON.stringify(data),
-    // headers: {
-    //   "Content-Type": "application/json",
-    // },
   });
 };
 
-export const updateStoreItem = async (
-  id: string,
-  data: {
-    name?: string;
-    category?: string;
-    sku?: string;
-    unit?: string;
-    description?: string;
-    sellingPrice?: number;
-    costPrice?: number;
-    rate?: number;
-    taxable?: boolean;
-    currentStock?: number;
-    lowStock?: number;
-    type?: "product" | "service";
-  }
-) => {
+/** PUT ignores currentStock — stock only changes through inventory adjustments and sales */
+export const updateStoreItem = async (id: string, data: StoreItemPayload) => {
   return apiClient(`store-items/${id}`, {
     method: "PUT",
     body: JSON.stringify(data),
-    // headers: {
-    //   "Content-Type": "application/json",
-    // },
   });
 };
 
 export const deleteStoreItem = async (id: string) => {
   return apiClient(`store-items/${id}`, { method: "DELETE" });
+};
+
+/** Item image shown on POS and the online store (multipart field `image`, ≤5MB) */
+export const uploadStoreItemImage = async (id: string, file: File) => {
+  const formData = new FormData();
+  formData.append("image", file);
+  return apiClient(`store-items/${id}/image`, { method: "POST", body: formData });
+};
+
+export const removeStoreItemImage = async (id: string) => {
+  return apiClient(`store-items/${id}/image`, { method: "DELETE" });
 };
 
 /**

@@ -58,6 +58,10 @@ export class BillsController {
         },
         billNumber: { type: 'string', example: 'INV-001' },
         vendorId: { type: 'string', example: 'vendor-id-123' },
+        vendorName: { type: 'string', example: 'Typed-in vendor (when no vendorId)' },
+        taxRate: { type: 'number', example: 7.5 },
+        taxName: { type: 'string', example: 'VAT' },
+        reverseCharge: { type: 'boolean', example: false },
         dueDate: {
           type: 'string',
           format: 'date-time',
@@ -82,7 +86,6 @@ export class BillsController {
       },
       required: [
         'billDate',
-        'vendorId',
         'dueDate',
         'paymentTerms',
         'items',

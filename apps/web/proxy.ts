@@ -28,7 +28,9 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  const isPublic = pathname.startsWith("/auth") || pathname === "/";
+  // /store/<slug> is a business's public online storefront — no login
+  const isPublicStore = pathname === "/store" || pathname.startsWith("/store/");
+  const isPublic = pathname.startsWith("/auth") || pathname === "/" || isPublicStore;
   // Check if the requested path is one of the protected routes
   // const isProtected = protectedPaths.some((path) => {
   // Only /dashboard should be exact, others should match subpaths

@@ -95,14 +95,16 @@ export default function InvoiceDetailsPage() {
     },
   );
 
-  const subtotalVal = mappedLineItems.reduce(
+  const linesTotal = mappedLineItems.reduce(
     (s: number, li: any) => s + (li.amount || 0),
     0,
   );
-  // Tax is computed and stored server-side at the invoice's own rate
+  // Subtotal, tax and total are computed and stored server-side (tax-inclusive
+  // invoices extract the tax from the line amounts, so don't re-add it here)
   const taxVal = Number((fetchedInvoice as any)?.tax ?? 0);
   const taxRateVal = Number((fetchedInvoice as any)?.taxRate ?? 0);
-  const totalVal = subtotalVal + taxVal;
+  const subtotalVal = Number((fetchedInvoice as any)?.subtotal ?? linesTotal);
+  const totalVal = Number((fetchedInvoice as any)?.total ?? subtotalVal + taxVal);
 
   const invoice = (fetchedInvoice as any)
     ? {
@@ -268,6 +270,8 @@ export default function InvoiceDetailsPage() {
               subtotal={invoice.subtotal}
               tax={invoice.tax}
               taxRate={(invoice as any).taxRate ?? 0}
+              taxName={(fetchedInvoice as any)?.taxName}
+              taxInclusive={!!(fetchedInvoice as any)?.taxInclusive}
               total={invoice.total}
               balanceDue={invoice.balanceDue}
               currency={invoice.currency}

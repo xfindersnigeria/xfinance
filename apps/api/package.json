@@ -27,7 +27,9 @@
     "seed:subscription": "ts-node seeders/seed-subscription-tiers.ts",
     "backfill:statutory-deductions": "ts-node seeders/backfill-statutory-deductions.ts",
     "backfill:payroll-accounts": "ts-node seeders/backfill-payroll-accounts.ts",
-    "backfill:asset-categories": "ts-node seeders/backfill-asset-categories.ts"
+    "backfill:asset-categories": "ts-node seeders/backfill-asset-categories.ts",
+    "backfill:sales-setup": "ts-node seeders/backfill-sales-setup.ts",
+    "backfill:standard-accounts": "ts-node seeders/backfill-standard-accounts.ts"
   },
   "dependencies": {
     "@nestjs-modules/ioredis": "^2.0.2",

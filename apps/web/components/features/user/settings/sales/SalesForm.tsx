@@ -26,6 +26,8 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Save, Loader2 } from "lucide-react";
 import { useEntityConfig, useUpdateEntityConfig } from "@/lib/api/hooks/useSettings";
+import { useTaxOptions } from "@/lib/api/hooks/useTax";
+import { taxLabel } from "@/lib/tax/totals";
 
 const salesFormSchema = z.object({
   invoiceNumberPrefix: z.string().min(1, "Invoice prefix is required"),
@@ -58,6 +60,7 @@ const paymentTermsOptions = [
 ];
 
 export default function SalesForm({ onSuccess }: SalesFormProps) {
+  const { data: taxOptions } = useTaxOptions();
   const { data: configData, isLoading } = useEntityConfig();
   const { mutateAsync: updateConfig, isPending } = useUpdateEntityConfig();
 
@@ -104,7 +107,6 @@ export default function SalesForm({ onSuccess }: SalesFormProps) {
       paymentTerm: values.defaultPaymentTerms,
       lateFees: values.latePaymentFees,
       paymentReminders: values.sendPaymentReminders,
-      taxRate: values.defaultSalesTaxRate,
       bankName: values.bankName,
       bankAccountName: values.bankAccountName,
       bankAccountNumber: values.bankAccountNumber,
@@ -222,24 +224,20 @@ export default function SalesForm({ onSuccess }: SalesFormProps) {
               />
             </div>
 
+            {/* The default tax now lives in Settings → Tax (rates, groups, exemptions) */}
             <div>
-              <FormField
-                control={form.control}
-                name="defaultSalesTaxRate"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-base font-semibold text-gray-900">Default Sales Tax Rate</FormLabel>
-                    <FormDescription>Default tax rate for new invoices and income receipts (can be changed per document)</FormDescription>
-                    <div className="flex items-center gap-2 mt-2">
-                      <FormControl>
-                        <Input type="number" step="0.01" placeholder="0" className="max-w-md" {...field} />
-                      </FormControl>
-                      <span className="font-semibold text-gray-900">%</span>
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <p className="text-base font-semibold text-gray-900">Default Sales Tax</p>
+              <p className="text-sm text-gray-500">
+                New invoices, income receipts, bills and POS sales start with{" "}
+                <span className="font-medium text-gray-900">
+                  {taxOptions?.default
+                    ? taxLabel(taxOptions.default.taxName, taxOptions.default.rate)
+                    : taxOptions
+                      ? "no tax (tax calculation is off)"
+                      : "…"}
+                </span>
+                . Change it in the Tax tab — it can still be changed on each document.
+              </p>
             </div>
           </div>
 

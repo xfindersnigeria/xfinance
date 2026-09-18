@@ -26,8 +26,8 @@ import {
   useDeleteInvoice,
   useUpdateInvoiceStatus,
   useDownloadInvoice,
-  useSendInvoice,
 } from "@/lib/api/hooks/useSales";
+import SendInvoiceDialog from "./SendInvoiceDialog";
 import PaymentReceivedForm from "../payment-received/PaymentReceivedForm";
 import { useModal } from "@/components/providers/ModalProvider";
 import { MODAL } from "@/lib/data/modal-data";
@@ -38,7 +38,7 @@ export default function InvoicesActions({ row }: { row: any }) {
   const deleteInvoice = useDeleteInvoice();
   const updateInvoiceStatus = useUpdateInvoiceStatus();
   const downloadInvoice = useDownloadInvoice();
-  const sendInvoice = useSendInvoice();
+  const [sendOpen, setSendOpen] = useState(false);
   const { isOpen, openModal, closeModal } = useModal();
 
   const deleteKey = MODAL.INVOICE_DELETE + "-" + row.id;
@@ -132,11 +132,11 @@ export default function InvoicesActions({ row }: { row: any }) {
           <DropdownMenuItem
             onSelect={(e) => {
               e.preventDefault();
-              sendInvoice.mutate(row.id);
+              setDropdownOpen(false);
+              setTimeout(() => setSendOpen(true), 100);
             }}
-            disabled={sendInvoice.isPending}
           >
-            <Send className="size-4 mr-2" /> {sendInvoice.isPending ? "Sending..." : "Send to Customer"}
+            <Send className="size-4 mr-2" /> Send to Customer
           </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={(e) => {
@@ -163,6 +163,7 @@ export default function InvoicesActions({ row }: { row: any }) {
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+      <SendInvoiceDialog invoice={row} open={sendOpen} onOpenChange={setSendOpen} />
       <CustomModal
         title={"Confirm Deletion"}
         open={isOpen(deleteKey)}

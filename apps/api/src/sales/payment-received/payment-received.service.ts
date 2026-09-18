@@ -8,6 +8,8 @@ import { InvoiceService } from '../invoice/invoice.service';
 import { BullmqService } from '@/bullmq/bullmq.service';
 import { generateRandomInvoiceNumber } from '@/auth/utils/helper';
 import { CacheService } from '@/cache/cache.service';
+import { withInvoiceParty } from '../party.util';
+import { DocumentEmailService } from '@/email/document-email.service';
 
 @Injectable()
 export class PaymentReceivedService {
@@ -18,11 +20,13 @@ export class PaymentReceivedService {
     private invoiceService: InvoiceService,
     private bullmqService: BullmqService,
     private cacheService: CacheService,
+    private documentEmail: DocumentEmailService,
   ) {}
 
   private enrichPaymentRecords(payments: any[]) {
     return payments.map((payment) => ({
       ...payment,
+      invoice: payment.invoice ? withInvoiceParty(payment.invoice) : payment.invoice,
       totalAmount: payment.total,
       paidAmount: payment.amount,
       outstanding: payment.total - payment.amount,
@@ -172,6 +176,9 @@ export class PaymentReceivedService {
       await this.updateInvoicePaymentStatus(body.invoiceId);
 
       await this.cacheService.invalidateEntityDashboardCache(entityId);
+      // "Payment Received Confirmation" switch — background, never blocks the payment
+      void this.documentEmail.autoSendPaymentConfirmation(paymentReceived.id, entityId);
+
       return this.enrichPaymentRecords([paymentReceived])[0];
     } catch (error) {
       if (error instanceof HttpException) throw error;
@@ -292,6 +299,9 @@ export class PaymentReceivedService {
             invoice: {
               customer: { name: { contains: search, mode: 'insensitive' } },
             },
+          },
+          {
+            invoice: { customerName: { contains: search, mode: 'insensitive' } },
           },
         ];
       }
@@ -534,6 +544,9 @@ export class PaymentReceivedService {
             invoice: {
               customer: { name: { contains: search, mode: 'insensitive' } },
             },
+          },
+          {
+            invoice: { customerName: { contains: search, mode: 'insensitive' } },
           },
         ];
       }

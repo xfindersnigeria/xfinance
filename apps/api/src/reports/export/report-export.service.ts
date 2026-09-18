@@ -11,6 +11,9 @@ const DEFAULT_PRIMARY = '#4152B6';
 const MAX_ROWS = 20000;
 const MAX_COLUMNS = 40;
 
+/** Beyond this many columns a landscape A4 page gets too cramped */
+const WIDE_REPORT_COLUMNS = 10;
+
 @Injectable()
 export class ReportExportService {
   constructor(
@@ -52,10 +55,14 @@ export class ReportExportService {
       }),
     };
 
+    // Every report prints landscape. Very wide ones (a column per entity —
+    // groups can have 18+) move up to A3 so columns stay readable; A3 still
+    // prints scaled-to-fit on A4 paper.
+    const widest = Math.max(0, ...report.sections.map((s) => s.columns.length));
     return this.pdfService.generate(
       'report',
       { report, entity: branding, primaryColor, generatedAt: new Date() },
-      { landscape: !!dto.landscape },
+      { landscape: true, format: widest > WIDE_REPORT_COLUMNS ? 'A3' : 'A4' },
     );
   }
 

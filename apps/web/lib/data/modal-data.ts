@@ -81,6 +81,8 @@ export const MODAL = {
   ITEM_CREATE: "item-create",
   ITEM_EDIT: "item-edit",
   ITEM_DELETE: "item-delete",
+  STORE_ITEM_DELETE: "store-item-delete",
+  POS: "pos-quick-sale",
 
   COLLECTION_CREATE: "collection-create",
   COLLECTION_EDIT: "collection-edit",
@@ -171,4 +173,20 @@ export const MODAL = {
   PAYROLL_SLIP_VIEW: "payroll-slip-view",
 
   BULK_EXPENSE_IMPORT: "bulk-expense-import",
+
+  EMAIL_SMTP_TEST: "email-smtp-test",
+  EMAIL_SMTP_REMOVE: "email-smtp-remove",
+
+  TAX_RATE_CREATE: "tax-rate-create",
+  TAX_RATE_EDIT: "tax-rate-edit",
+  TAX_RATE_DELETE: "tax-rate-delete",
+  TAX_GROUP_CREATE: "tax-group-create",
+  TAX_GROUP_EDIT: "tax-group-edit",
+  TAX_GROUP_DELETE: "tax-group-delete",
+  TAX_EXEMPTION_CREATE: "tax-exemption-create",
+  TAX_EXEMPTION_EDIT: "tax-exemption-edit",
+  TAX_EXEMPTION_DELETE: "tax-exemption-delete",
+  TAX_JURISDICTION_CREATE: "tax-jurisdiction-create",
+  TAX_JURISDICTION_EDIT: "tax-jurisdiction-edit",
+  TAX_JURISDICTION_DELETE: "tax-jurisdiction-delete",
 };

@@ -14,9 +14,13 @@ import { EmailService } from '@/email/email.service';
 
 
 
+import { PdfService } from '@/pdf/pdf.service';
+import { EntityMailerService } from '@/email/entity-mailer.service';
+import { DocumentEmailService } from '@/email/document-email.service';
+
 @Module({
   imports: [PrismaModule, BullmqModule],
-  providers: [ReceiptService, AuthService, MenuService, SubscriptionService, CacheService, PubsubService, EmailService],
+  providers: [ReceiptService, AuthService, MenuService, SubscriptionService, CacheService, PubsubService, EmailService, PdfService, EntityMailerService, DocumentEmailService],
   controllers: [ReceiptController],
 })
 export class ReceiptModule {}

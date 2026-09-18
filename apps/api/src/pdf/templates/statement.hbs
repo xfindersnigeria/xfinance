@@ -1,0 +1,88 @@
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Arial, sans-serif; font-size: 10px; color: #333; background: #fff; }
+.container { margin: 0 auto; padding: 20px 24px; }
+.header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid var(--primary); padding-bottom: 12px; margin-bottom: 16px; }
+.org { font-size: 13px; font-weight: 700; color: var(--primary); }
+.title { font-size: 17px; font-weight: bold; color: #1e293b; margin-top: 2px; }
+.subtitle { color: #64748b; font-size: 10px; margin-top: 3px; }
+.to { margin-bottom: 14px; }
+.to-label { font-size: 9px; color: #94a3b8; margin-bottom: 2px; }
+.to-name { font-size: 12px; font-weight: 600; color: #1e293b; }
+.summary { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+.summary-box { flex: 1 1 120px; background: #f8fafc; border-radius: 6px; padding: 8px 10px; }
+.summary-label { font-size: 9px; color: #94a3b8; margin-bottom: 3px; }
+.summary-value { font-size: 12px; font-weight: 600; color: #1e293b; }
+.section { margin-bottom: 16px; }
+.section-title { font-size: 11px; font-weight: 700; color: #1e293b; margin-bottom: 6px; }
+table { width: 100%; border-collapse: collapse; font-size: 9.5px; }
+thead { display: table-header-group; }
+thead tr { background: #f1f5f9; }
+th { padding: 6px 7px; text-align: left; font-size: 9px; color: #64748b; font-weight: 600; }
+td { padding: 5px 7px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+tr { page-break-inside: avoid; }
+.num { text-align: right; white-space: nowrap; }
+.row-muted td { color: #64748b; font-style: italic; }
+.footer { text-align: center; margin-top: 16px; font-size: 8.5px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 8px; }
+</style>
+
+<div class="container">
+  <div class="header">
+    <div style="display:flex;align-items:flex-start;gap:10px;">
+      {{#if entity.logo.base64}}
+        <img src="{{entity.logo.base64}}" alt="Logo" style="height:40px;width:40px;object-fit:contain;border-radius:6px;" />
+      {{/if}}
+      <div>
+        <div class="org">{{entity.name}}</div>
+        <div class="title">Statement of Account</div>
+        <div class="subtitle">{{period}}</div>
+      </div>
+    </div>
+    <div style="text-align:right">
+      <div class="subtitle">Generated: {{formatDate generatedAt}}</div>
+    </div>
+  </div>
+
+  <div class="to">
+    <div class="to-label">Statement for</div>
+    <div class="to-name">{{customer.name}}</div>
+    <div class="subtitle">{{customer.email}}</div>
+  </div>
+
+  <div class="summary">
+    {{#each summary}}
+      <div class="summary-box"><div class="summary-label">{{label}}</div><div class="summary-value">{{value}}</div></div>
+    {{/each}}
+  </div>
+
+  <div class="section">
+    <div class="section-title">Transactions</div>
+    <table>
+      <thead>
+        <tr><th>Date</th><th>Description</th><th class="num">Charges</th><th class="num">Payments</th><th class="num">Balance</th></tr>
+      </thead>
+      <tbody>
+        <tr class="row-muted"><td>{{openingRow.date}}</td><td>Opening balance</td><td></td><td></td><td class="num">{{openingRow.balance}}</td></tr>
+        {{#each rows}}
+        <tr><td>{{date}}</td><td>{{description}}</td><td class="num">{{charge}}</td><td class="num">{{payment}}</td><td class="num">{{balance}}</td></tr>
+        {{/each}}
+      </tbody>
+    </table>
+  </div>
+
+  {{#if outstanding.length}}
+  <div class="section">
+    <div class="section-title">Outstanding invoices</div>
+    <table>
+      <thead><tr><th>Invoice</th><th>Due date</th><th class="num">Balance</th></tr></thead>
+      <tbody>
+        {{#each outstanding}}
+        <tr><td>{{invoiceNumber}}</td><td>{{dueDate}}</td><td class="num">{{balance}}</td></tr>
+        {{/each}}
+      </tbody>
+    </table>
+  </div>
+  {{/if}}
+
+  <div class="footer">System generated statement</div>
+</div>

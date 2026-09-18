@@ -12,9 +12,10 @@ import { EmailService } from '@/email/email.service';
 
 
 import { BullmqModule } from '@/bullmq/bullmq.module';
+import { FileuploadModule } from '@/fileupload/fileupload.module';
 
 @Module({
-  imports: [PrismaModule, BullmqModule],
+  imports: [PrismaModule, BullmqModule, FileuploadModule],
   providers: [StoreItemsService, AuthService, MenuService, SubscriptionService, CacheService, PubsubService, EmailService],
   controllers: [StoreItemsController],
 })

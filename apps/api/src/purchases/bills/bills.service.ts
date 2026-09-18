@@ -8,6 +8,8 @@ import { GetBillsResponseDto } from './dto/get-bills-response.dto';
 import { BillStatus } from 'prisma/generated/enums';
 import { generateBillReference, generateJournalReference } from '@/auth/utils/helper';
 import { CacheService } from '@/cache/cache.service';
+import { getEntityTaxSettings, resolveDocumentTax } from '@/sales/sales-tax.util';
+import { resolveBillVendor, withBillParty } from '@/sales/party.util';
 
 @Injectable()
 export class BillsService {
@@ -19,6 +21,61 @@ export class BillsService {
     private readonly bullmqService: BullmqService,
     private readonly cacheService: CacheService,
   ) {}
+
+  private static num(v: unknown): number | undefined {
+    if (v === undefined || v === null || v === '') return undefined;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : undefined;
+  }
+
+  /**
+   * Discount, tax and total for a bill. Tax is a rate (%) on (subtotal −
+   * discount): the one picked on the bill, else the bill's existing rate, else
+   * the entity default (Settings → Tax). `tax` is the legacy field the bill form
+   * sent that percentage in. A reverse-charge bill (only when Reverse Charge VAT
+   * is on) records its tax but doesn't add it to what is owed to the vendor.
+   */
+  private async computeBillTotals(
+    entityId: string,
+    subtotal: number,
+    input: any,
+    existing?: { discount: number; taxRate: number; taxName: string | null; reverseCharge: boolean },
+  ) {
+    const settings = await getEntityTaxSettings(this.prisma, entityId);
+    const discount = Math.max(
+      0,
+      Math.round(BillsService.num(input.discount) ?? existing?.discount ?? 0),
+    );
+
+    const requested = BillsService.num(input.taxRate) ?? BillsService.num(input.tax);
+    let taxRate: number;
+    let taxName: string | null;
+    if (requested !== undefined) {
+      taxRate = requested;
+      taxName = (typeof input.taxName === 'string' && input.taxName.trim()) || null;
+    } else if (existing) {
+      taxRate = existing.taxRate;
+      taxName = existing.taxName;
+    } else {
+      const def = await resolveDocumentTax(this.prisma, entityId, {});
+      taxRate = def.rate;
+      taxName = def.name;
+    }
+    if (taxRate < 0 || taxRate > 100) {
+      throw new BadRequestException('Tax rate must be between 0 and 100');
+    }
+
+    const reverseRequested =
+      input.reverseCharge === undefined
+        ? (existing?.reverseCharge ?? false)
+        : input.reverseCharge === true || input.reverseCharge === 'true';
+    const reverseCharge = settings.reverseChargeVat && reverseRequested;
+
+    const taxBase = Math.max(0, subtotal - discount);
+    const tax = Math.round((taxBase * taxRate) / 100);
+    const total = taxBase + (reverseCharge ? 0 : tax);
+    return { discount, tax, taxRate, taxName, reverseCharge, total };
+  }
 
   async createBill(
     body: CreateBillDto,
@@ -44,7 +101,21 @@ export class BillsService {
       }
     }
 
-    const { items, status = 'draft', ...billData } = body;
+    const {
+      items,
+      status = 'draft',
+      vendorId,
+      vendorName,
+      tax: _legacyTax,
+      taxRate: _taxRate,
+      taxName: _taxName,
+      reverseCharge: _reverseCharge,
+      discount: _discount,
+      ...billData
+    } = body as any;
+
+    // A saved vendor, or a typed-in name
+    const party = await resolveBillVendor(this.prisma, entityId, { vendorId, vendorName });
 
     // Cast status to BillStatus enum
     const billStatus = (status || 'draft') as BillStatus;
@@ -95,15 +166,14 @@ export class BillsService {
       };
     });
 
-    // Calculate tax and discount (default 0 if not provided)
-    const tax = billData.tax ?? 0;
-    const discount = billData.discount ?? 0;
-    const total = subtotal + Number(tax) - Number(discount);
-const { projectId, milestoneId, ...restBillData } = billData;
+    // Discount, tax (rate on subtotal − discount) and total
+    const totals = await this.computeBillTotals(entityId, subtotal, body);
+    const { projectId, milestoneId, ...restBillData } = billData;
     // Create bill with JSON items (items now include expenseAccountId)
-    const bill = await this.prisma.bills.create({
+    const created = await this.prisma.bills.create({
       data: {
         ...restBillData,
+        ...party,
         projectId: projectId || undefined,
         milestoneId: milestoneId || undefined,
         status: billStatus,
@@ -112,9 +182,12 @@ const { projectId, milestoneId, ...restBillData } = billData;
         entityId,
         groupId: groupId ?? '',
         subtotal,
-        tax: Number(tax),
-        discount: Number(discount),
-        total,
+        tax: totals.tax,
+        taxRate: totals.taxRate,
+        taxName: totals.taxName,
+        reverseCharge: totals.reverseCharge,
+        discount: totals.discount,
+        total: totals.total,
         items: billItemsData,
         attachment: attachment
           ? { publicId: attachment.publicId, secureUrl: attachment.secureUrl }
@@ -131,6 +204,7 @@ const { projectId, milestoneId, ...restBillData } = billData;
         },
       },
     });
+    const bill = withBillParty(created);
 
     // Queue posting job ONLY if status is unpaid
     if (billStatus === 'unpaid') {
@@ -142,7 +216,7 @@ const { projectId, milestoneId, ...restBillData } = billData;
             entityId,
             groupId,
             subtotal: bill.subtotal,
-            tax: bill.tax,
+            tax: bill.reverseCharge ? 0 : bill.tax, // reverse charge: tax is self-accounted, not owed to the vendor
             discount: bill.discount,
             total: bill.total,
             accountsPayableId: bill.accountsPayableId,
@@ -168,11 +242,13 @@ const { projectId, milestoneId, ...restBillData } = billData;
     entityId: string,
     query: GetBillsQueryDto,
   ): Promise<GetBillsResponseDto & any> {
-    const { page = 1, limit = 10, search } = query;
+    const { page = 1, limit = 10, search, vendorId } = query;
     const skip = (page - 1) * limit;
 
     const where: any = {
       entityId,
+      // Previously accepted from the client but ignored — every vendor's bills came back
+      ...(vendorId ? { vendorId: vendorId === 'none' ? null : vendorId } : {}),
     };
 
    
@@ -199,6 +275,7 @@ const { projectId, milestoneId, ...restBillData } = billData;
             },
           },
         },
+        { vendorName: { contains: search, mode: 'insensitive' } },
       ];
     }
 
@@ -232,7 +309,7 @@ const { projectId, milestoneId, ...restBillData } = billData;
     // Normalize nullable fields (Prisma may return null) and format createdAt
     const transformedBills = bills.map((b) => {
       const paidAmount = b.paymentsMade.reduce((sum, p) => sum + p.amount, 0);
-      const { paymentsMade: _, ...rest } = b as any;
+      const { paymentsMade: _, ...rest } = withBillParty(b) as any;
       return {
         ...rest,
         billNumber: b.billNumber ?? undefined,
@@ -288,7 +365,7 @@ const { projectId, milestoneId, ...restBillData } = billData;
     );
 
     return {
-      ...bill,
+      ...withBillParty(bill),
       billNumber: bill.billNumber ?? undefined,
       poNumber: bill.poNumber ?? undefined,
       notes: bill.notes ?? undefined,
@@ -354,7 +431,33 @@ const { projectId, milestoneId, ...restBillData } = billData;
         };
       }
 
-      const { items, ...billData } = body;
+      const {
+        items: rawItems,
+        vendorId,
+        vendorName,
+        tax: _legacyTax,
+        taxRate: _taxRate,
+        taxName: _taxName,
+        reverseCharge: _reverseCharge,
+        discount: _discount,
+        removeItemIds: _removeItemIds,
+        ...billData
+      } = body;
+
+      // Vendor change: switch between a saved vendor and a typed-in name
+      const party =
+        vendorId !== undefined || vendorName !== undefined
+          ? await resolveBillVendor(this.prisma, entityId, { vendorId, vendorName })
+          : {};
+
+      // Items arrive as a JSON string on multipart requests; keep the
+      // existing lines when none are sent
+      const items =
+        rawItems === undefined
+          ? (bill.items as any[]) || []
+          : typeof rawItems === 'string'
+            ? JSON.parse(rawItems)
+            : rawItems;
 
       // Calculate new bill items and totals - NOW with expenseAccountId per item
       let subtotal = 0;
@@ -382,19 +485,21 @@ const { projectId, milestoneId, ...restBillData } = billData;
         };
       });
 
-      const tax = billData.tax ?? 0;
-      const discount = billData.discount ?? 0;
-      const total = subtotal + tax - discount;
+      const totals = await this.computeBillTotals(entityId, subtotal, body, bill);
 
       // Update bill with new JSON items (including expenseAccountId)
       await this.prisma.bills.update({
         where: { id: billId },
         data: {
           ...billData,
+          ...party,
           subtotal,
-          tax,
-          discount,
-          total,
+          tax: totals.tax,
+          taxRate: totals.taxRate,
+          taxName: totals.taxName,
+          reverseCharge: totals.reverseCharge,
+          discount: totals.discount,
+          total: totals.total,
           items: billItemsData,
           ...(file && { attachment }),
         },
@@ -417,7 +522,7 @@ const { projectId, milestoneId, ...restBillData } = billData;
                 entityId,
                 groupId,
                 subtotal: updatedBill.subtotal,
-                tax: updatedBill.tax,
+                tax: updatedBill.reverseCharge ? 0 : updatedBill.tax,
                 discount: updatedBill.discount,
                 total: updatedBill.total,
                 accountsPayableId: updatedBill.accountsPayableId,
@@ -477,7 +582,7 @@ const { projectId, milestoneId, ...restBillData } = billData;
             entityId,
             groupId,
             subtotal: bill.subtotal,
-            tax: bill.tax,
+            tax: bill.reverseCharge ? 0 : bill.tax, // reverse charge: tax is self-accounted, not owed to the vendor
             discount: bill.discount,
             total: bill.total,
             accountsPayableId: bill.accountsPayableId,
@@ -638,7 +743,7 @@ const { projectId, milestoneId, ...restBillData } = billData;
             entityId,
             groupId,
             subtotal: bill.subtotal,
-            tax: bill.tax,
+            tax: bill.reverseCharge ? 0 : bill.tax, // reverse charge: tax is self-accounted, not owed to the vendor
             discount: bill.discount,
             total: bill.total,
             accountsPayableId: bill.accountsPayableId,

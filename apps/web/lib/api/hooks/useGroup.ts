@@ -96,13 +96,17 @@ export const useDeleteGroup = (
   });
 };
 
-export const useGroups = (params?: {
-  search?: string;
-  page?: number;
-  limit?: number;
-  status?: string;
-}) => {
+export const useGroups = (
+  params?: {
+    search?: string;
+    page?: number;
+    limit?: number;
+    status?: string;
+  },
+  options?: { enabled?: boolean },
+) => {
   return useQuery({
+    enabled: options?.enabled ?? true,
     queryKey: [
       "groups",
       "list",

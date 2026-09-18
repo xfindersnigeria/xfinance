@@ -23,6 +23,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CreatableCombobox } from "@/components/ui/creatable-combobox";
+import { TaxSelect, useDefaultTax } from "@/components/local/shared/TaxSelect";
+import { computeTaxTotals } from "@/lib/tax/totals";
 import { format } from "date-fns";
 import {
   useCreateReceipt,
@@ -33,7 +35,6 @@ import {
 import { useAccounts } from "@/lib/api/hooks/useAccounts";
 import { paymentMethodOptions } from "../payment-received/PaymentReceivedForm";
 import { fmtAmount, useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
-import { useEntityConfig } from "@/lib/api/hooks/useSettings";
 import { useModal } from "@/components/providers/ModalProvider";
 import { MODAL } from "@/lib/data/modal-data";
 
@@ -64,8 +65,9 @@ export const receiptSchema = z.object({
       }),
     )
     .min(1, "At least one item is required"),
-  // % applied to taxable lines; defaults to the entity's sales tax rate
+  // % applied to taxable lines; defaults to the entity's default tax (Settings → Tax)
   taxRate: z.number().min(0, "Cannot be negative").max(100, "Max 100%").optional(),
+  taxName: z.string().nullable().optional(),
 });
 
 type ReceiptFormData = z.infer<typeof receiptSchema>;
@@ -91,8 +93,6 @@ export default function SalesReceiptsForm({
 
   const createReceipt = useCreateReceipt();
   const updateReceipt = useUpdateReceipt();
-  const { data: configRes } = useEntityConfig();
-  const defaultTaxRate: number = Number((configRes as any)?.data?.taxRate ?? 0) || 0;
 
   const customers = data?.customers || [];
   const cashAccounts = (accountsData?.data as any) || [];
@@ -107,16 +107,21 @@ export default function SalesReceiptsForm({
       depositTo: (receipt as any)?.depositTo || "",
       lineItems: receipt?.lineItems || [],
       taxRate: (receipt as any)?.taxRate ?? undefined,
+      taxName: (receipt as any)?.taxName ?? null,
     },
   });
 
-  // New receipts start at the entity's default sales tax rate once config loads
-  useEffect(() => {
-    if (!receipt && form.getValues("taxRate") === undefined && configRes) {
-      form.setValue("taxRate", defaultTaxRate);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [configRes, defaultTaxRate]);
+  // New receipts start with the entity's default tax (Settings → Tax)
+  const defaultTax = useDefaultTax(
+    !receipt,
+    { taxRate: form.getValues("taxRate") },
+    ({ taxRate, taxName }) => {
+      form.setValue("taxRate", taxRate);
+      form.setValue("taxName", taxName);
+    },
+  );
+  // An existing receipt keeps the pricing basis it was created with
+  const taxInclusive: boolean = receipt ? !!(receipt as any)?.taxInclusive : defaultTax.inclusive;
 
   const { fields, append, remove, replace } = useFieldArray({
     control: form.control,
@@ -146,6 +151,7 @@ export default function SalesReceiptsForm({
         paymentMethod: receipt?.paymentMethod || "Cash",
         lineItems: [],
         taxRate: (receipt as any)?.taxRate ?? 0,
+        taxName: (receipt as any)?.taxName ?? null,
       });
 
       // Replace field array with server items to avoid double entries
@@ -176,16 +182,19 @@ export default function SalesReceiptsForm({
   }, [receipt]);
 
   const watchedLines = form.watch("lineItems");
-  const subtotal = watchedLines.reduce((sum, item) => sum + (item.quantity || 0) * (item.rate || 0), 0);
   // Mirrors the server (sales-tax.util): taxable catalog items + free-text lines
-  const taxableSubtotal = watchedLines.reduce((sum, item) => {
-    const catalogItem: any = item.itemId ? items.find((i: any) => i.id === item.itemId) : null;
-    const taxable = item.itemId ? !!catalogItem?.isTaxable : true;
-    return taxable ? sum + (item.quantity || 0) * (item.rate || 0) : sum;
-  }, 0);
   const taxRate = form.watch("taxRate") ?? 0;
-  const tax = Math.round((taxableSubtotal * taxRate) / 100);
-  const total = subtotal + tax;
+  const { subtotal, tax, total } = computeTaxTotals(
+    watchedLines.map((item) => {
+      const catalogItem: any = item.itemId ? items.find((i: any) => i.id === item.itemId) : null;
+      return {
+        total: (item.quantity || 0) * (item.rate || 0),
+        taxable: item.itemId ? !!catalogItem?.isTaxable : true,
+      };
+    }),
+    taxRate,
+    taxInclusive,
+  );
 
   const onSubmit = async (values: ReceiptFormData) => {
     try {
@@ -215,6 +224,7 @@ export default function SalesReceiptsForm({
           items,
           total: totalAmount,
           taxRate: taxRateValue,
+          taxName: values.taxName || undefined,
           depositTo: values.depositTo,
           status: "Completed",
         };
@@ -239,6 +249,7 @@ export default function SalesReceiptsForm({
           items,
           total: totalAmount,
           taxRate: taxRateValue,
+          taxName: values.taxName || undefined,
           status: "Completed",
         };
 
@@ -500,21 +511,19 @@ export default function SalesReceiptsForm({
                 <span className="font-semibold">{fmtAmount(subtotal, sym)}</span>
               </div>
               <div className="flex justify-between items-center gap-3">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-1 flex-wrap items-center gap-2">
                   <p className="text-base font-normal">Tax</p>
-                  <Controller
-                    control={form.control}
-                    name="taxRate"
-                    render={({ field }) => (
-                      <NumberInput
-                        value={field.value}
-                        onChange={field.onChange}
-                        placeholder="0"
-                        className="w-20 h-8"
-                      />
-                    )}
+                  <TaxSelect
+                    className="min-w-0 flex-1 max-w-60"
+                    value={{ taxRate: form.watch("taxRate"), taxName: form.watch("taxName") }}
+                    onChange={({ taxRate, taxName }) => {
+                      form.setValue("taxRate", taxRate);
+                      form.setValue("taxName", taxName);
+                    }}
                   />
-                  <span className="text-sm text-gray-500">% of taxable items</span>
+                  <span className="text-xs text-gray-500">
+                    {taxInclusive ? "included in taxable item prices" : "on taxable items"}
+                  </span>
                 </div>
                 <span className="font-semibold">{fmtAmount(tax, sym)}</span>
               </div>

@@ -8,6 +8,8 @@ import Sales from "@/components/features/user/settings/sales/Sales";
 import PayrollSettings from "@/components/features/user/settings/payroll";
 import ModulesSettings from "@/components/features/user/settings/modules";
 import ProductSettings from "@/components/features/user/settings/product";
+import EmailSettings from "@/components/features/user/settings/email";
+import TaxSettings from "@/components/features/user/settings/tax";
 
 const settingsTabs: Tab[] = [
   {
@@ -38,7 +40,7 @@ const settingsTabs: Tab[] = [
   {
     title: "Email",
     value: "email",
-    content: <div className="p-4">Email - Coming soon</div>,
+    content: <EmailSettings />,
   },
   {
     title: "Product",
@@ -48,7 +50,7 @@ const settingsTabs: Tab[] = [
   {
     title: "Tax",
     value: "tax",
-    content: <div className="p-4">Tax - Coming soon</div>,
+    content: <TaxSettings />,
   },
   {
     title: "Payroll",

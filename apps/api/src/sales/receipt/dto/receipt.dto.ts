@@ -88,6 +88,11 @@ export class CreateReceiptDto {
   @Max(100)
   taxRate?: number;
 
+  @ApiPropertyOptional({ example: 'VAT', description: 'Tax rate / group / exemption the rate was picked from' })
+  @IsOptional()
+  @IsString()
+  taxName?: string;
+
   @ApiProperty({
     example: 5000,
     description: 'Total amount in smallest currency unit',
@@ -158,6 +163,11 @@ export class UpdateReceiptDto {
   @Min(0)
   @Max(100)
   taxRate?: number;
+
+  @ApiPropertyOptional({ example: 'VAT', description: 'Tax rate / group / exemption the rate was picked from' })
+  @IsOptional()
+  @IsString()
+  taxName?: string;
 
   @ApiPropertyOptional({
     example: ['item_1'],

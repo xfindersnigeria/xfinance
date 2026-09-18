@@ -1,7 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   Form,
   FormField,
@@ -10,16 +13,11 @@ import {
   FormControl,
   FormMessage,
 } from "@/components/ui/form";
-import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { serviceCategories, serviceUnits } from "./utils/data";
-import { useEffect, useState } from "react";
-import { serviceSchema } from "./utils/schema";
-import z from "zod";
 import {
   Select,
   SelectContent,
@@ -30,15 +28,32 @@ import {
 import { useCreateStoreItem, useUpdateStoreItem } from "@/lib/api/hooks/useProducts";
 import { StoreItemTypeEnum } from "@/lib/api/hooks/types/productsTypes";
 import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { useModal } from "@/components/providers/ModalProvider";
+import { MODAL } from "@/lib/data/modal-data";
+import { serviceSchema, type ServiceFormValues } from "./utils/schema";
+import { applyImageChange, StoreItemImagePicker, type ImageChange } from "./StoreItemImagePicker";
 
-const defaultService = {
+const defaultService: ServiceFormValues = {
   name: "",
   categoryId: "",
   unitId: "",
   description: "",
-  rate: "",
+  rate: undefined as unknown as number,
   taxable: false,
+  sellOnline: false,
 };
+
+function toFormValues(item: any): ServiceFormValues {
+  return {
+    name: item?.name ?? "",
+    categoryId: item?.categoryId ?? item?.category?.id ?? "",
+    unitId: item?.unitId ?? item?.unit?.id ?? "",
+    description: item?.description ?? "",
+    rate: item?.rate ?? item?.sellingPrice ?? (undefined as unknown as number),
+    taxable: !!item?.taxable,
+    sellOnline: !!item?.sellOnline,
+  };
+}
 
 export default function StoreItemServiceForm({
   item,
@@ -52,59 +67,67 @@ export default function StoreItemServiceForm({
   isEditMode?: boolean;
   categories: any;
   units: any;
-
   unitsLoading: boolean;
   categoriesLoading: boolean;
 }) {
-  const [loading, setLoading] = useState(false);
-  const createItem = useCreateStoreItem();
-  const updateItem = useUpdateStoreItem();
+  const queryClient = useQueryClient();
+  const { closeModal } = useModal();
+  // The form finishes the save itself (image upload, toast, close)
+  const createItem = useCreateStoreItem({ onSuccess: () => undefined });
+  const updateItem = useUpdateStoreItem({ onSuccess: () => undefined });
   const sym = useEntityCurrencySymbol();
+  const [image, setImage] = useState<ImageChange>({ file: null, removed: false });
+  const [savingImage, setSavingImage] = useState(false);
+  const loading = createItem.isPending || updateItem.isPending || savingImage;
+  const modalKey = isEditMode && item?.id ? `${MODAL.ITEM_EDIT}-${item.id}` : MODAL.ITEM_CREATE;
 
-  const form = useForm({
+  const form = useForm<ServiceFormValues>({
     resolver: zodResolver(serviceSchema),
-    defaultValues:
-      isEditMode && item ? { ...defaultService, ...item } : defaultService,
+    defaultValues: isEditMode && item ? toFormValues(item) : defaultService,
   });
 
   useEffect(() => {
-    if (isEditMode && item) {
-      form.reset({ ...defaultService, ...item });
-    }
-  }, [isEditMode, item]);
+    if (isEditMode && item) form.reset(toFormValues(item));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditMode, item?.id]);
 
-  const onSubmit = async (values: z.infer<typeof serviceSchema>) => {
+  const onSubmit = async (values: ServiceFormValues) => {
+    // Whole currency units like every other amount — the API mirrors rate into sellingPrice
+    const payload = {
+      name: values.name.trim(),
+      categoryId: values.categoryId,
+      unitId: values.unitId,
+      description: values.description || "",
+      rate: Math.round(Number(values.rate)),
+      taxable: values.taxable,
+      sellOnline: values.sellOnline,
+      trackInventory: false,
+      type: StoreItemTypeEnum.Service,
+      ...(isEditMode ? {} : { currentStock: 0, lowStock: 0, sku: `SVC-${Date.now()}` }),
+    };
+
+    let saved: any;
     try {
-      setLoading(true);
-
-      const payload = {
-        name: values.name,
-        categoryId: values.categoryId,
-        unitId: values.unitId,
-        description: values.description || "",
-        rate: Math.round(Number(values.rate) * 100),
-        taxable: values.taxable,
-        currentStock: 0,
-        lowStock: 0,
-        sku: `SVC-${Date.now()}`,
-        type: StoreItemTypeEnum.Service,
-      };
-
-      if (isEditMode && item?.id) {
-        await updateItem.mutateAsync({ id: item.id, data: payload });
-        toast.success("Service updated successfully!");
-      } else {
-        await createItem.mutateAsync(payload);
-        toast.success("Service created successfully!");
-      }
-
-      form.reset();
-      setLoading(false);
-    } catch (error) {
-      console.error("Error submitting service:", error);
-      toast.error("Failed to save service");
-      setLoading(false);
+      saved =
+        isEditMode && item?.id
+          ? await updateItem.mutateAsync({ id: item.id, data: payload })
+          : await createItem.mutateAsync(payload);
+    } catch {
+      return; // the hook already showed the error
     }
+
+    if (image.file || image.removed) {
+      setSavingImage(true);
+      await applyImageChange(saved?.id ?? item?.id, image, !!item?.imageUrl);
+      setSavingImage(false);
+    }
+    queryClient.invalidateQueries({ queryKey: ["store-items"] });
+    toast.success(isEditMode ? "Service updated" : "Service added");
+    if (!isEditMode) {
+      form.reset(defaultService);
+      setImage({ file: null, removed: false });
+    }
+    closeModal(modalKey);
   };
 
   return (
@@ -117,7 +140,7 @@ export default function StoreItemServiceForm({
               control={form.control}
               name="name"
               render={({ field }) => (
-                <FormItem>
+                <FormItem className="md:col-span-2">
                   <FormLabel>Service Name *</FormLabel>
                   <FormControl>
                     <Input placeholder="e.g., Consulting Service" {...field} />
@@ -133,16 +156,12 @@ export default function StoreItemServiceForm({
                 <FormItem>
                   <FormLabel>Category *</FormLabel>
                   <FormControl>
-                    <Select
-                      value={field.value}
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
-                      <SelectTrigger className="w-full border px-2 py-1">
-                        <SelectValue placeholder="Select category" />
+                    <Select value={field.value} onValueChange={field.onChange} disabled={categoriesLoading}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder={categoriesLoading ? "Loading..." : "Select category"} />
                       </SelectTrigger>
                       <SelectContent>
-                       {categories.map((cat: any) => (
+                        {categories.map((cat: any) => (
                           <SelectItem key={cat.id} value={cat.id}>
                             {cat.name}
                           </SelectItem>
@@ -159,15 +178,11 @@ export default function StoreItemServiceForm({
               name="unitId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Unit</FormLabel>
+                  <FormLabel>Unit *</FormLabel>
                   <FormControl>
-                    <Select
-                      value={field.value}
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
-                      <SelectTrigger className="w-full border px-2 py-1">
-                        <SelectValue placeholder="Select unit" />
+                    <Select value={field.value} onValueChange={field.onChange} disabled={unitsLoading}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder={unitsLoading ? "Loading..." : "Select unit"} />
                       </SelectTrigger>
                       <SelectContent>
                         {units.map((unit: any) => (
@@ -186,25 +201,33 @@ export default function StoreItemServiceForm({
               control={form.control}
               name="description"
               render={({ field }) => (
-                <FormItem className="col-span-2">
+                <FormItem className="md:col-span-2">
                   <FormLabel>Description</FormLabel>
                   <FormControl>
                     <Textarea
                       placeholder="Service description and deliverables..."
                       {...field}
+                      value={field.value ?? ""}
                     />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
+            <div className="md:col-span-2 space-y-2">
+              <FormLabel>Image</FormLabel>
+              <StoreItemImagePicker
+                currentUrl={isEditMode ? item?.imageUrl : null}
+                value={image}
+                onChange={setImage}
+                disabled={loading}
+              />
+            </div>
           </div>
         </div>
         <div className="bg-purple-50 p-4 rounded-xl mb-4">
-          <h6 className="font-medium text-sm mb-2 flex items-center gap-2">
-            <span className="text-xl">💲</span> Pricing
-          </h6>
-          <div className="mb-4">
+          <h6 className="font-medium text-sm mb-2">Pricing</h6>
+          <div className="space-y-4">
             <FormField
               control={form.control}
               name="rate"
@@ -214,68 +237,58 @@ export default function StoreItemServiceForm({
                     Rate <span className="text-red-500">*</span>
                   </FormLabel>
                   <FormControl>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg">
-                        {sym}
-                      </span>
-                      <NumberInput
-                        placeholder="0.00"
-                        className="pl-8"
-                        value={field.value as any}
-                        onChange={field.onChange}
-                      />
-                    </div>
+                    <NumberInput value={field.value} onChange={field.onChange} placeholder={`${sym}0.00`} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-          </div>
-          <div>
             <FormField
               control={form.control}
               name="taxable"
               render={({ field }) => (
-                <FormItem className="flex items-center justify-between bg-white rounded-xl px-4 py-3 border">
-                  <div>
-                    <FormLabel className="font-semibold mb-0">
-                      Taxable Item
-                    </FormLabel>
-                    <div className="text-gray-500 text-sm -mt-1">
-                      Apply tax to this item
+                <FormItem>
+                  <div className="flex items-center justify-between gap-4 bg-white rounded-xl px-4 py-3 border">
+                    <div>
+                      <div className="font-semibold text-base leading-tight">Taxable Item</div>
+                      <div className="text-gray-500 text-sm leading-tight">Apply tax to this item</div>
                     </div>
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
                   </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="sellOnline"
+              render={({ field }) => (
+                <FormItem>
+                  <div className="flex items-center justify-between gap-4 bg-white rounded-xl px-4 py-3 border">
+                    <div>
+                      <div className="font-semibold text-base leading-tight">Sell on Online Store</div>
+                      <div className="text-gray-500 text-sm leading-tight">
+                        Make this service available on your online store
+                      </div>
+                    </div>
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                  </div>
+                  <FormMessage />
                 </FormItem>
               )}
             />
           </div>
         </div>
         <div className="flex justify-end mt-4 gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              console.log("fjfj");
-            }}
-          >
+          <Button type="button" variant="outline" onClick={() => closeModal(modalKey)} disabled={loading}>
             Cancel
           </Button>
-          <Button
-            type="submit"
-            className="bg-blue-600 text-white"
-            disabled={loading}
-          >
-            {loading
-              ? "Saving..."
-              : isEditMode
-                ? "Update Service"
-                : "Add Service"}
+          <Button type="submit" className="bg-blue-600 text-white" disabled={loading}>
+            {savingImage ? "Uploading image..." : loading ? "Saving..." : isEditMode ? "Update Service" : "Add Service"}
           </Button>
         </div>
       </form>

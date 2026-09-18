@@ -12,6 +12,7 @@ import {
   Delete,
   Patch,
   Res,
+  BadRequestException,
 } from '@nestjs/common';
 import { InvoiceService } from './invoice.service';
 import { AuthGuard } from '@/auth/guards/auth.guard';
@@ -223,11 +224,19 @@ export class InvoiceController {
   @UseGuards(AuthGuard)
   @ApiOperation({ summary: 'Send invoice PDF to customer via email' })
   @ApiParam({ name: 'invoiceId', description: 'Invoice ID', type: 'string' })
-  async sendInvoice(@Req() req, @Param('invoiceId') invoiceId: string) {
+  async sendInvoice(
+    @Req() req,
+    @Param('invoiceId') invoiceId: string,
+    @Body() body: { to?: string } = {},
+  ) {
     const entityId = getEffectiveEntityId(req);
     if (!entityId) throw new UnauthorizedException('Access denied!');
     const performedBy = req.user?.id || 'system';
-    return this.invoiceService.sendInvoice(invoiceId, entityId, performedBy);
+    const to = typeof body?.to === 'string' && body.to.trim() ? body.to.trim() : undefined;
+    if (to && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+      throw new BadRequestException('Enter a valid email address');
+    }
+    return this.invoiceService.sendInvoice(invoiceId, entityId, performedBy, to);
   }
 
   @Get(':invoiceId/download')

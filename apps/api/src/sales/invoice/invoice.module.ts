@@ -17,12 +17,14 @@ import { PubsubService } from '@/cache/pubsub.service';
 
 
 import { ConfigService } from '@/settings/config/config.service';
+import { EntityMailerService } from '@/email/entity-mailer.service';
+import { DocumentEmailService } from '@/email/document-email.service';
 
 
 @Module({
   imports: [PrismaModule, ScheduleModule.forRoot(), BullmqModule],
-  providers: [InvoiceService, AuthService, BankingService, AccountService, OpeningBalanceService, PdfService, EmailService, MenuService, SubscriptionService, CacheService, PubsubService, ConfigService],
+  providers: [InvoiceService, AuthService, BankingService, AccountService, OpeningBalanceService, PdfService, EmailService, MenuService, SubscriptionService, CacheService, PubsubService, ConfigService, EntityMailerService, DocumentEmailService],
   controllers: [InvoiceController],
-  exports: [InvoiceService],
+  exports: [InvoiceService, DocumentEmailService],
 })
 export class InvoiceModule {}

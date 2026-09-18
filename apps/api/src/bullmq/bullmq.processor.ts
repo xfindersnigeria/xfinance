@@ -9,12 +9,15 @@ import * as path from 'path';
 import { seedDefaultChartOfAccounts } from '../../seeders/seed-account-chart';
 import { seedDefaultCurrencies } from '../../seeders/seed-currency';
 import { seedDefaultEntityAccounts } from '../../seeders/seed-entity-accounts';
+import { seedStandardEntityAccounts } from '../../seeders/seed-standard-entity-accounts';
 import { seedDefaultStatutoryDeductions } from '../../seeders/seed-statutory-deductions';
 import { seedDefaultAssetCategories } from '../../seeders/seed-asset-categories';
+import { seedDefaultTaxSettings } from '../../seeders/seed-tax-defaults';
 import { ItemsType, InvoiceActivityType } from 'prisma/generated/enums';
 import { BadRequestException } from '@nestjs/common';
 import { generateJournalReference } from '@/auth/utils/helper';
 import { CacheService } from '@/cache/cache.service';
+import { splitNetRevenue } from '@/sales/sales-tax.util';
 import { PdfService } from '@/pdf/pdf.service';
 
 @Processor('default')
@@ -448,8 +451,10 @@ export class BullmqProcessor extends WorkerHost {
         // Don't throw - continue with other setup steps
       }
 
-      // 1. Seed default accounts for the entity
+      // 1. Seed the standard accounts, then one default account per remaining
+      //    subcategory (the default seeder skips subcategories already covered)
       try {
+        await seedStandardEntityAccounts(entityId, groupId);
         await seedDefaultEntityAccounts(entityId, groupId);
         this.logger.debug(`[Job ${job.id}] Seeded default accounts for entity`);
       } catch (err) {
@@ -477,6 +482,17 @@ export class BullmqProcessor extends WorkerHost {
       } catch (err) {
         this.logger.error(
           `[Job ${job.id}] Failed to seed asset categories: ${err}`,
+        );
+        // Don't throw - continue with other setup steps
+      }
+
+      // 4. Seed default tax settings (VAT rate, jurisdiction, exemptions)
+      try {
+        await seedDefaultTaxSettings(entityId, groupId);
+        this.logger.debug(`[Job ${job.id}] Seeded default tax settings for entity`);
+      } catch (err) {
+        this.logger.error(
+          `[Job ${job.id}] Failed to seed tax settings: ${err}`,
         );
         // Don't throw - continue with other setup steps
       }
@@ -656,6 +672,14 @@ export class BullmqProcessor extends WorkerHost {
           serviceNetTotal += netAmount;
         }
       }
+
+      // Line amounts include tax when prices are tax-inclusive — credit only
+      // the net (total − tax) to revenue so the journal balances either way.
+      ({ product: productNetTotal, service: serviceNetTotal } = splitNetRevenue(
+        productNetTotal,
+        serviceNetTotal,
+        invoiceData.total - invoiceData.tax,
+      ));
 
       // Find account codes
       const [
@@ -1135,7 +1159,10 @@ export class BullmqProcessor extends WorkerHost {
         total: number;
         depositTo: string;
         items: Array<{
-          itemId?: string;
+          itemId?: string | null;
+          // POS / online-store lines sell from the product catalog
+          storeItemId?: string | null;
+          costPrice?: number | null;
           quantity: number;
           rate: number;
           total: number;
@@ -1173,14 +1200,38 @@ export class BullmqProcessor extends WorkerHost {
           })
         : [];
 
+      const storeItemIds = receiptData.items
+        .map((i) => i.storeItemId)
+        .filter((id): id is string => !!id);
+      const storeItemDetails = storeItemIds.length
+        ? await this.prisma.storeItems.findMany({
+            where: { id: { in: storeItemIds } },
+            select: { id: true, type: true, trackInventory: true },
+          })
+        : [];
+
       // Separate items by type
       let productNetTotal = 0;
       let serviceNetTotal = 0;
+      // Cost of stocked products sold (POS / online store) — Dr COGS, Cr Inventory
+      let cogsTotal = 0;
 
       for (const item of receiptData.items) {
-        const itemDetail = itemDetails.find((i) => i.id === item.itemId);
         const netAmount = item.total;
+        const storeItem = storeItemDetails.find((s) => s.id === item.storeItemId);
+        if (storeItem) {
+          if (storeItem.type === 'product') {
+            productNetTotal += netAmount;
+            if (storeItem.trackInventory && item.costPrice) {
+              cogsTotal += item.costPrice * item.quantity;
+            }
+          } else {
+            serviceNetTotal += netAmount;
+          }
+          continue;
+        }
 
+        const itemDetail = itemDetails.find((i) => i.id === item.itemId);
         // Free-text line items (no itemId) have no Items record to classify
         // by — default them to service revenue so the journal still balances.
         if (itemDetail?.type === 'goods') {
@@ -1190,12 +1241,22 @@ export class BullmqProcessor extends WorkerHost {
         }
       }
 
+      // Line amounts include tax when prices are tax-inclusive — credit only
+      // the net (total − tax) to revenue so the journal balances either way.
+      ({ product: productNetTotal, service: serviceNetTotal } = splitNetRevenue(
+        productNetTotal,
+        serviceNetTotal,
+        receiptData.total - receiptData.tax,
+      ));
+
       // Find account codes
       const [
         depositAccount,
         productRevenueAccount,
         serviceRevenueAccount,
         vatAccount,
+        cogsAccount,
+        inventoryAccount,
       ] = await Promise.all([
         this.prisma.account.findUnique({
           where: { id: receiptData.depositTo },
@@ -1222,6 +1283,18 @@ export class BullmqProcessor extends WorkerHost {
           },
           select: { id: true },
         }),
+        cogsTotal > 0
+          ? this.prisma.account.findFirst({
+              where: { code: '5140-01', entityId: receiptData.entityId },
+              select: { id: true },
+            })
+          : null,
+        cogsTotal > 0
+          ? this.prisma.account.findFirst({
+              where: { code: '1130-01', entityId: receiptData.entityId },
+              select: { id: true },
+            })
+          : null,
       ]);
 
       if (!depositAccount) {
@@ -1269,6 +1342,23 @@ export class BullmqProcessor extends WorkerHost {
           debit: 0,
           credit: receiptData.tax,
         });
+      }
+
+      // Dr Cost of Goods Sold / Cr Inventory for stocked products sold
+      if (cogsTotal > 0) {
+        if (cogsAccount && inventoryAccount) {
+          journalLines.push(
+            { accountId: cogsAccount.id, debit: cogsTotal, credit: 0 },
+            { accountId: inventoryAccount.id, debit: 0, credit: cogsTotal },
+          );
+        } else {
+          // Entities created before the COGS account existed — run
+          // `npm run backfill:sales-setup` to add it. The sale still posts.
+          this.logger.warn(
+            `[Job ${job.id}] Receipt ${receiptData.receiptNumber}: COGS ${cogsTotal} not posted — ` +
+              `account ${cogsAccount ? '1130-01 (Inventory)' : '5140-01 (Cost of Goods Sold)'} missing for entity`,
+          );
+        }
       }
 
       // Validate journal balances
@@ -1490,14 +1580,26 @@ export class BullmqProcessor extends WorkerHost {
         credit: number;
       }> = [];
 
-      // Dr Expense accounts (one per item)
-      for (const item of billData.items) {
+      // Dr Expense accounts (one per item). A discount reduces the cost of
+      // what was bought, so it is spread across the expense lines — that way
+      // Accounts Payable is credited with exactly the bill total (previously
+      // the discount was ignored and stayed in AP after the bill was paid).
+      const discount = Math.min(Math.max(Number(billData.discount) || 0, 0), billData.subtotal);
+      let discountLeft = discount;
+      billData.items.forEach((item, index) => {
+        const share =
+          index === billData.items.length - 1
+            ? discountLeft
+            : billData.subtotal > 0
+              ? Math.round((item.total * discount) / billData.subtotal)
+              : 0;
+        discountLeft -= share;
         journalLines.push({
           accountId: item.expenseAccountId,
-          debit: item.total,
+          debit: item.total - share,
           credit: 0,
         });
-      }
+      });
 
       // Dr Input VAT (if tax > 0)
       if (billData.tax > 0 && vatAccount) {
@@ -1518,9 +1620,8 @@ export class BullmqProcessor extends WorkerHost {
       //   });
       // }
 
-      // Cr Accounts Payable
-      // NOTE: Discount posting deferred - credit AP for subtotal + tax only
-      const apCredit = billData.subtotal + billData.tax;
+      // Cr Accounts Payable — the bill total (subtotal − discount + tax)
+      const apCredit = billData.subtotal - discount + billData.tax;
       journalLines.push({
         accountId: apAccount.id,
         debit: 0,

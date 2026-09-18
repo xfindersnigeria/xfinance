@@ -38,13 +38,17 @@ export function AccountForm() {
   const [selectedEntityIds, setSelectedEntityIds] = useState<string[]>([]);
 
   const whoami = useSessionStore((s) => s.whoami);
-  const isSuperAdmin = whoami?.user?.systemRole === ENUM_ROLE.SUPERADMIN;
+  // A superadmin working inside a group (impersonating it) is already in that
+  // group's context — only a superadmin outside any group has to pick one.
+  const needsGroupPicker =
+    whoami?.user?.systemRole === ENUM_ROLE.SUPERADMIN &&
+    !whoami?.impersonation?.impersonatedGroupId;
 
   // Hooks
   const { data: accountTypes, isLoading: loadingTypes } = useAccountTypes();
   const { data: categories, isLoading: loadingCategories } =
     useAccountCategories();
-  const { data: groupsData, isLoading: loadingGroups } = useGroups({ limit: 100 });
+  const { data: groupsData, isLoading: loadingGroups } = useGroups({ limit: 100 }, { enabled: needsGroupPicker });
   const groups = groupsData?.groups ?? [];
   const createCategory = useCreateAccountCategory();
   const createSubCategory = useCreateSubCategory();
@@ -54,16 +58,17 @@ export function AccountForm() {
   const { data: subCategoriesForAccount, isLoading: loadingSubCategoriesForAccount } =
     useSubCategoriesByCategory(categoryId);
 
-  // Entities to offer for selection: superadmin picks an explicit group above,
-  // so fetch that group's entities directly; a group admin already has an
-  // effective group context, so the normal entities-for-my-group hook applies.
+  // Entities to offer for selection: a superadmin outside any group picks one
+  // above, so fetch that group's entities directly; everyone else is already in
+  // a group, so the entities-for-my-group hook applies. Ask for all of them —
+  // the list endpoint pages at 10 by default and groups can have 18+ entities.
   const { data: entitiesByGroupData, isLoading: loadingEntitiesByGroup } =
-    useEntitiesByGroup(isSuperAdmin ? groupId : "");
-  const { data: myEntitiesData, isLoading: loadingMyEntities } = useEntities();
-  const entities = isSuperAdmin
+    useEntitiesByGroup(needsGroupPicker ? groupId : "");
+  const { data: myEntitiesData, isLoading: loadingMyEntities } = useEntities({ limit: 500 });
+  const entities = needsGroupPicker
     ? (entitiesByGroupData?.entities ?? [])
     : (myEntitiesData?.entities ?? []);
-  const loadingEntities = isSuperAdmin ? loadingEntitiesByGroup : loadingMyEntities;
+  const loadingEntities = needsGroupPicker ? loadingEntitiesByGroup : loadingMyEntities;
 
   useEffect(() => {
     // Reset entity selection whenever the group changes
@@ -95,21 +100,21 @@ export function AccountForm() {
     e.preventDefault();
     if (mode === "category") {
       if (!typeId || !name) return;
-      if (isSuperAdmin && !groupId) return;
-      createCategory.mutate({ name, typeId, description, ...(isSuperAdmin ? { groupId } : {}) });
+      if (needsGroupPicker && !groupId) return;
+      createCategory.mutate({ name, typeId, description, ...(needsGroupPicker ? { groupId } : {}) });
     } else if (mode === "subcategory") {
       if (!categoryId || !name) return;
       createSubCategory.mutate({ name, categoryId, description });
     } else {
       if (!subCategoryId || !name) return;
       if (selectedEntityIds.length === 0) return;
-      if (isSuperAdmin && !groupId) return;
+      if (needsGroupPicker && !groupId) return;
       createAccountForEntities.mutate({
         name,
         description,
         subCategoryId,
         entityIds: selectedEntityIds,
-        ...(isSuperAdmin ? { groupId } : {}),
+        ...(needsGroupPicker ? { groupId } : {}),
       });
     }
   };
@@ -121,8 +126,8 @@ export function AccountForm() {
 
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
-      {/* Group selector — superadmin only */}
-      {isSuperAdmin && (
+      {/* Group selector — only for a superadmin who isn't inside a group */}
+      {needsGroupPicker && (
         <div className="bg-orange-50 p-4 rounded-xl space-y-2">
           <h6 className="font-medium text-sm mb-2">Group <span className="text-red-500">*</span></h6>
           <Select value={groupId} onValueChange={setGroupId} disabled={loadingGroups}>
@@ -378,9 +383,10 @@ export function AccountForm() {
             </div>
             <p className="text-xs text-gray-500">
               Choose which entities in the group this account should be created for.
+              {entities.length > 0 && ` ${selectedEntityIds.length} of ${entities.length} selected.`}
             </p>
-            <div className="max-h-48 overflow-y-auto space-y-1 bg-white border rounded-lg p-2">
-              {isSuperAdmin && !groupId ? (
+            <div className="max-h-72 overflow-y-auto space-y-1 bg-white border rounded-lg p-2">
+              {needsGroupPicker && !groupId ? (
                 <p className="text-xs text-gray-400 px-1 py-2">Select a group first</p>
               ) : loadingEntities ? (
                 <p className="text-xs text-gray-400 px-1 py-2">Loading entities...</p>
@@ -390,13 +396,14 @@ export function AccountForm() {
                 entities.map((entity) => (
                   <label
                     key={entity.id}
-                    className="flex items-center gap-2 px-1 py-1.5 rounded hover:bg-gray-50 cursor-pointer text-sm"
+                    className="flex items-start gap-2 px-1 py-1.5 rounded hover:bg-gray-50 cursor-pointer text-sm"
                   >
                     <Checkbox
+                      className="mt-0.5 shrink-0"
                       checked={selectedEntityIds.includes(entity.id)}
                       onCheckedChange={() => toggleEntity(entity.id)}
                     />
-                    {entity.name}
+                    <span className="min-w-0 break-words">{entity.name}</span>
                   </label>
                 ))
               )}

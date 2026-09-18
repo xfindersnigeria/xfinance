@@ -7,6 +7,7 @@ import {
   IsArray,
   ValidateNested,
   IsNumber,
+  IsEmail,
   Min,
   Max,
 } from 'class-validator';
@@ -31,8 +32,19 @@ export class InvoiceItemDto {
 
 // Create Invoice DTO (for creating a new invoice)
 export class CreateInvoiceDto {
+  // A saved customer, or a typed-in customerName (one of the two is required)
+  @IsOptional()
   @IsString()
-  customerId: string = ''; // Default to empty string if not provided
+  customerId?: string;
+
+  @IsOptional()
+  @IsString()
+  customerName?: string;
+
+  // Where to email a typed-in customer's invoice (saved customers use their record)
+  @IsOptional()
+  @IsEmail()
+  customerEmail?: string;
 
   @IsDate()
   @Type(() => Date)
@@ -78,13 +90,26 @@ export class CreateInvoiceDto {
   @Min(0)
   @Max(100)
   taxRate?: number;
+
+  // Tax rate / group / exemption the rate was picked from (Settings → Tax)
+  @IsOptional()
+  @IsString()
+  taxName?: string;
 }
 
 // Update Invoice DTO (for partial updates with item management)
 export class UpdateInvoiceDto {
   @IsOptional()
   @IsString()
-  customerId?: string = '';
+  customerId?: string;
+
+  @IsOptional()
+  @IsString()
+  customerName?: string;
+
+  @IsOptional()
+  @IsEmail()
+  customerEmail?: string;
 
   @IsOptional()
   @IsDate()
@@ -124,6 +149,10 @@ export class UpdateInvoiceDto {
   @Min(0)
   @Max(100)
   taxRate?: number;
+
+  @IsOptional()
+  @IsString()
+  taxName?: string;
 
   @IsOptional()
   @IsArray()

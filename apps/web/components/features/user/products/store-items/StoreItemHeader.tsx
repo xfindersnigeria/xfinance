@@ -10,7 +10,7 @@ import ItemForm from "./StoreItemForm";
 import { StoreItemsResponse } from "@/lib/api/hooks/types/productsTypes";
 import { useModal } from "@/components/providers/ModalProvider";
 import { MODAL } from "@/lib/data/modal-data";
-import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { fmtAmountCompact, useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 export default function StoreItemHeader({
   data,
@@ -23,11 +23,6 @@ export default function StoreItemHeader({
   const sym = useEntityCurrencySymbol();
   const totalCount = data?.total ?? 0;
 
-  function formatValue(n: number): string {
-    if (n >= 1_000_000) return `${sym}${(n / 1_000_000).toFixed(1)}M`;
-    if (n >= 1_000) return `${sym}${(n / 1_000).toFixed(1)}K`;
-    return `${sym}${n.toLocaleString()}`;
-  }
   const totalInStock = data?.totalInStock ?? 0;
   const totalOutOfStock = data?.totalOutOfStock ?? 0;
   const totalValue = data?.totalValue ?? 0;
@@ -70,7 +65,7 @@ export default function StoreItemHeader({
         />
         <CustomerStatCardSmall
           title="Total Value"
-          value={<span className="text-2xl font-bold text-primary">{loading ? "—" : formatValue(totalValue)}</span>}
+          value={<span className="text-2xl font-bold text-primary">{loading ? "—" : fmtAmountCompact(totalValue, sym)}</span>}
           subtitle="Based on cost price"
         />
       </div>

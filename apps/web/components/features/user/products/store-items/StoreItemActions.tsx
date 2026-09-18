@@ -8,32 +8,24 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import {
-  MoreVertical,
-  Eye,
-  Edit3,
-  FilePlus,
-  FileText,
-  Trash2,
-} from "lucide-react";
+import { MoreVertical, Edit3, Trash2 } from "lucide-react";
 import ConfirmationForm from "@/components/local/shared/ConfirmationForm";
 import { CustomModal } from "@/components/local/custom/modal";
 import { MODULES } from "@/lib/types/enums";
-import { useDeleteCustomer } from "@/lib/api/hooks/useSales";
-import { useRouter } from "next/navigation";
+import { useDeleteStoreItem } from "@/lib/api/hooks/useProducts";
 import StoreItemForm from "./StoreItemForm";
 import { useModal } from "@/components/providers/ModalProvider";
 import { MODAL } from "@/lib/data/modal-data";
 
 export default function StoreItemsAction({ row }: { row: any }) {
-  const router = useRouter();
   const { isOpen, openModal, closeModal } = useModal();
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const deleteCustomer = useDeleteCustomer();
+  const deleteItem = useDeleteStoreItem();
+  const deleteKey = `${MODAL.STORE_ITEM_DELETE}-${row.id}`;
 
   const handleDeleteClick = () => {
     setDropdownOpen(false);
-    setTimeout(() => openModal(MODAL.ITEM_DELETE), 100);
+    setTimeout(() => openModal(deleteKey), 100);
   };
 
   const handleEditClick = () => {
@@ -43,9 +35,10 @@ export default function StoreItemsAction({ row }: { row: any }) {
 
   const handleConfirm = (confirmed: boolean) => {
     if (confirmed) {
-      deleteCustomer.mutate(row.id);
+      deleteItem.mutate(row.id);
+      return; // the hook closes the dialog once the item is gone
     }
-    closeModal(MODAL.ITEM_DELETE);
+    closeModal(deleteKey);
   };
 
   return (
@@ -74,8 +67,6 @@ export default function StoreItemsAction({ row }: { row: any }) {
             <Edit3 className="size-4 mr-2" /> Edit
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-
-          <DropdownMenuSeparator />
           <DropdownMenuItem
             data-variant="destructive"
             onSelect={(e) => {
@@ -89,16 +80,16 @@ export default function StoreItemsAction({ row }: { row: any }) {
       </DropdownMenu>
       <CustomModal
         title={"Confirm Deletion"}
-        open={isOpen(MODAL.ITEM_DELETE)}
+        open={isOpen(deleteKey)}
         onOpenChange={(open) =>
-          open ? openModal(MODAL.ITEM_DELETE) : closeModal(MODAL.ITEM_DELETE)
+          open ? openModal(deleteKey) : closeModal(deleteKey)
         }
         module={MODULES.PRODUCTS}
       >
         <ConfirmationForm
           title={`Are you sure you want to delete ${row.name}?`}
           onResult={handleConfirm}
-          loading={deleteCustomer.isPending}
+          loading={deleteItem.isPending}
         />
       </CustomModal>
       <CustomModal

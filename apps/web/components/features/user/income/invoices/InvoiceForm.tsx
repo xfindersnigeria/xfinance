@@ -36,6 +36,9 @@ import type { StoreItemsResponse } from "@/lib/api/hooks/types/productsTypes";
 import { useProjects } from "@/lib/api/hooks/useProjects";
 import { useCurrencies, useEntityConfig } from "@/lib/api/hooks/useSettings";
 import { getCurrencyByCode } from "@/lib/utils/currencies";
+import { CreatableCombobox } from "@/components/ui/creatable-combobox";
+import { TaxSelect, useDefaultTax } from "@/components/local/shared/TaxSelect";
+import { computeTaxTotals } from "@/lib/tax/totals";
 
 type InvoiceFormData = z.infer<typeof invoiceSchema>;
 
@@ -81,7 +84,6 @@ export default function InvoiceForm({
   const { data: configRes } = useEntityConfig();
   const entityBaseCurrency: string = (configRes as any)?.data?.baseCurrency ?? "";
   const multiCurrency: boolean = (configRes as any)?.data?.multiCurrency ?? false;
-  const defaultTaxRate: number = Number((configRes as any)?.data?.taxRate ?? 0) || 0;
 
   const { data: currencyRes } = useCurrencies(true);
   const activeCurrencies: any[] = (currencyRes as any)?.data ?? [];
@@ -94,6 +96,8 @@ export default function InvoiceForm({
     resolver: zodResolver(invoiceSchema),
     defaultValues: {
       customerId: invoice?.customerId || defaultCustomerId || "",
+      customerName: (invoice as any)?.customerId ? "" : (invoice as any)?.customerName || "",
+      customerEmail: (invoice as any)?.customerId ? "" : (invoice as any)?.customerEmail || "",
       invoiceDate: invoice?.invoiceDate
         ? new Date(invoice.invoiceDate)
         : new Date(),
@@ -105,15 +109,21 @@ export default function InvoiceForm({
       projectId: invoice?.projectId || "",
       milestoneId: invoice?.milestoneId || "",
       taxRate: (invoice as any)?.taxRate ?? undefined,
+      taxName: (invoice as any)?.taxName ?? null,
     },
   });
 
-  // New invoices start at the entity's default sales tax rate once config loads
-  useEffect(() => {
-    if (!invoice && form.getValues("taxRate") === undefined && configRes) {
-      form.setValue("taxRate", defaultTaxRate);
-    }
-  }, [configRes, defaultTaxRate]);
+  // New invoices start with the entity's default tax (Settings → Tax)
+  const defaultTax = useDefaultTax(
+    !invoice,
+    { taxRate: form.getValues("taxRate") },
+    ({ taxRate, taxName }) => {
+      form.setValue("taxRate", taxRate);
+      form.setValue("taxName", taxName);
+    },
+  );
+  // An existing invoice keeps the pricing basis it was created with
+  const taxInclusive: boolean = invoice ? !!(invoice as any)?.taxInclusive : defaultTax.inclusive;
 
   const { fields, append, remove, replace } = useFieldArray({
     control: form.control,
@@ -125,15 +135,16 @@ export default function InvoiceForm({
   const milestones = selectedProject?.milestones || [];
 
   const watchedLines = form.watch("lineItems");
-  const subtotal = watchedLines.reduce((sum, item) => sum + (item.quantity || 0) * (item.rate || 0), 0);
   // Mirrors the server (sales-tax.util): tax applies only to taxable items
-  const taxableSubtotal = watchedLines.reduce((sum, item) => {
-    const catalogItem: any = items.find((i: any) => i.id === item.itemId);
-    return catalogItem?.isTaxable ? sum + (item.quantity || 0) * (item.rate || 0) : sum;
-  }, 0);
   const taxRate = form.watch("taxRate") ?? 0;
-  const tax = Math.round((taxableSubtotal * taxRate) / 100);
-  const total = subtotal + tax;
+  const { subtotal, tax, total } = computeTaxTotals(
+    watchedLines.map((item) => {
+      const catalogItem: any = items.find((i: any) => i.id === item.itemId);
+      return { total: (item.quantity || 0) * (item.rate || 0), taxable: !!catalogItem?.isTaxable };
+    }),
+    taxRate,
+    taxInclusive,
+  );
 
   const maxItemsSelected = form.watch("lineItems").length >= items.length;
 
@@ -141,6 +152,8 @@ export default function InvoiceForm({
     if (invoice) {
       form.reset({
         customerId: invoice?.customerId || "",
+        customerName: (invoice as any)?.customerId ? "" : (invoice as any)?.customerName || "",
+        customerEmail: (invoice as any)?.customerId ? "" : (invoice as any)?.customerEmail || "",
         invoiceDate: invoice?.invoiceDate
           ? new Date(invoice.invoiceDate)
           : new Date(),
@@ -152,6 +165,7 @@ export default function InvoiceForm({
         projectId: invoice?.projectId || "",
         milestoneId: invoice?.milestoneId || "",
         taxRate: (invoice as any)?.taxRate ?? 0,
+        taxName: (invoice as any)?.taxName ?? null,
       });
 
       const mapped = (invoice as any)?.invoiceItem
@@ -186,7 +200,10 @@ export default function InvoiceForm({
       }));
 
       const payload: any = {
-        customerId: values.customerId,
+        // A saved customer, or the typed-in name (+ optional email)
+        customerId: values.customerId || undefined,
+        customerName: values.customerId ? undefined : values.customerName?.trim(),
+        customerEmail: values.customerId ? undefined : values.customerEmail?.trim() || undefined,
         invoiceDate:
           values.invoiceDate instanceof Date
             ? values.invoiceDate.toISOString()
@@ -203,6 +220,7 @@ export default function InvoiceForm({
         projectId: values.projectId || null,
         milestoneId: values.milestoneId || null,
         taxRate: values.taxRate ?? 0,
+        taxName: values.taxName || undefined,
       };
 
       if (isEditMode && invoice?.id) {
@@ -236,47 +254,54 @@ export default function InvoiceForm({
                   <FormItem>
                     <FormLabel>Customer *</FormLabel>
                     <FormControl>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value}
-                        disabled={
-                          customersLoading ||
-                          disabledCustomerSelect ||
-                          isLockedForEditing
-                        }
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue
-                            placeholder={
-                              customersLoading
-                                ? "Loading customers..."
-                                : "Select customer"
-                            }
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Array.isArray(customers) && customers.length > 0 ? (
-                            customers.map((c: any) => (
-                              <SelectItem
-                                key={c.id}
-                                value={c.id}
-                                disabled={!!isEditMode}
-                              >
-                                {c.name}
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <SelectItem value="no-customers" disabled>
-                              No customers found
-                            </SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
+                      <CreatableCombobox
+                        options={(Array.isArray(customers) ? customers : []).map((c: any) => ({
+                          value: c.id,
+                          label: c.name,
+                        }))}
+                        selectedId={field.value}
+                        freeText={form.watch("customerName")}
+                        isLoading={customersLoading}
+                        disabled={disabledCustomerSelect || isLockedForEditing}
+                        placeholder="Select or type customer name"
+                        searchPlaceholder="Search customers or type a new name..."
+                        emptyMessage="No customers found."
+                        onSelect={(id) => {
+                          field.onChange(id);
+                          form.setValue("customerName", "");
+                          form.setValue("customerEmail", "");
+                        }}
+                        onFreeText={(text) => {
+                          field.onChange("");
+                          form.setValue("customerName", text, { shouldValidate: true });
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+              {/* A typed-in customer has no saved email — ask for one to email the invoice */}
+              {!form.watch("customerId") && !!form.watch("customerName") && (
+                <FormField
+                  control={form.control}
+                  name="customerEmail"
+                  render={({ field }) => (
+                    <FormItem className="mt-3">
+                      <FormLabel>Customer Email</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="email"
+                          placeholder="Optional — used when emailing the invoice"
+                          disabled={isLockedForEditing}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
@@ -550,22 +575,20 @@ export default function InvoiceForm({
                     <span className="font-semibold">{sym}{subtotal.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between items-center gap-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-1 flex-wrap items-center gap-2">
                       <p className="text-base font-normal">Tax</p>
-                      <Controller
-                        control={form.control}
-                        name="taxRate"
-                        render={({ field }) => (
-                          <NumberInput
-                            value={field.value}
-                            onChange={field.onChange}
-                            placeholder="0"
-                            className="w-20 h-8"
-                            disabled={isLockedForEditing}
-                          />
-                        )}
+                      <TaxSelect
+                        className="min-w-0 flex-1 max-w-60"
+                        value={{ taxRate: form.watch("taxRate"), taxName: form.watch("taxName") }}
+                        onChange={({ taxRate, taxName }) => {
+                          form.setValue("taxRate", taxRate);
+                          form.setValue("taxName", taxName);
+                        }}
+                        disabled={isLockedForEditing}
                       />
-                      <span className="text-sm text-gray-500">% of taxable items</span>
+                      <span className="text-xs text-gray-500">
+                        {taxInclusive ? "included in taxable item prices" : "on taxable items"}
+                      </span>
                     </div>
                     <span className="font-semibold">{sym}{tax.toLocaleString()}</span>
                   </div>

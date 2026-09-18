@@ -26,4 +26,12 @@ export class GetBillsQueryDto {
   @IsOptional()
   @IsString()
   search?: string;
+
+  @ApiPropertyOptional({
+    example: 'vendor_id',
+    description: "Only this vendor's bills; 'none' = bills with a typed-in vendor",
+  })
+  @IsOptional()
+  @IsString()
+  vendorId?: string;
 }

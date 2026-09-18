@@ -87,6 +87,52 @@ export class EmailService {
   }
 
   /**
+   * Send through the platform mailer (ZeptoMail) on behalf of an entity: the
+   * display name is the entity's, replies go to the entity's own address.
+   * Used for entity emails when the entity hasn't configured its own SMTP.
+   */
+  async sendPlatformEmail({
+    to,
+    toName,
+    senderName,
+    replyTo,
+    subject,
+    html,
+    attachments = [],
+  }: {
+    to: string;
+    toName?: string;
+    senderName?: string;
+    replyTo?: { address: string; name?: string };
+    subject: string;
+    html: string;
+    attachments?: Array<{ filename: string; content: Buffer; contentType: string }>;
+  }) {
+    const result = await this.zeptomail.sendMail({
+      from: {
+        address: process.env.DEFAULT_EMAIL_FROM!,
+        name: senderName || process.env.DEFAULT_EMAIL_FROM_NAME || 'Xfinance',
+      },
+      to: [{ email_address: { address: to, name: toName || to } }],
+      ...(replyTo ? { reply_to: [{ address: replyTo.address, name: replyTo.name || replyTo.address }] } : {}),
+      subject,
+      htmlbody: html,
+      ...(attachments.length
+        ? {
+            attachments: attachments.map((a) => ({
+              content: a.content.toString('base64'),
+              mime_type: a.contentType,
+              name: a.filename,
+            })),
+          }
+        : {}),
+    } as any);
+
+    this.logger.log(`Platform email sent to ${to}`);
+    return result;
+  }
+
+  /**
    * Helper to wrap email content in the base template.
    */
   wrapWithBaseTemplate(

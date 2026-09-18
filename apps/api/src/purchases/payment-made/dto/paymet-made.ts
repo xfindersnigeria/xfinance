@@ -15,9 +15,10 @@ export class CreatePaymentMade {
   @IsString()
   billId: string; // Required - which bill is this payment for
 
-  @IsNotEmpty()
+  // Taken from the bill; optional because a bill can have a typed-in vendor
+  @IsOptional()
   @IsString()
-  vendorId: string;
+  vendorId?: string;
 
   @IsNotEmpty()
   @IsDate()

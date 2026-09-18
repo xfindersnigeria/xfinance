@@ -84,8 +84,14 @@ export const updateInvoiceStatus = (id: string | number, status: string) =>
     body: JSON.stringify({ status }),
   });
 
-export const sendInvoice = (id: string | number) =>
-  apiClient(`sales/invoices/${id}/send`, { method: "POST" });
+/** Email the invoice PDF; `to` overrides the customer's email on file */
+export const sendInvoice = (arg: string | number | { id: string | number; to?: string }) => {
+  const { id, to } = typeof arg === "object" ? arg : { id: arg, to: undefined };
+  return apiClient(`sales/invoices/${id}/send`, {
+    method: "POST",
+    body: JSON.stringify(to ? { to } : {}),
+  });
+};
 
 export const downloadInvoice = async (id: string | number) => {
   return apiBlobClient(`/sales/invoices/${id}/download`, { method: "GET" });

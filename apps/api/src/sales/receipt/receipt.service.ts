@@ -7,7 +7,8 @@ import { ReceiptStatus, PaymentMethod } from 'prisma/generated/enums';
 import { generateRandomInvoiceNumber } from '@/auth/utils/helper';
 import { BullmqService } from '@/bullmq/bullmq.service';
 import { CacheService } from '@/cache/cache.service';
-import { computeSalesTax, resolveSalesTaxRate } from '../sales-tax.util';
+import { computeDocumentTotals, resolveDocumentTax } from '../sales-tax.util';
+import { DocumentEmailService } from '@/email/document-email.service';
 
 @Injectable()
 export class ReceiptService {
@@ -17,12 +18,19 @@ export class ReceiptService {
     private prisma: PrismaService,
     private bullmqService: BullmqService,
     private cacheService: CacheService,
+    private documentEmail: DocumentEmailService,
   ) {}
+
+  /** Email a receipt to any address (e.g. a walk-in customer at the till) */
+  async emailReceipt(receiptId: string, entityId: string, to: string) {
+    const { via } = await this.documentEmail.sendReceiptEmail(receiptId, entityId, to);
+    return { data: { to, via }, message: `Receipt sent to ${to}`, statusCode: 200 };
+  }
 
   async createReceipt(body: CreateReceiptDto, entityId: string, groupId: string) {
     try {
       const receiptNumber = generateRandomInvoiceNumber({ prefix: 'RCT' });
-      const { items, depositTo, taxRate: requestedTaxRate, ...receiptData } = body;
+      const { items, depositTo, taxRate: requestedTaxRate, taxName: requestedTaxName, ...receiptData } = body;
 
       if (!depositTo) {
         throw new BadRequestException('depositTo (cash/bank account) is required');
@@ -49,12 +57,10 @@ export class ReceiptService {
           : [];
 
       // Calculate item totals and receipt totals
-      let subtotal = 0;
       const taxLines: Array<{ total: number; taxable: boolean }> = [];
       const receiptItemsData = (items || []).map((item) => {
         const itemDetail = itemDetails.find((i) => i.id === item.itemId);
         const total = item.rate * item.quantity;
-        subtotal += total;
         // Free-text lines have no catalog flag — the user's rate applies to them
         taxLines.push({ total, taxable: item.itemId ? !!itemDetail?.isTaxable : true });
         return {
@@ -66,10 +72,13 @@ export class ReceiptService {
         };
       });
       
-      // Tax at the user-chosen rate (or the entity default) on taxable lines
-      const taxRate = await resolveSalesTaxRate(this.prisma, entityId, requestedTaxRate);
-      const tax = computeSalesTax(taxLines, taxRate);
-      const total = subtotal + tax;
+      // Tax the user picked, or the entity default (Settings → Tax)
+      const docTax = await resolveDocumentTax(this.prisma, entityId, {
+        taxRate: requestedTaxRate,
+        taxName: requestedTaxName,
+      });
+      const { subtotal, tax, total } = computeDocumentTotals(taxLines, docTax.rate, docTax.inclusive);
+      const taxRate = docTax.rate;
 
       // Create receipt and items in a transaction
       const result = await this.prisma.$transaction(async (tx) => {
@@ -82,6 +91,8 @@ export class ReceiptService {
             subtotal,
             tax,
             taxRate,
+            taxName: docTax.name,
+            taxInclusive: docTax.inclusive,
             total,
             depositTo,
           },
@@ -125,6 +136,8 @@ export class ReceiptService {
           this.logger.log(
             `Queued journal posting job for receipt ${result.receiptNumber}`,
           );
+          // "Receipt Emails" switch — to the saved customer's email, in the background
+          void this.documentEmail.autoSendReceipt(result.id, entityId);
         } catch (queueError) {
           this.logger.error(
             `Failed to queue receipt journal posting: ${queueError instanceof Error ? queueError.message : String(queueError)}`,
@@ -301,7 +314,7 @@ export class ReceiptService {
         );
       }
 
-      const { items, taxRate: requestedTaxRate, ...receiptData } = body;
+      const { items, taxRate: requestedTaxRate, taxName: requestedTaxName, ...receiptData } = body;
 
       const realItemIds = (items || []).map((i) => i.itemId).filter((id): id is string => !!id);
       const itemDetails = realItemIds.length > 0
@@ -312,11 +325,9 @@ export class ReceiptService {
         : [];
 
       // Calculate new receipt items and totals
-      let subtotal = 0;
       const taxLines: Array<{ total: number; taxable: boolean }> = [];
       const receiptItemsData = (items || []).map((item) => {
         const total = item.rate * item.quantity;
-        subtotal += total;
         const itemDetail = itemDetails.find((i) => i.id === item.itemId);
         taxLines.push({ total, taxable: item.itemId ? !!itemDetail?.isTaxable : true });
         return {
@@ -327,10 +338,11 @@ export class ReceiptService {
           total,
         };
       });
-      // Previously hardcoded to 0, silently dropping VAT on every edit
-      const taxRate = requestedTaxRate ?? receipt.taxRate;
-      const tax = computeSalesTax(taxLines, taxRate);
-      const total = subtotal + tax;
+      // Keep the receipt's own rate and pricing basis unless the user picks another tax
+      const taxChanged = requestedTaxRate !== undefined && requestedTaxRate !== null;
+      const taxRate = taxChanged ? requestedTaxRate : receipt.taxRate;
+      const taxName = taxChanged ? requestedTaxName?.trim() || null : receipt.taxName;
+      const { subtotal, tax, total } = computeDocumentTotals(taxLines, taxRate, receipt.taxInclusive);
 
       // Replace all receipt items and update receipt in a transaction
       const updatedReceipt = await this.prisma.$transaction(async (tx) => {
@@ -357,6 +369,7 @@ export class ReceiptService {
             subtotal,
             tax,
             taxRate,
+            taxName,
             total,
           },
           include: {
@@ -413,6 +426,8 @@ export class ReceiptService {
         try {
           const itemsForPosting = receipt.receiptItem.map((ri) => ({
             itemId: ri.itemId,
+            storeItemId: ri.storeItemId,
+            costPrice: ri.costPrice,
             quantity: ri.quantity,
             rate: ri.rate,
             total: ri.total,
