@@ -1,14 +1,15 @@
 "use client";
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ChevronDown, ChevronRight, Download, Printer } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowLeft, ChevronDown, ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useExpenseByCategory } from "@/lib/api/hooks/useReports";
-import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { useEntityBaseCurrency, useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { ReportExportButtons } from "../../ReportExportButtons";
+import type { ReportExportPayload } from "@/lib/reports/export-types";
 import { ExpenseByCategoryData, ExpenseByCategoryRow } from "@/lib/api/services/reportService";
 import { ReportPeriodFilter } from "../../ReportPeriodFilter";
-import { ReportPeriodType, periodToDates, defaultPeriodValue } from "@/lib/period-utils";
+import { ReportPeriodType, periodToDates, defaultPeriodValue, getPeriodEndLabel } from "@/lib/period-utils";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 
 const CAT_COLORS = ["#4152b6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
@@ -60,6 +61,7 @@ function CategoryRow({ row, sym, colorIdx }: { row: ExpenseByCategoryRow; sym: s
 export default function ExpenseByCategory() {
   const router = useRouter();
   const sym = useEntityCurrencySymbol();
+  const currency = useEntityBaseCurrency();
   const now = new Date();
   const [periodType, setPeriodType] = useState<ReportPeriodType>("Quarterly");
   const [period, setPeriod] = useState(() => defaultPeriodValue("Quarterly"));
@@ -72,6 +74,40 @@ export default function ExpenseByCategory() {
   const pieData = rows.map(r => ({ name: r.categoryName, value: r.total }));
   const barData = rows.slice(0, 8).map(r => ({ name: r.categoryName.length > 14 ? r.categoryName.slice(0, 14) + "…" : r.categoryName, Total: r.total }));
 
+  const buildExport = (): ReportExportPayload | null => {
+    if (!data) return null;
+    return {
+      title: "Expense by Category",
+      scope: "entity",
+      period: getPeriodEndLabel(periodType, period, year),
+      currency,
+      summary: [
+        { label: "Total Expenses", value: data.totalExpenses, format: "amount" },
+        { label: "Categories", value: rows.length, format: "number" },
+      ],
+      columns: [
+        { key: "category", label: "Category" },
+        { key: "total", label: "Total", format: "amount" },
+        { key: "share", label: "% of Total", format: "percent" },
+      ],
+      sections: [
+        {
+          rows: [
+            ...rows.flatMap((r) => [
+              { kind: "header" as const, cells: { category: r.categoryName, total: r.total, share: r.percentOfTotal } },
+              ...r.accounts.map((a) => ({
+                indent: 1,
+                cells: { category: `${a.accountCode} — ${a.accountName}`, total: a.amount, share: a.percentOfCategory },
+              })),
+            ]),
+            { kind: "total" as const, cells: { category: "Total", total: data.totalExpenses, share: 100 } },
+          ],
+        },
+      ],
+      notes: ["Account-level % is the share of its category."],
+    };
+  };
+
   return (
     <div className="flex flex-col gap-6 pb-12">
       <div className="flex items-start justify-between gap-4">
@@ -80,9 +116,8 @@ export default function ExpenseByCategory() {
           <h1 className="text-xl font-semibold text-slate-900">Expense by Category</h1>
           <p className="text-sm text-slate-500 mt-0.5">Expenditure breakdown by account category</p>
         </div>
-        <div className="flex items-center gap-2 mt-7 shrink-0">
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Printer className="w-4 h-4" /> Print</Button>
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Download className="w-4 h-4" /> Export</Button>
+        <div className="mt-7">
+          <ReportExportButtons getPayload={buildExport} disabled={isLoading || !data} />
         </div>
       </div>
 

@@ -99,7 +99,9 @@ export default function InvoiceDetailsPage() {
     (s: number, li: any) => s + (li.amount || 0),
     0,
   );
-  const taxVal = Math.round(subtotalVal * 0.1);
+  // Tax is computed and stored server-side at the invoice's own rate
+  const taxVal = Number((fetchedInvoice as any)?.tax ?? 0);
+  const taxRateVal = Number((fetchedInvoice as any)?.taxRate ?? 0);
   const totalVal = subtotalVal + taxVal;
 
   const invoice = (fetchedInvoice as any)
@@ -133,6 +135,7 @@ export default function InvoiceDetailsPage() {
         lineItems: mappedLineItems,
         subtotal: subtotalVal,
         tax: taxVal,
+        taxRate: taxRateVal,
         total: totalVal || (fetchedInvoice as any).total || totalVal,
         balanceDue: (fetchedInvoice as any).balanceDue || subtotalVal,
         currency: (fetchedInvoice as any).currency || "USD",
@@ -264,6 +267,7 @@ export default function InvoiceDetailsPage() {
             <SummarySection
               subtotal={invoice.subtotal}
               tax={invoice.tax}
+              taxRate={(invoice as any).taxRate ?? 0}
               total={invoice.total}
               balanceDue={invoice.balanceDue}
               currency={invoice.currency}

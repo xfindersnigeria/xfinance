@@ -1,12 +1,16 @@
 import {
   Controller,
   Get,
+  Post,
+  Body,
   Query,
   Req,
+  Res,
   UseGuards,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 import {
   ApiBearerAuth,
   ApiCookieAuth,
@@ -15,8 +19,10 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { AuthGuard } from '@/auth/guards/auth.guard';
-import { getEffectiveEntityId } from '@/auth/utils/context.util';
+import { getEffectiveEntityId, getEffectiveGroupId } from '@/auth/utils/context.util';
 import { ReportsService } from './reports.service';
+import { ReportExportService } from './export/report-export.service';
+import { ReportExportDto } from './export/report-export.dto';
 
 @ApiTags('Reports')
 @Controller('reports')
@@ -24,7 +30,42 @@ import { ReportsService } from './reports.service';
 @ApiBearerAuth()
 @ApiCookieAuth()
 export class ReportsController {
-  constructor(private readonly reportsService: ReportsService) {}
+  constructor(
+    private readonly reportsService: ReportsService,
+    private readonly reportExportService: ReportExportService,
+  ) {}
+
+  @Post('export')
+  @ApiOperation({ summary: 'Render a report table as a PDF or CSV download (shared by every entity and group report)' })
+  @ApiQuery({ name: 'format', required: true, enum: ['pdf', 'csv'] })
+  async exportReport(
+    @Req() req: Request,
+    @Res() res: Response,
+    @Body() dto: ReportExportDto,
+    @Query('format') format: string,
+  ) {
+    if (format !== 'pdf' && format !== 'csv') throw new BadRequestException('format must be pdf or csv');
+    const entityId = getEffectiveEntityId(req);
+    const groupId = getEffectiveGroupId(req);
+    if (dto.scope === 'entity' && !entityId) throw new BadRequestException('Entity ID is required');
+    if (dto.scope === 'group') {
+      const role = (req.user as any)?.systemRole;
+      if (role !== 'admin' && role !== 'superadmin') throw new ForbiddenException('Group reports are available to group admins only');
+      if (!groupId) throw new BadRequestException('Group ID is required');
+    }
+
+    if (format === 'pdf') {
+      const pdf = await this.reportExportService.toPdf(dto, { entityId, groupId });
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename=${this.reportExportService.fileName(dto, 'pdf')}`);
+      res.send(pdf);
+      return;
+    }
+    const csv = this.reportExportService.toCsv(dto);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename=${this.reportExportService.fileName(dto, 'csv')}`);
+    res.send(csv);
+  }
 
   @Get('profit-and-loss')
   @ApiOperation({ summary: 'Get Profit & Loss statement for a date range' })
@@ -539,5 +580,90 @@ export class ReportsController {
     end.setHours(23, 59, 59, 999);
     const data = await this.reportsService.getSuppliesConsumptionByProject(entityId, start, end);
     return { data, message: 'Supplies Consumption by Project report generated', statusCode: 200 };
+  }
+
+  // ─── Cash Flow Forecasting ───────────────────────────────────────────────────
+
+  @Get('cash-flow-forecasting')
+  @ApiOperation({ summary: 'Forecast cash position month by month from open invoices/bills and recent run-rates' })
+  @ApiQuery({ name: 'months', required: false, example: 6 })
+  @ApiQuery({ name: 'asOfDate', required: false, example: '2026-09-18' })
+  async getCashFlowForecast(
+    @Req() req: Request,
+    @Query('months') months?: string,
+    @Query('asOfDate') asOfDate?: string,
+  ) {
+    const entityId = getEffectiveEntityId(req);
+    if (!entityId) throw new BadRequestException('Entity ID is required');
+    const asOf = asOfDate ? new Date(asOfDate) : new Date();
+    if (isNaN(asOf.getTime())) throw new BadRequestException('Invalid asOfDate');
+    asOf.setHours(23, 59, 59, 999);
+    const n = months ? Number(months) : 6;
+    if (!Number.isFinite(n) || n < 1 || n > 24) throw new BadRequestException('months must be between 1 and 24');
+    const data = await this.reportsService.getCashFlowForecast(entityId, n, asOf);
+    return { data, message: 'Cash Flow Forecast generated', statusCode: 200 };
+  }
+
+  // ─── Movement of Equity ──────────────────────────────────────────────────────
+
+  @Get('movement-of-equity')
+  @ApiOperation({ summary: 'Statement of changes in equity for a date range' })
+  @ApiQuery({ name: 'startDate', required: true })
+  @ApiQuery({ name: 'endDate', required: true })
+  async getMovementOfEquity(
+    @Req() req: Request,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    const entityId = getEffectiveEntityId(req);
+    if (!entityId) throw new BadRequestException('Entity ID is required');
+    const { start, end } = this.parseRange(startDate, endDate);
+    const data = await this.reportsService.getMovementOfEquity(entityId, start, end);
+    return { data, message: 'Movement of Equity report generated', statusCode: 200 };
+  }
+
+  // ─── Sales Tax Summary ───────────────────────────────────────────────────────
+
+  @Get('sales-tax-summary')
+  @ApiOperation({ summary: 'Output vs input VAT from invoices, receipts, bills and expenses' })
+  @ApiQuery({ name: 'startDate', required: true })
+  @ApiQuery({ name: 'endDate', required: true })
+  async getSalesTaxSummary(
+    @Req() req: Request,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    const entityId = getEffectiveEntityId(req);
+    if (!entityId) throw new BadRequestException('Entity ID is required');
+    const { start, end } = this.parseRange(startDate, endDate);
+    const data = await this.reportsService.getSalesTaxSummary(entityId, start, end);
+    return { data, message: 'Sales Tax Summary generated', statusCode: 200 };
+  }
+
+  // ─── Tax Liability Report ────────────────────────────────────────────────────
+
+  @Get('tax-liability-report')
+  @ApiOperation({ summary: 'Tax liabilities (VAT, PAYE, pension, NHF, NHIS…) from ledger balances' })
+  @ApiQuery({ name: 'startDate', required: true })
+  @ApiQuery({ name: 'endDate', required: true })
+  async getTaxLiabilityReport(
+    @Req() req: Request,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ) {
+    const entityId = getEffectiveEntityId(req);
+    if (!entityId) throw new BadRequestException('Entity ID is required');
+    const { start, end } = this.parseRange(startDate, endDate);
+    const data = await this.reportsService.getTaxLiabilityReport(entityId, start, end);
+    return { data, message: 'Tax Liability report generated', statusCode: 200 };
+  }
+
+  private parseRange(startDate: string, endDate: string) {
+    if (!startDate || !endDate) throw new BadRequestException('startDate and endDate are required');
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) throw new BadRequestException('Invalid date format');
+    end.setHours(23, 59, 59, 999);
+    return { start, end };
   }
 }

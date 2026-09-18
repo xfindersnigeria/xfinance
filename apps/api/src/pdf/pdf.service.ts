@@ -83,7 +83,7 @@ export class PdfService implements OnModuleDestroy {
     }
   }
 
-  async generate(templateName: string, data: any): Promise<Buffer> {
+  async generate(templateName: string, data: any, options: { landscape?: boolean } = {}): Promise<Buffer> {
     // Load and compile template
     const templatePath = path.join(__dirname, 'templates', `${templateName}.hbs`);
     const templateSource = fs.readFileSync(templatePath, 'utf8');
@@ -134,6 +134,7 @@ export class PdfService implements OnModuleDestroy {
       await page.setContent(htmlWithCss, { waitUntil: 'domcontentloaded' });
       const pdf = await page.pdf({
         format: 'A4',
+        landscape: !!options.landscape,
         printBackground: true,
         margin: { top: '16px', bottom: '16px', left: '16px', right: '16px' },
       });

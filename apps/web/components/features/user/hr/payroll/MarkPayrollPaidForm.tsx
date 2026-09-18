@@ -3,9 +3,9 @@ import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
-import { useBankAccounts } from "@/lib/api/hooks/useBanking";
+import { useAccounts } from "@/lib/api/hooks/useAccounts";
 import { useMarkPayrollPaid } from "@/lib/api/hooks/useHR";
-import { useGroupCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { fmtAmount, useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 
 interface Props {
   batchId: string;
@@ -15,15 +15,15 @@ interface Props {
 }
 
 export default function MarkPayrollPaidForm({ batchId, batchName, totalAmount, onSuccess }: Props) {
-  const sym = useGroupCurrencySymbol();
+  const sym = useEntityCurrencySymbol();
   const [accountId, setAccountId] = useState("");
-  const { data, isLoading } = useBankAccounts();
+  const { data, isLoading } = useAccounts({ subCategory: "Cash and Cash Equivalents" });
   const markPaid = useMarkPayrollPaid();
 
   const accounts = ((data as any)?.data ?? []) as any[];
   const options = accounts.map((a) => ({
-    value: a.linkedAccountId,
-    label: `${a.accountName} — ${a.bankName}`,
+    value: a.id,
+    label: `${a.name} (${a.code})`,
   }));
 
   const handleConfirm = () => {
@@ -34,7 +34,7 @@ export default function MarkPayrollPaidForm({ batchId, batchName, totalAmount, o
   return (
     <div className="space-y-4 py-4">
       <p className="text-sm text-gray-600">
-        Recording payment of <strong>{sym}{totalAmount.toLocaleString()}</strong> for{" "}
+        Recording payment of <strong>{fmtAmount(totalAmount, sym)}</strong> for{" "}
         <strong>{batchName}</strong>. This posts <code>Dr Wages Payable / Cr</code> the account
         selected below and cannot be undone.
       </p>
@@ -44,9 +44,9 @@ export default function MarkPayrollPaidForm({ batchId, batchName, totalAmount, o
         <SearchableCombobox
           value={accountId}
           onChange={setAccountId}
-          placeholder="Select bank/cash account"
+          placeholder="Select cash or bank account"
           searchPlaceholder="Search accounts..."
-          emptyMessage={isLoading ? "Loading..." : "No bank accounts found."}
+          emptyMessage={isLoading ? "Loading..." : "No cash accounts found."}
           options={options}
         />
       </div>

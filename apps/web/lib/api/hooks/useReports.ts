@@ -1,4 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
+import type { ReportExportFormat, ReportExportPayload } from "@/lib/reports/export-types";
 import * as reportService from "../services/reportService";
 import {
   ProfitAndLossData,
@@ -33,6 +35,11 @@ import {
   SuppliesConsumptionByProjectData,
   PeriodParams,
   AsOfParams,
+  CashFlowForecastData,
+  CashFlowForecastParams,
+  MovementOfEquityData,
+  SalesTaxSummaryData,
+  TaxLiabilityReportData,
 } from "../services/reportService";
 
 export const useProfitAndLoss = (params: ProfitAndLossParams) =>
@@ -251,4 +258,81 @@ export const useSuppliesConsumptionByProject = (params: PeriodParams) =>
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     enabled: !!params.startDate && !!params.endDate,
+  });
+
+export const useCashFlowForecast = (params: CashFlowForecastParams) =>
+  useQuery<CashFlowForecastData>({
+    queryKey: ["cash-flow-forecast", params.months, params.asOfDate],
+    queryFn: () => reportService.getCashFlowForecast(params),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+export const useMovementOfEquity = (params: PeriodParams) =>
+  useQuery<MovementOfEquityData>({
+    queryKey: ["movement-of-equity", params.startDate, params.endDate],
+    queryFn: () => reportService.getMovementOfEquity(params),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    enabled: !!params.startDate && !!params.endDate,
+  });
+
+export const useSalesTaxSummary = (params: PeriodParams) =>
+  useQuery<SalesTaxSummaryData>({
+    queryKey: ["sales-tax-summary", params.startDate, params.endDate],
+    queryFn: () => reportService.getSalesTaxSummary(params),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    enabled: !!params.startDate && !!params.endDate,
+  });
+
+export const useTaxLiabilityReport = (params: PeriodParams) =>
+  useQuery<TaxLiabilityReportData>({
+    queryKey: ["tax-liability-report", params.startDate, params.endDate],
+    queryFn: () => reportService.getTaxLiabilityReport(params),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    enabled: !!params.startDate && !!params.endDate,
+  });
+
+// ─── Export ───────────────────────────────────────────────────────────────────
+
+const safeName = (title: string) => title.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "report";
+
+/**
+ * PDF / CSV export for any report. `mode: "print"` opens the PDF in a new tab
+ * (the window is opened synchronously so popup blockers allow it); otherwise
+ * the file downloads.
+ */
+export const useExportReport = () =>
+  useMutation({
+    mutationFn: async (args: { payload: ReportExportPayload; format: ReportExportFormat; mode?: "download" | "print" }) => {
+      const printWindow = args.mode === "print" ? window.open("", "_blank") : null;
+      try {
+        const blob = await reportService.exportReport(args.payload, args.format);
+        return { blob, printWindow };
+      } catch (err) {
+        printWindow?.close();
+        throw err;
+      }
+    },
+    onSuccess: ({ blob, printWindow }, { payload, format }) => {
+      const type = format === "pdf" ? "application/pdf" : "text/csv;charset=utf-8";
+      const url = window.URL.createObjectURL(new Blob([blob], { type }));
+      if (printWindow) {
+        printWindow.location.href = url;
+        return;
+      }
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `${safeName(`${payload.title} ${payload.period ?? ""}`)}.${format}`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => window.URL.revokeObjectURL(url), 10_000);
+      toast.success(format === "pdf" ? "PDF download started" : "Excel (CSV) download started");
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to export report");
+    },
   });

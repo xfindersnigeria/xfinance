@@ -1,13 +1,14 @@
 "use client";
 import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ArrowLeft, CalendarDays, Download, Printer, TrendingUp } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { AlertTriangle, ArrowLeft, CalendarDays, TrendingUp } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useAgedPayables } from "@/lib/api/hooks/useReports";
-import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { useEntityBaseCurrency, useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { ReportExportButtons } from "../../ReportExportButtons";
+import type { ReportExportPayload } from "@/lib/reports/export-types";
 import { AgedPayablesData, AgedPayablesRow } from "@/lib/api/services/reportService";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend, Cell,
@@ -108,6 +109,7 @@ const tooltipStyle = {
 export default function AgedPayables() {
   const router = useRouter();
   const sym = useEntityCurrencySymbol();
+  const currency = useEntityBaseCurrency();
 
   const [preset, setPreset] = useState<DatePreset>("today");
   const asOfDate = resolveAsOfDate(preset);
@@ -159,6 +161,42 @@ export default function AgedPayables() {
   const overdue60Plus = bucketTotals.days61_90 + total90Plus;
   const urgentCount   = rows.filter(r => priorityBadge(r).label === "Urgent").length;
 
+  const buildExport = (): ReportExportPayload | null => {
+    if (!data || !totals) return null;
+    return {
+      title: "Aged Payables",
+      scope: "entity",
+      period: `As of ${new Date(asOfDate).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`,
+      currency,
+      landscape: true,
+      summary: BUCKETS.map((b) => ({ label: b.label, value: bucketTotals[b.key], format: "amount" as const })),
+      columns: [
+        { key: "party", label: "Vendor" },
+        { key: "total", label: "Total", format: "amount" },
+        ...BUCKETS.map((b) => ({ key: b.key, label: b.label, format: "amount" as const })),
+        { key: "badge", label: "Priority" },
+      ],
+      sections: [
+        {
+          rows: [
+            ...rows.map((r) => ({
+              cells: {
+                party: r.vendorName,
+                total: r.total,
+                ...Object.fromEntries(BUCKETS.map((b) => [b.key, rowByKey(r, b.key)])),
+                badge: priorityBadge(r).label,
+              },
+            })),
+            {
+              kind: "total" as const,
+              cells: { party: "Total", total: grandTotal, ...Object.fromEntries(BUCKETS.map((b) => [b.key, bucketTotals[b.key]])) },
+            },
+          ],
+        },
+      ],
+    };
+  };
+
   return (
     <div className="flex flex-col gap-6 pb-12">
       {/* Header */}
@@ -173,9 +211,8 @@ export default function AgedPayables() {
           <h1 className="text-xl font-semibold text-slate-900">Aged Payables Report</h1>
           <p className="text-sm text-slate-500 mt-0.5">Track outstanding payables by aging period</p>
         </div>
-        <div className="flex items-center gap-2 mt-7 shrink-0">
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Printer className="w-4 h-4" /> Print</Button>
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Download className="w-4 h-4" /> Export</Button>
+        <div className="mt-7">
+          <ReportExportButtons getPayload={buildExport} disabled={isLoading || !data} />
         </div>
       </div>
 

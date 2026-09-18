@@ -3,8 +3,6 @@ import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
-  Printer,
-  Download,
   ChevronRight,
   ChevronDown,
   TrendingUp,
@@ -22,7 +20,9 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useProfitAndLoss } from "@/lib/api/hooks/useReports";
-import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { useEntityBaseCurrency, useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { ReportExportButtons } from "../../ReportExportButtons";
+import type { ReportExportPayload, ReportExportRow } from "@/lib/reports/export-types";
 import {
   PLAccountLine,
   PLKPIEntry,
@@ -199,6 +199,40 @@ function getAllSectionIds(items: PLItem[]): string[] {
     }
   }
   return ids;
+}
+
+// ─── Export ───────────────────────────────────────────────────────────────────
+
+function plItemsToExportRows(
+  items: PLItem[],
+  depth: number,
+  showComparison: boolean,
+  isBudgetMode: boolean,
+): ReportExportRow[] {
+  const rows: ReportExportRow[] = [];
+  for (const item of items) {
+    const cmpVal = isBudgetMode ? (item.budget ?? 0) : item.comparison;
+    const variance = item.actual - cmpVal;
+    const cells: ReportExportRow["cells"] = {
+      account: item.label,
+      actual: item.actual,
+      ...(showComparison
+        ? {
+            comparison: cmpVal,
+            variance,
+            variancePct: cmpVal !== 0 ? (variance / Math.abs(cmpVal)) * 100 : 0,
+          }
+        : {}),
+    };
+    const kind: ReportExportRow["kind"] =
+      item.type === "section" ? "header"
+      : item.type === "subtotal" || item.type === "calculated" ? "subtotal"
+      : item.type === "net" ? "total"
+      : "row";
+    rows.push({ cells, kind, indent: depth });
+    if (item.children) rows.push(...plItemsToExportRows(item.children, depth + 1, showComparison, isBudgetMode));
+  }
+  return rows;
 }
 
 // ─── Variance Cell ────────────────────────────────────────────────────────────
@@ -546,6 +580,7 @@ const FISCAL_YEARS = getFiscalYears();
 export default function ProfitAndLoss() {
   const router = useRouter();
   const sym = useEntityCurrencySymbol();
+  const currency = useEntityBaseCurrency();
 
   const now = new Date();
   const curYear = now.getFullYear();
@@ -625,6 +660,33 @@ export default function ProfitAndLoss() {
       ? getPeriodDisplayLabel(periodType, comparePeriod, compareYear)
       : "Budget";
 
+  const buildExport = (): ReportExportPayload | null => {
+    if (!plData) return null;
+    return {
+      title: "Profit & Loss Statement",
+      scope: "entity",
+      period: getPeriodEndLabel(periodType, period, year),
+      currency,
+      summary: kpiItems.map((k) => ({ label: k.label, value: k.value, format: "amount" as const })),
+      columns: [
+        { key: "account", label: "Account" },
+        { key: "actual", label: "Actual", format: "amount" },
+        ...(showComparison
+          ? [
+              { key: "comparison", label: compareLabel, format: "amount" as const },
+              { key: "variance", label: "Variance", format: "amount" as const },
+              { key: "variancePct", label: "Variance %", format: "percent" as const },
+            ]
+          : []),
+      ],
+      sections: [{ rows: plItemsToExportRows(plItems, 0, showComparison, compareType === "budget") }],
+      notes: [
+        "Prepared on an accrual basis.",
+        "Operating Profit (EBIT) represents earnings before interest and taxes.",
+      ],
+    };
+  };
+
   return (
     <div className="flex flex-col gap-4 pb-10">
       {/* Page header */}
@@ -642,20 +704,8 @@ export default function ProfitAndLoss() {
             Income statement showing revenue, expenses, and profitability
           </p>
         </div>
-        <div className="flex items-center gap-2 mt-6 shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-2 rounded-xl"
-            // onClick={() => window.print()}
-          >
-            <Printer className="w-4 h-4" />
-            Print
-          </Button>
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl">
-            <Download className="w-4 h-4" />
-            Export
-          </Button>
+        <div className="mt-6">
+          <ReportExportButtons getPayload={buildExport} disabled={isLoading || !plData} />
         </div>
       </div>
 

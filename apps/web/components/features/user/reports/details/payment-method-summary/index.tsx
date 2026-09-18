@@ -3,17 +3,18 @@ import React, { useMemo } from "react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft, Download, Printer, TrendingUp, TrendingDown,
+  ArrowLeft, TrendingUp, TrendingDown,
   Banknote, CreditCard, Smartphone, Wallet, FileText, CircleDollarSign,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { usePaymentMethodSummary } from "@/lib/api/hooks/useReports";
-import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { useEntityBaseCurrency, useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { ReportExportButtons } from "../../ReportExportButtons";
+import type { ReportExportPayload } from "@/lib/reports/export-types";
 import { PaymentMethodSummaryData, PaymentMethodRow, PaymentTransaction } from "@/lib/api/services/reportService";
 import { ReportPeriodFilter } from "../../ReportPeriodFilter";
-import { ReportPeriodType, periodToDates, defaultPeriodValue } from "@/lib/period-utils";
+import { ReportPeriodType, periodToDates, defaultPeriodValue, getPeriodEndLabel } from "@/lib/period-utils";
 import {
   ResponsiveContainer,
   PieChart, Pie, Cell, Tooltip,
@@ -92,6 +93,7 @@ const PieLabel = ({ cx, cy, midAngle, outerRadius, percent, name }: any) => {
 export default function PaymentMethodSummary() {
   const router = useRouter();
   const sym = useEntityCurrencySymbol();
+  const currency = useEntityBaseCurrency();
   const now = new Date();
 
   const [periodType, setPeriodType] = useState<ReportPeriodType>("Quarterly");
@@ -134,6 +136,54 @@ export default function PaymentMethodSummary() {
   const growth = data?.totalGrowthPercent;
   const isGrowthPositive = growth !== null && growth !== undefined && growth >= 0;
 
+  const buildExport = (): ReportExportPayload | null => {
+    if (!data) return null;
+    return {
+      title: "Payment Method Summary",
+      scope: "entity",
+      period: getPeriodEndLabel(periodType, period, year),
+      currency,
+      summary: [
+        { label: "Total Payments Received", value: data.totalReceived, format: "amount" },
+        { label: "Transactions", value: data.transactionCount, format: "number" },
+        ...(data.totalGrowthPercent != null ? [{ label: "Growth vs Previous Period", value: data.totalGrowthPercent, format: "percent" as const }] : []),
+      ],
+      columns: [
+        { key: "method", label: "Payment Method" },
+        { key: "amount", label: "Total Amount", format: "amount" },
+        { key: "count", label: "Transactions", format: "number" },
+        { key: "avg", label: "Avg Transaction", format: "amount" },
+        { key: "share", label: "% of Total", format: "percent" },
+        { key: "growth", label: "Growth", format: "percent" },
+      ],
+      sections: [
+        {
+          title: "By Payment Method",
+          rows: [
+            ...rows.map((r) => ({
+              cells: { method: r.paymentMethod, amount: r.totalAmount, count: r.transactionCount, avg: r.avgTransaction, share: r.percentOfTotal, growth: r.growthPercent },
+            })),
+            { kind: "total" as const, cells: { method: "Total", amount: data.totalReceived, count: data.transactionCount } },
+          ],
+        },
+        {
+          title: "Recent Transactions",
+          columns: [
+            { key: "date", label: "Date" },
+            { key: "customer", label: "Customer" },
+            { key: "invoice", label: "Invoice" },
+            { key: "method", label: "Payment Method" },
+            { key: "amount", label: "Amount", format: "amount" },
+            { key: "reference", label: "Reference" },
+          ],
+          rows: txns.map((t) => ({
+            cells: { date: fmtDate(t.date), customer: t.customerName, invoice: t.invoiceNumber, method: t.paymentMethod, amount: t.amount, reference: t.reference },
+          })),
+        },
+      ],
+    };
+  };
+
   return (
     <div className="flex flex-col gap-6 pb-12">
       {/* Header */}
@@ -148,9 +198,8 @@ export default function PaymentMethodSummary() {
           <h1 className="text-xl font-semibold text-slate-900">Payment Method Summary</h1>
           <p className="text-sm text-slate-500 mt-0.5">Analysis of payment methods used by customers</p>
         </div>
-        <div className="flex items-center gap-2 mt-7 shrink-0">
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Printer className="w-4 h-4" /> Print</Button>
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Download className="w-4 h-4" /> Export</Button>
+        <div className="mt-7">
+          <ReportExportButtons getPayload={buildExport} disabled={isLoading || !data} />
         </div>
       </div>
 

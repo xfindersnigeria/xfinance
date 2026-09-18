@@ -16,6 +16,14 @@ export interface MenuItem {
   moduleSortOrder?: number; // For ordering modules when no menu category is defined
 }
 
+/**
+ * Group (admin-scope) modules temporarily hidden from the menu. The module,
+ * its permissions and its pages all stay in place — this only removes the
+ * sidebar entry. To bring one back, delete its key here and redeploy (menus
+ * and whoami are cached for 5 minutes, so it reappears within that window).
+ */
+const HIDDEN_GROUP_MODULE_KEYS = ['intercompany'];
+
 export interface ModuleMenu {
   moduleKey: string;
   displayName: string;
@@ -239,7 +247,9 @@ export class MenuService {
     availableModules: any[],
     permissions: Record<string, string[]>,
   ): Promise<MenuItem[]> {
-    const groupModules = availableModules.filter((m) => m.scope === 'GROUP');
+    const groupModules = availableModules.filter(
+      (m) => m.scope === 'GROUP' && !HIDDEN_GROUP_MODULE_KEYS.includes(m.moduleKey),
+    );
 
     const menu: MenuItem[] = [];
 

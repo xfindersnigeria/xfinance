@@ -2,16 +2,16 @@
 import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  AlertCircle, ArrowLeft, CalendarDays, Download, Printer,
-  TrendingDown, TrendingUp, Users,
+  AlertCircle, ArrowLeft, CalendarDays, TrendingDown, TrendingUp, Users,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { usePayableSummary } from "@/lib/api/hooks/useReports";
-import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { useEntityBaseCurrency, useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { ReportExportButtons } from "../../ReportExportButtons";
+import type { ReportExportPayload } from "@/lib/reports/export-types";
 import { PayableSummaryData, PayableSummaryRow } from "@/lib/api/services/reportService";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -106,6 +106,7 @@ function KPICard({
 export default function PayableSummary() {
   const router = useRouter();
   const sym = useEntityCurrencySymbol();
+  const currency = useEntityBaseCurrency();
 
   const [preset, setPreset] = useState<DatePreset>("today");
   const [search, setSearch] = useState("");
@@ -147,6 +148,52 @@ export default function PayableSummary() {
     ? Math.round((data.totalOverdue / data.totalPayable) * 100)
     : 0;
 
+  const buildExport = (): ReportExportPayload | null => {
+    if (!data) return null;
+    const sum = (k: "totalPayable" | "current" | "overdue") => filteredRows.reduce((s, r) => s + r[k], 0);
+    return {
+      title: "Payable Summary",
+      scope: "entity",
+      period: `As of ${new Date(asOfDate).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`,
+      currency,
+      landscape: true,
+      summary: [
+        { label: "Total Payables", value: data.totalPayable, format: "amount" },
+        { label: "Current", value: data.totalCurrent, format: "amount" },
+        { label: "Overdue", value: data.totalOverdue, format: "amount" },
+        { label: "Average Payable", value: data.avgPayable, format: "amount" },
+      ],
+      notes: search.trim() ? [`Filtered by search: "${search.trim()}"`] : [],
+      columns: [
+        { key: "vendor", label: "Vendor" },
+        { key: "total", label: "Total Payable", format: "amount" },
+        { key: "current", label: "Current", format: "amount" },
+        { key: "overdue", label: "Overdue", format: "amount" },
+        { key: "bills", label: "Bills", format: "number" },
+        { key: "lastPayment", label: "Last Payment" },
+        { key: "status", label: "Status" },
+      ],
+      sections: [
+        {
+          rows: [
+            ...filteredRows.map((r) => ({
+              cells: {
+                vendor: r.vendorName,
+                total: r.totalPayable,
+                current: r.current,
+                overdue: r.overdue,
+                bills: r.billCount,
+                lastPayment: fmtDate(r.lastPaymentDate),
+                status: r.status,
+              },
+            })),
+            { kind: "total" as const, cells: { vendor: "Total", total: sum("totalPayable"), current: sum("current"), overdue: sum("overdue") } },
+          ],
+        },
+      ],
+    };
+  };
+
   return (
     <div className="flex flex-col gap-6 pb-12">
       {/* Header */}
@@ -161,9 +208,8 @@ export default function PayableSummary() {
           <h1 className="text-xl font-semibold text-slate-900">Payable Summary</h1>
           <p className="text-sm text-slate-500 mt-0.5">Overview of outstanding vendor payables</p>
         </div>
-        <div className="flex items-center gap-2 mt-7 shrink-0">
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Printer className="w-4 h-4" /> Print</Button>
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Download className="w-4 h-4" /> Export</Button>
+        <div className="mt-7">
+          <ReportExportButtons getPayload={buildExport} disabled={isLoading || !data} />
         </div>
       </div>
 

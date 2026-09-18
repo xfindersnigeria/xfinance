@@ -222,6 +222,7 @@ model Invoice {
   currency         String
   subtotal         Int
   tax              Int
+  taxRate          Float                @default(0) // % applied to the invoice's taxable lines
   total            Int
   notes            String?
   status           InvoiceStatus        @default(Draft)
@@ -487,6 +488,7 @@ model Receipt {
   depositTo        String
   subtotal         Int
   tax              Int
+  taxRate          Float                @default(0) // % applied to the receipt's taxable lines
   total            Int
   status           ReceiptStatus        @default(Void)
   postingStatus    JournalPostingStatus @default(Pending)
@@ -1244,7 +1246,7 @@ model Settings {
   paymentTerm         String?
   lateFees            Boolean @default(false)
   paymentReminders    Boolean @default(false)
-  taxRate             Int?
+  taxRate             Float?
   billPrefix          String?
   purchaseOrderPrefix String?
   approvalRequired    Boolean @default(false)

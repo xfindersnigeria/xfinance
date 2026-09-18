@@ -2192,9 +2192,10 @@ export class BullmqProcessor extends WorkerHost {
     );
 
     try {
-      // Mark as Processing
-      await this.prisma.payrollBatch.update({
-        where: { id: batchId },
+      // Mark as Processing — never downgrade a batch that already posted
+      // (a manual re-post or a duplicate job must not undo Success).
+      await this.prisma.payrollBatch.updateMany({
+        where: { id: batchId, postingStatus: { not: 'Success' } },
         data: { postingStatus: 'Processing' },
       });
 
@@ -2235,9 +2236,19 @@ export class BullmqProcessor extends WorkerHost {
         );
       }
 
-      await this.prisma.$transaction(async (tx) => {
+      const posted = await this.prisma.$transaction(async (tx) => {
         const journalRef = generateJournalReference('PYR');
         const postedAt = new Date();
+
+        // Claim the batch first: the row lock serialises concurrent jobs, and
+        // the status guard means only one of them ever posts. Anyone else
+        // (a retry, a manual "Post to ledger", a duplicate job) sees 0 rows
+        // and exits without writing a second journal.
+        const claim = await tx.payrollBatch.updateMany({
+          where: { id: batchId, postingStatus: { not: 'Success' } },
+          data: { postingStatus: 'Success', journalReference: journalRef, postedAt },
+        });
+        if (claim.count === 0) return false;
 
         await tx.journal.create({
           data: {
@@ -2292,11 +2303,13 @@ export class BullmqProcessor extends WorkerHost {
           }),
         );
 
-        await tx.payrollBatch.update({
-          where: { id: batchId },
-          data: { postingStatus: 'Success', journalReference: journalRef, postedAt },
-        });
+        return true;
       });
+
+      if (!posted) {
+        this.logger.log(`[Job ${job.id}] Payroll ${postingData.reference} was already posted — skipping`);
+        return { success: true, batchId, skipped: true };
+      }
 
       this.logger.log(
         `[Job ${job.id}] Successfully posted payroll ${postingData.reference} to journal`,
@@ -2310,8 +2323,8 @@ export class BullmqProcessor extends WorkerHost {
 
       try {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        await this.prisma.payrollBatch.update({
-          where: { id: batchId },
+        await this.prisma.payrollBatch.updateMany({
+          where: { id: batchId, postingStatus: { not: 'Success' } },
           data: {
             postingStatus: 'Failed',
             errorMessage: errorMessage.substring(0, 500),

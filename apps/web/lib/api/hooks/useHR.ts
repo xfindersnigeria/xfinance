@@ -309,6 +309,20 @@ export const useChangePayrollStatus = () => {
   });
 };
 
+export const usePostPayrollToLedger = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => hrService.postPayrollToLedger(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["payroll-batches"] });
+      toast.success("Payroll batch queued for ledger posting");
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to post payroll to the ledger");
+    },
+  });
+};
+
 export const useMarkPayrollPaid = () => {
   const queryClient = useQueryClient();
   return useMutation({

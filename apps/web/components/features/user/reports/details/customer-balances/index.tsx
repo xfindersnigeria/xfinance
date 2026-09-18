@@ -1,17 +1,18 @@
 "use client";
 import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, ArrowLeft, Download, Printer, TrendingDown, TrendingUp, Users } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { AlertCircle, ArrowLeft, TrendingDown, TrendingUp, Users } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useCustomerBalances } from "@/lib/api/hooks/useReports";
-import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { useEntityBaseCurrency, useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { ReportExportButtons } from "../../ReportExportButtons";
+import type { ReportExportPayload } from "@/lib/reports/export-types";
 import { CustomerBalancesData, CustomerBalanceRow } from "@/lib/api/services/reportService";
 import { ReportPeriodFilter } from "../../ReportPeriodFilter";
-import { ReportPeriodType, periodToDates, defaultPeriodValue } from "@/lib/period-utils";
+import { ReportPeriodType, periodToDates, defaultPeriodValue, getPeriodEndLabel } from "@/lib/period-utils";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
   PieChart, Pie, Cell,
@@ -79,6 +80,7 @@ type BalanceFilter = "all" | "Debit" | "Credit" | "Zero";
 export default function CustomerBalances() {
   const router = useRouter();
   const sym = useEntityCurrencySymbol();
+  const currency = useEntityBaseCurrency();
   const now = new Date();
 
   const [periodType, setPeriodType] = useState<ReportPeriodType>("Quarterly");
@@ -122,6 +124,55 @@ export default function CustomerBalances() {
 
   const creditRows = rows.filter(r => r.status === "Credit");
 
+  const buildExport = (): ReportExportPayload | null => {
+    if (!data) return null;
+    const sum = (k: "openingBalance" | "invoiced" | "payments" | "closingBalance") => filteredRows.reduce((s, r) => s + r[k], 0);
+    return {
+      title: "Customer Balances",
+      scope: "entity",
+      period: getPeriodEndLabel(periodType, period, year),
+      currency,
+      landscape: true,
+      summary: [
+        { label: "Total Customers", value: data.totalCustomers, format: "number" },
+        { label: "Total Debit", value: data.totalDebit, format: "amount" },
+        { label: "Total Credit", value: data.totalCredit, format: "amount" },
+        { label: "Net Balance", value: data.netBalance, format: "amount" },
+      ],
+      notes: [
+        ...(balanceFilter !== "all" ? [`Filtered by balance: ${balanceFilter}`] : []),
+        ...(search.trim() ? [`Filtered by search: "${search.trim()}"`] : []),
+      ],
+      columns: [
+        { key: "customer", label: "Customer" },
+        { key: "opening", label: "Opening Balance", format: "amount" },
+        { key: "invoiced", label: "Invoiced", format: "amount" },
+        { key: "payments", label: "Payments", format: "amount" },
+        { key: "closing", label: "Closing Balance", format: "amount" },
+        { key: "status", label: "Status" },
+        { key: "last", label: "Last Transaction" },
+      ],
+      sections: [
+        {
+          rows: [
+            ...filteredRows.map((r) => ({
+              cells: {
+                customer: r.customerName,
+                opening: r.openingBalance,
+                invoiced: r.invoiced,
+                payments: r.payments,
+                closing: r.closingBalance,
+                status: r.status,
+                last: fmtDate(r.lastTransactionDate),
+              },
+            })),
+            { kind: "total" as const, cells: { customer: "Total", opening: sum("openingBalance"), invoiced: sum("invoiced"), payments: sum("payments"), closing: sum("closingBalance") } },
+          ],
+        },
+      ],
+    };
+  };
+
   return (
     <div className="flex flex-col gap-6 pb-12">
       {/* Header */}
@@ -136,9 +187,8 @@ export default function CustomerBalances() {
           <h1 className="text-xl font-semibold text-slate-900">Customer Balances</h1>
           <p className="text-sm text-slate-500 mt-0.5">Detailed customer account balances and transaction summary</p>
         </div>
-        <div className="flex items-center gap-2 mt-7 shrink-0">
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Printer className="w-4 h-4" /> Print</Button>
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Download className="w-4 h-4" /> Export</Button>
+        <div className="mt-7">
+          <ReportExportButtons getPayload={buildExport} disabled={isLoading || !data} />
         </div>
       </div>
 

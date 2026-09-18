@@ -1,4 +1,14 @@
-import { apiClient } from "../client";
+import { apiBlobClient, apiClient } from "../client";
+import type { ReportExportFormat, ReportExportPayload } from "@/lib/reports/export-types";
+
+// ─── Export (PDF / CSV) ──────────────────────────────────────────────────────
+
+export const exportReport = async (payload: ReportExportPayload, format: ReportExportFormat): Promise<Blob> =>
+  apiBlobClient(`reports/export?format=${format}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: format === "pdf" ? "application/pdf" : "text/csv" },
+    body: JSON.stringify(payload),
+  });
 
 export interface PLAccountLine {
   id: string;
@@ -775,4 +785,155 @@ export interface SuppliesConsumptionByProjectData {
 export const getSuppliesConsumptionByProject = async (params: PeriodParams): Promise<SuppliesConsumptionByProjectData> => {
   const q = new URLSearchParams({ startDate: params.startDate, endDate: params.endDate });
   return apiClient<SuppliesConsumptionByProjectData>(`reports/supplies-consumption-by-project?${q.toString()}`);
+};
+
+// ─── Cash Flow Forecasting ────────────────────────────────────────────────────
+
+export interface CashFlowForecastBucket {
+  month: string;
+  label: string;
+  openingCash: number;
+  inflows: { receivables: number; recurring: number; total: number };
+  outflows: { payables: number; recurring: number; total: number };
+  net: number;
+  closingCash: number;
+}
+
+export interface CashFlowForecastData {
+  asOfDate: string;
+  months: number;
+  method: {
+    lookbackMonths: number;
+    lookbackStart: string;
+    lookbackEnd: string;
+    avgMonthlyReceipts: number;
+    avgMonthlyExpenses: number;
+    avgMonthlyPayroll: number;
+  };
+  summary: {
+    currentCash: number;
+    totalInflows: number;
+    totalOutflows: number;
+    netChange: number;
+    endingCash: number;
+    overdueReceivables: number;
+    overduePayables: number;
+    lowestCash: number;
+    lowestCashMonth: string | null;
+  };
+  inflowBreakdown: { receivables: number; recurring: number };
+  outflowBreakdown: { payables: number; recurringExpenses: number; recurringPayroll: number };
+  buckets: CashFlowForecastBucket[];
+}
+
+export interface CashFlowForecastParams {
+  months: number;
+  asOfDate?: string;
+}
+
+export const getCashFlowForecast = async (params: CashFlowForecastParams): Promise<CashFlowForecastData> => {
+  const q = new URLSearchParams({ months: String(params.months) });
+  if (params.asOfDate) q.set("asOfDate", params.asOfDate);
+  return apiClient<CashFlowForecastData>(`reports/cash-flow-forecasting?${q.toString()}`);
+};
+
+// ─── Movement of Equity ───────────────────────────────────────────────────────
+
+export interface EquityMovementRow {
+  key: "opening" | "profit" | "dividends" | "capital" | "openingBalances" | "other" | "closing";
+  label: string;
+  amounts: Record<string, number>;
+}
+
+export interface MovementOfEquityData {
+  period: { startDate: string; endDate: string };
+  components: { key: string; label: string }[];
+  rows: EquityMovementRow[];
+  summary: { openingTotal: number; closingTotal: number; netChange: number; profitForPeriod: number };
+  balanceSheetEquity: number;
+  isReconciled: boolean;
+}
+
+export const getMovementOfEquity = async (params: PeriodParams): Promise<MovementOfEquityData> => {
+  const q = new URLSearchParams({ startDate: params.startDate, endDate: params.endDate });
+  return apiClient<MovementOfEquityData>(`reports/movement-of-equity?${q.toString()}`);
+};
+
+// ─── Sales Tax Summary ────────────────────────────────────────────────────────
+
+export interface SalesTaxRateRow {
+  direction: "Output" | "Input";
+  source: "Invoices" | "Income Receipts" | "Bills" | "Expenses";
+  rate: number | null;
+  documentCount: number;
+  taxableAmount: number;
+  tax: number;
+}
+
+export interface SalesTaxTransaction {
+  id: string;
+  date: string;
+  type: "Invoice" | "Income Receipt" | "Bill" | "Expense";
+  direction: "Output" | "Input";
+  reference: string;
+  party: string;
+  rate: number | null;
+  taxableAmount: number;
+  tax: number;
+}
+
+export interface SalesTaxSummaryData {
+  period: { startDate: string; endDate: string };
+  summary: {
+    outputTax: number;
+    inputTax: number;
+    netTaxPayable: number;
+    taxableSales: number;
+    taxablePurchases: number;
+    effectiveOutputRate: number;
+    ledgerNetMovement: number;
+  };
+  byRate: SalesTaxRateRow[];
+  trend: { month: string; label: string; outputTax: number; inputTax: number; net: number }[];
+  transactions: SalesTaxTransaction[];
+}
+
+export const getSalesTaxSummary = async (params: PeriodParams): Promise<SalesTaxSummaryData> => {
+  const q = new URLSearchParams({ startDate: params.startDate, endDate: params.endDate });
+  return apiClient<SalesTaxSummaryData>(`reports/sales-tax-summary?${q.toString()}`);
+};
+
+// ─── Tax Liability Report ─────────────────────────────────────────────────────
+
+export interface TaxLiabilityRow {
+  key: string;
+  taxType: string;
+  authority: string;
+  accountCodes: string[];
+  openingBalance: number;
+  accrued: number;
+  inputCredit: number;
+  paid: number;
+  closingBalance: number;
+  nextDueDate: string | null;
+  status: "Outstanding" | "Settled" | "Refundable";
+}
+
+export interface TaxLiabilityReportData {
+  period: { startDate: string; endDate: string };
+  summary: {
+    totalLiability: number;
+    totalAccrued: number;
+    totalPaid: number;
+    totalInputCredit: number;
+    outstandingCount: number;
+  };
+  rows: TaxLiabilityRow[];
+  trend: { month: string; label: string; total: number; byType: Record<string, number> }[];
+  missingAccounts: string[];
+}
+
+export const getTaxLiabilityReport = async (params: PeriodParams): Promise<TaxLiabilityReportData> => {
+  const q = new URLSearchParams({ startDate: params.startDate, endDate: params.endDate });
+  return apiClient<TaxLiabilityReportData>(`reports/tax-liability-report?${q.toString()}`);
 };

@@ -3,7 +3,7 @@ import { Column } from "@/components/local/custom/custom-table";
 import Link from "next/link";
 import { ChevronRight, File, FileText } from "lucide-react";
 
-export const reportsData = [
+const allReportsData = [
   // ─── Core Financial Reports ─────────────────────────────
   {
     key: "profit-and-loss",
@@ -205,13 +205,22 @@ export const reportsData = [
     createdBy: "System Generated",
   },
   {
-    key: "supplies-inventory-report",
+    key: "supplies-inventory",
     name: "Supplies Inventory Report",
     category: "inventory",
     lastVisited: "-",
     createdBy: "System Generated",
   },
 ];
+
+/**
+ * Reports temporarily hidden from the list. Their entries stay above; to bring
+ * one back, delete its key here.
+ * - sales-by-salesperson: invoices/receipts don't record a salesperson yet.
+ */
+const HIDDEN_REPORT_KEYS = ["sales-by-salesperson"];
+
+export const reportsData = allReportsData.filter((r) => !HIDDEN_REPORT_KEYS.includes(r.key));
 
 export const reportsColumns: Column<any>[] = [
   {

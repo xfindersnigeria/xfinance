@@ -229,7 +229,7 @@ export default function SalesForm({ onSuccess }: SalesFormProps) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-base font-semibold text-gray-900">Default Sales Tax Rate</FormLabel>
-                    <FormDescription>Default tax rate applied to new invoices</FormDescription>
+                    <FormDescription>Default tax rate for new invoices and income receipts (can be changed per document)</FormDescription>
                     <div className="flex items-center gap-2 mt-2">
                       <FormControl>
                         <Input type="number" step="0.01" placeholder="0" className="max-w-md" {...field} />

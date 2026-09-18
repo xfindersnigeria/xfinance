@@ -18,4 +18,6 @@ export const invoiceSchema = z.object({
   currency: z.string().optional(),
   lineItems: z.array(lineItemSchema).min(1, "At least one item"),
   notes: z.string().optional(),
+  // % applied to taxable line items; defaults to the entity's sales tax rate
+  taxRate: z.number().min(0, "Cannot be negative").max(100, "Max 100%").optional(),
 });

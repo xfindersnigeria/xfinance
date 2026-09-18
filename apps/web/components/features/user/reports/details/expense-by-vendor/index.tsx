@@ -1,14 +1,15 @@
 "use client";
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Download, Printer } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowLeft } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useExpenseByVendor } from "@/lib/api/hooks/useReports";
-import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { useEntityBaseCurrency, useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { ReportExportButtons } from "../../ReportExportButtons";
+import type { ReportExportPayload } from "@/lib/reports/export-types";
 import { ExpenseByVendorData, ExpenseByVendorRow } from "@/lib/api/services/reportService";
 import { ReportPeriodFilter } from "../../ReportPeriodFilter";
-import { ReportPeriodType, periodToDates, defaultPeriodValue } from "@/lib/period-utils";
+import { ReportPeriodType, periodToDates, defaultPeriodValue, getPeriodEndLabel } from "@/lib/period-utils";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 
 function fmtShort(v: number, sym: string): string {
@@ -23,6 +24,7 @@ const tooltipStyle = { contentStyle: { backgroundColor: "white", border: "1px so
 export default function ExpenseByVendor() {
   const router = useRouter();
   const sym = useEntityCurrencySymbol();
+  const currency = useEntityBaseCurrency();
   const now = new Date();
   const [periodType, setPeriodType] = useState<ReportPeriodType>("Quarterly");
   const [period, setPeriod] = useState(() => defaultPeriodValue("Quarterly"));
@@ -34,6 +36,31 @@ export default function ExpenseByVendor() {
   const rows = data?.rows ?? [];
   const top10 = rows.slice(0, 10).map(r => ({ name: r.vendorName.length > 20 ? r.vendorName.slice(0, 20) + "…" : r.vendorName, Expenses: r.totalBilled }));
 
+  const buildExport = (): ReportExportPayload | null => {
+    if (!data) return null;
+    return {
+      title: "Expense by Vendor",
+      scope: "entity",
+      period: getPeriodEndLabel(periodType, period, year),
+      currency,
+      summary: [{ label: "Total Expenses", value: data.totalExpenses, format: "amount" }],
+      columns: [
+        { key: "vendor", label: "Vendor" },
+        { key: "bills", label: "Bills", format: "number" },
+        { key: "total", label: "Total", format: "amount" },
+        { key: "share", label: "% of Total", format: "percent" },
+      ],
+      sections: [
+        {
+          rows: [
+            ...rows.map((r) => ({ cells: { vendor: r.vendorName, bills: r.billCount, total: r.totalBilled, share: r.percentOfTotal } })),
+            { kind: "total" as const, cells: { vendor: "Total", bills: rows.reduce((s, r) => s + r.billCount, 0), total: data.totalExpenses, share: 100 } },
+          ],
+        },
+      ],
+    };
+  };
+
   return (
     <div className="flex flex-col gap-6 pb-12">
       <div className="flex items-start justify-between gap-4">
@@ -42,9 +69,8 @@ export default function ExpenseByVendor() {
           <h1 className="text-xl font-semibold text-slate-900">Expense by Vendor</h1>
           <p className="text-sm text-slate-500 mt-0.5">Expenditure breakdown by individual vendor</p>
         </div>
-        <div className="flex items-center gap-2 mt-7 shrink-0">
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Printer className="w-4 h-4" /> Print</Button>
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Download className="w-4 h-4" /> Export</Button>
+        <div className="mt-7">
+          <ReportExportButtons getPayload={buildExport} disabled={isLoading || !data} />
         </div>
       </div>
 

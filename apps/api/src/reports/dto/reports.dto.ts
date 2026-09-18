@@ -635,3 +635,140 @@ export class SuppliesConsumptionByProjectDto {
   summary: { totalQuantity: number; totalValue: number; projectCount: number };
   rows: SuppliesConsumptionByProjectRowDto[];
 }
+
+// ─── Cash Flow Forecasting ───────────────────────────────────────────────────
+
+export class CashFlowForecastBucketDto {
+  /** YYYY-MM */
+  month: string;
+  label: string;
+  openingCash: number;
+  inflows: { receivables: number; recurring: number; total: number };
+  outflows: { payables: number; recurring: number; total: number };
+  net: number;
+  closingCash: number;
+}
+
+export class CashFlowForecastDto {
+  asOfDate: string;
+  months: number;
+  /** How the recurring run-rate was derived, so the UI can state it */
+  method: {
+    lookbackMonths: number;
+    lookbackStart: string;
+    lookbackEnd: string;
+    avgMonthlyReceipts: number;
+    avgMonthlyExpenses: number;
+    avgMonthlyPayroll: number;
+  };
+  summary: {
+    currentCash: number;
+    totalInflows: number;
+    totalOutflows: number;
+    netChange: number;
+    endingCash: number;
+    overdueReceivables: number;
+    overduePayables: number;
+    lowestCash: number;
+    lowestCashMonth: string | null;
+  };
+  inflowBreakdown: { receivables: number; recurring: number };
+  outflowBreakdown: { payables: number; recurringExpenses: number; recurringPayroll: number };
+  buckets: CashFlowForecastBucketDto[];
+}
+
+// ─── Movement of Equity ──────────────────────────────────────────────────────
+
+export class EquityComponentDto {
+  key: string;
+  label: string;
+}
+
+export class EquityMovementRowDto {
+  key: 'opening' | 'profit' | 'dividends' | 'capital' | 'openingBalances' | 'other' | 'closing';
+  label: string;
+  /** amount per component key, plus `total` */
+  amounts: Record<string, number>;
+}
+
+export class MovementOfEquityDto {
+  period: { startDate: string; endDate: string };
+  components: EquityComponentDto[];
+  rows: EquityMovementRowDto[];
+  summary: { openingTotal: number; closingTotal: number; netChange: number; profitForPeriod: number };
+  /** Closing total equity per the Balance Sheet as of endDate — must equal summary.closingTotal */
+  balanceSheetEquity: number;
+  isReconciled: boolean;
+}
+
+// ─── Sales Tax Summary ───────────────────────────────────────────────────────
+
+export class SalesTaxRateRowDto {
+  direction: 'Output' | 'Input';
+  source: 'Invoices' | 'Income Receipts' | 'Bills' | 'Expenses';
+  /** null when the document type has no stored rate (bills/expenses record tax as an amount) */
+  rate: number | null;
+  documentCount: number;
+  taxableAmount: number;
+  tax: number;
+}
+
+export class SalesTaxTransactionDto {
+  id: string;
+  date: string;
+  type: 'Invoice' | 'Income Receipt' | 'Bill' | 'Expense';
+  direction: 'Output' | 'Input';
+  reference: string;
+  party: string;
+  rate: number | null;
+  taxableAmount: number;
+  tax: number;
+}
+
+export class SalesTaxSummaryDto {
+  period: { startDate: string; endDate: string };
+  summary: {
+    outputTax: number;
+    inputTax: number;
+    netTaxPayable: number;
+    taxableSales: number;
+    taxablePurchases: number;
+    effectiveOutputRate: number;
+    /** Net movement on the VAT ledger account in the period (posted documents only) */
+    ledgerNetMovement: number;
+  };
+  byRate: SalesTaxRateRowDto[];
+  trend: { month: string; label: string; outputTax: number; inputTax: number; net: number }[];
+  transactions: SalesTaxTransactionDto[];
+}
+
+// ─── Tax Liability Report ────────────────────────────────────────────────────
+
+export class TaxLiabilityRowDto {
+  key: string;
+  taxType: string;
+  authority: string;
+  accountCodes: string[];
+  openingBalance: number;
+  accrued: number;
+  /** Input VAT offset (bill/expense postings) — VAT only */
+  inputCredit: number;
+  paid: number;
+  closingBalance: number;
+  nextDueDate: string | null;
+  status: 'Outstanding' | 'Settled' | 'Refundable';
+}
+
+export class TaxLiabilityReportDto {
+  period: { startDate: string; endDate: string };
+  summary: {
+    totalLiability: number;
+    totalAccrued: number;
+    totalPaid: number;
+    totalInputCredit: number;
+    outstandingCount: number;
+  };
+  rows: TaxLiabilityRowDto[];
+  trend: { month: string; label: string; total: number; byType: Record<string, number> }[];
+  missingAccounts: string[];
+}

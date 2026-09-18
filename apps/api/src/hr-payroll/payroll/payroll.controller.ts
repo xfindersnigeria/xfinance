@@ -317,6 +317,14 @@ export class PayrollController {
     return this.payrollService.changeStatus(id, dto.status, entityId, groupId, userId);
   }
 
+  @Patch(':id/post')
+  postToLedger(@Param('id') id: string, @Req() req: any) {
+    const entityId = getEffectiveEntityId(req);
+    if (!entityId) throw new UnauthorizedException('Access denied');
+    const groupId = getEffectiveGroupId(req) ?? '';
+    return this.payrollService.postToLedger(id, entityId, groupId);
+  }
+
   @Patch(':id/mark-paid')
   markAsPaid(
     @Param('id') id: string,

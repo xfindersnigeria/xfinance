@@ -1,17 +1,18 @@
 "use client";
 import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Download, Info, Printer, TrendingDown, TrendingUp, Users } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowLeft, Info, TrendingDown, TrendingUp, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useVendorBalances } from "@/lib/api/hooks/useReports";
-import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { useEntityBaseCurrency, useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { ReportExportButtons } from "../../ReportExportButtons";
+import type { ReportExportPayload } from "@/lib/reports/export-types";
 import { VendorBalancesData, VendorBalanceRow } from "@/lib/api/services/reportService";
 import { ReportPeriodFilter } from "@/components/features/user/reports/ReportPeriodFilter";
-import { ReportPeriodType, periodToDates, defaultPeriodValue } from "@/lib/period-utils";
+import { ReportPeriodType, periodToDates, defaultPeriodValue, getPeriodEndLabel } from "@/lib/period-utils";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
   PieChart, Pie, Cell, Legend,
@@ -57,6 +58,7 @@ const PIE_COLORS = { Debit: "#ef4444", Credit: "#10b981", Zero: "#94a3b8" };
 export default function VendorBalances() {
   const router = useRouter();
   const sym = useEntityCurrencySymbol();
+  const currency = useEntityBaseCurrency();
 
   const [periodType, setPeriodType] = useState<ReportPeriodType>("Quarterly");
   const [period, setPeriod] = useState(() => defaultPeriodValue("Quarterly"));
@@ -115,6 +117,59 @@ export default function VendorBalances() {
     closingBalance: filtered.reduce((s, r) => s + r.closingBalance, 0),
   }), [filtered]);
 
+  const buildExport = (): ReportExportPayload | null => {
+    if (!data) return null;
+    return {
+      title: "Vendor Balances",
+      scope: "entity",
+      period: getPeriodEndLabel(periodType, period, year),
+      currency,
+      landscape: true,
+      summary: [
+        { label: "Total Vendors", value: data.vendorCount, format: "number" },
+        { label: "Total Debit", value: data.totalDebit, format: "amount" },
+        { label: "Total Credit", value: data.totalCredit, format: "amount" },
+        { label: "Net Balance", value: data.netBalance, format: "amount" },
+      ],
+      notes: [
+        ...(balanceFilter !== "all" ? [`Filtered by balance: ${balanceFilter}`] : []),
+        ...(search.trim() ? [`Filtered by search: "${search.trim()}"`] : []),
+      ],
+      columns: [
+        { key: "vendor", label: "Vendor" },
+        { key: "opening", label: "Opening Balance", format: "amount" },
+        { key: "billed", label: "Billed", format: "amount" },
+        { key: "paid", label: "Payments", format: "amount" },
+        { key: "debitNotes", label: "Debit Notes", format: "amount" },
+        { key: "closing", label: "Closing Balance", format: "amount" },
+        { key: "status", label: "Status" },
+        { key: "last", label: "Last Transaction" },
+      ],
+      sections: [
+        {
+          rows: [
+            ...filtered.map((r) => ({
+              cells: {
+                vendor: r.vendorName,
+                opening: r.openingBalance,
+                billed: r.totalBilled,
+                paid: r.totalPaid,
+                debitNotes: r.debitNotes,
+                closing: r.closingBalance,
+                status: r.status,
+                last: fmtDate(r.lastTransactionDate),
+              },
+            })),
+            {
+              kind: "total" as const,
+              cells: { vendor: "Total", opening: totals.openingBalance, billed: totals.totalBilled, paid: totals.totalPaid, debitNotes: totals.debitNotes, closing: totals.closingBalance },
+            },
+          ],
+        },
+      ],
+    };
+  };
+
   return (
     <div className="flex flex-col gap-6 pb-12">
       {/* Header */}
@@ -129,9 +184,8 @@ export default function VendorBalances() {
           <h1 className="text-xl font-semibold text-slate-900">Vendor Balances</h1>
           <p className="text-sm text-slate-500 mt-0.5">Detailed vendor account balances and transaction summary</p>
         </div>
-        <div className="flex items-center gap-2 mt-7 shrink-0">
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Printer className="w-4 h-4" /> Print</Button>
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Download className="w-4 h-4" /> Export</Button>
+        <div className="mt-7">
+          <ReportExportButtons getPayload={buildExport} disabled={isLoading || !data} />
         </div>
       </div>
 

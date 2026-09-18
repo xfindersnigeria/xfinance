@@ -7,7 +7,10 @@ const categoryLabelMap: Record<string, string> = {
   inventory: "Inventory",
 };
 
-export function buildCategories(reports: { category: string }[]) {
+export function buildCategories(
+  reports: { category: string }[],
+  labels: Record<string, string> = categoryLabelMap,
+) {
   const counts: Record<string, number> = {};
 
   for (const report of reports) {
@@ -15,7 +18,7 @@ export function buildCategories(reports: { category: string }[]) {
   }
 
   const categories = Object.entries(counts).map(([key, count]) => ({
-    name: categoryLabelMap[key] ?? key,
+    name: labels[key] ?? key,
     key,
     count,
   }));

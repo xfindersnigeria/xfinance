@@ -1,18 +1,20 @@
 "use client";
 import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, ArrowLeft, Download, Filter, Printer, Search } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { AlertCircle, ArrowLeft, Filter, Search } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useInvoiceDetails } from "@/lib/api/hooks/useReports";
-import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { useEntityBaseCurrency, useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { ReportExportButtons } from "../../ReportExportButtons";
+import type { ReportExportPayload } from "@/lib/reports/export-types";
 import { InvoiceDetailsData, InvoiceDetailRow } from "@/lib/api/services/reportService";
 import { ReportPeriodFilter } from "../../ReportPeriodFilter";
 import {
   ReportPeriodType,
   periodToDates,
   defaultPeriodValue,
+  getPeriodEndLabel,
 } from "@/lib/period-utils";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -122,6 +124,7 @@ const tooltipStyle = {
 export default function InvoiceDetails() {
   const router = useRouter();
   const sym = useEntityCurrencySymbol();
+  const currency = useEntityBaseCurrency();
   const now = new Date();
 
   const [periodType, setPeriodType] = useState<ReportPeriodType>("Quarterly");
@@ -166,6 +169,63 @@ export default function InvoiceDetails() {
     ? Math.round((summary.totalPaid / summary.totalAmount) * 100)
     : 0;
 
+  const buildExport = (): ReportExportPayload | null => {
+    if (!data) return null;
+    const sum = (k: "total" | "paid" | "balance") => rows.reduce((s, r) => s + r[k], 0);
+    return {
+      title: "Invoice Details",
+      scope: "entity",
+      period: getPeriodEndLabel(periodType, period, year),
+      currency,
+      landscape: true,
+      summary: summary
+        ? [
+            { label: "Total Invoices", value: summary.totalInvoices, format: "number" },
+            { label: "Total Amount", value: summary.totalAmount, format: "amount" },
+            { label: "Amount Paid", value: summary.totalPaid, format: "amount" },
+            { label: "Outstanding", value: summary.totalOutstanding, format: "amount" },
+          ]
+        : [],
+      notes: [
+        ...(statusFilter !== "All Statuses" ? [`Filtered by status: ${statusFilter}`] : []),
+        ...(search.trim() ? [`Filtered by search: "${search.trim()}"`] : []),
+      ],
+      columns: [
+        { key: "number", label: "Invoice #" },
+        { key: "date", label: "Date" },
+        { key: "customer", label: "Customer" },
+        { key: "terms", label: "Terms" },
+        { key: "total", label: "Amount", format: "amount" },
+        { key: "paid", label: "Paid", format: "amount" },
+        { key: "balance", label: "Balance", format: "amount" },
+        { key: "due", label: "Due Date" },
+        { key: "overdue", label: "Days Overdue", format: "number" },
+        { key: "status", label: "Status" },
+      ],
+      sections: [
+        {
+          rows: [
+            ...rows.map((r) => ({
+              cells: {
+                number: r.invoiceNumber,
+                date: fmtDate(r.invoiceDate),
+                customer: r.customerName,
+                terms: r.paymentTerms,
+                total: r.total,
+                paid: r.paid,
+                balance: r.balance,
+                due: fmtDate(r.dueDate),
+                overdue: r.daysOverdue > 0 ? r.daysOverdue : null,
+                status: r.status,
+              },
+            })),
+            { kind: "total" as const, cells: { number: `Total (${rows.length} invoices)`, total: sum("total"), paid: sum("paid"), balance: sum("balance") } },
+          ],
+        },
+      ],
+    };
+  };
+
   return (
     <div className="flex flex-col gap-6 pb-12">
       {/* Header */}
@@ -180,9 +240,8 @@ export default function InvoiceDetails() {
           <h1 className="text-xl font-semibold text-slate-900">Invoice Details Report</h1>
           <p className="text-sm text-slate-500 mt-0.5">Comprehensive invoice listing and status tracking</p>
         </div>
-        <div className="flex items-center gap-2 mt-7 shrink-0">
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Printer className="w-4 h-4" /> Print</Button>
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Download className="w-4 h-4" /> Export</Button>
+        <div className="mt-7">
+          <ReportExportButtons getPayload={buildExport} disabled={isLoading || !data} />
         </div>
       </div>
 

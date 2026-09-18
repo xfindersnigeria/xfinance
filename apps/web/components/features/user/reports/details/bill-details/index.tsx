@@ -1,16 +1,17 @@
 "use client";
 import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Download, Filter, Printer, Search } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowLeft, Filter, Search } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useBillDetails } from "@/lib/api/hooks/useReports";
-import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { useEntityBaseCurrency, useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { ReportExportButtons } from "../../ReportExportButtons";
+import type { ReportExportPayload } from "@/lib/reports/export-types";
 import { BillDetailsData, BillDetailRow } from "@/lib/api/services/reportService";
 import { ReportPeriodFilter } from "../../ReportPeriodFilter";
-import { ReportPeriodType, periodToDates, defaultPeriodValue } from "@/lib/period-utils";
+import { ReportPeriodType, periodToDates, defaultPeriodValue, getPeriodEndLabel } from "@/lib/period-utils";
 
 const STATUSES = ["All Statuses", "Draft", "Pending", "Paid", "Overdue", "Partial"];
 
@@ -45,6 +46,7 @@ function KPICard({ label, value, valueClassName, sub }: { label: string; value: 
 export default function BillDetails() {
   const router = useRouter();
   const sym = useEntityCurrencySymbol();
+  const currency = useEntityBaseCurrency();
   const now = new Date();
   const [periodType, setPeriodType] = useState<ReportPeriodType>("Quarterly");
   const [period, setPeriod] = useState(() => defaultPeriodValue("Quarterly"));
@@ -68,6 +70,55 @@ export default function BillDetails() {
   const totalAmount = rows.reduce((s, r) => s + r.total, 0);
   const totalTax = rows.reduce((s, r) => s + r.tax, 0);
 
+  const buildExport = (): ReportExportPayload | null => {
+    if (!data) return null;
+    return {
+      title: "Bill Details",
+      scope: "entity",
+      period: getPeriodEndLabel(periodType, period, year),
+      currency,
+      landscape: true,
+      summary: [
+        { label: "Total Bills", value: rows.length, format: "number" },
+        { label: "Total Amount", value: totalAmount, format: "amount" },
+        { label: "Total Tax", value: totalTax, format: "amount" },
+      ],
+      notes: [
+        ...(statusFilter !== "All Statuses" ? [`Filtered by status: ${statusFilter}`] : []),
+        ...(search.trim() ? [`Filtered by search: "${search.trim()}"`] : []),
+      ],
+      columns: [
+        { key: "number", label: "Bill #" },
+        { key: "vendor", label: "Vendor" },
+        { key: "date", label: "Bill Date" },
+        { key: "due", label: "Due Date" },
+        { key: "subtotal", label: "Subtotal", format: "amount" },
+        { key: "tax", label: "Tax", format: "amount" },
+        { key: "total", label: "Total", format: "amount" },
+        { key: "status", label: "Status" },
+      ],
+      sections: [
+        {
+          rows: [
+            ...rows.map((r) => ({
+              cells: {
+                number: r.billNumber,
+                vendor: r.vendorName,
+                date: fmtDate(r.billDate),
+                due: fmtDate(r.dueDate),
+                subtotal: r.subtotal,
+                tax: r.tax,
+                total: r.total,
+                status: r.status,
+              },
+            })),
+            { kind: "total" as const, cells: { number: "Total", subtotal: rows.reduce((s, r) => s + r.subtotal, 0), tax: totalTax, total: totalAmount } },
+          ],
+        },
+      ],
+    };
+  };
+
   return (
     <div className="flex flex-col gap-6 pb-12">
       <div className="flex items-start justify-between gap-4">
@@ -76,9 +127,8 @@ export default function BillDetails() {
           <h1 className="text-xl font-semibold text-slate-900">Bill Details Report</h1>
           <p className="text-sm text-slate-500 mt-0.5">Comprehensive bill listing and status tracking</p>
         </div>
-        <div className="flex items-center gap-2 mt-7 shrink-0">
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Printer className="w-4 h-4" /> Print</Button>
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Download className="w-4 h-4" /> Export</Button>
+        <div className="mt-7">
+          <ReportExportButtons getPayload={buildExport} disabled={isLoading || !data} />
         </div>
       </div>
 

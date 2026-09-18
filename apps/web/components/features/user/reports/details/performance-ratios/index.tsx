@@ -2,15 +2,15 @@
 import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft, Download, Printer,
-  TrendingUp, TrendingDown, Activity, Shield, Info, Target,
+  ArrowLeft, TrendingUp, TrendingDown, Activity, Shield, Info, Target,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { usePerformanceRatios } from "@/lib/api/hooks/useReports";
 import { RatioData } from "@/lib/api/services/reportService";
-import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { useEntityBaseCurrency, useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { ReportExportButtons } from "../../ReportExportButtons";
+import type { ReportExportPayload } from "@/lib/reports/export-types";
 import { ReportPeriodFilter } from "../../ReportPeriodFilter";
 import {
   ReportPeriodType,
@@ -18,6 +18,7 @@ import {
   defaultPeriodValue,
   stepPeriodBack,
   getPeriodShortLabel,
+  getPeriodEndLabel,
 } from "@/lib/period-utils";
 import {
   LineChart, Line, BarChart, Bar,
@@ -545,6 +546,7 @@ export default function PerformanceRatios() {
   const router = useRouter();
   const now = new Date();
   const sym = useEntityCurrencySymbol();
+  const currency = useEntityBaseCurrency();
 
   const [periodType, setPeriodType] = useState<ReportPeriodType>("Quarterly");
   const [period, setPeriod] = useState(() => defaultPeriodValue("Quarterly"));
@@ -616,6 +618,47 @@ export default function PerformanceRatios() {
 
   const { startDate, endDate } = params0;
 
+  const buildExport = (): ReportExportPayload | null => {
+    if (!hasData) return null;
+    // Ratios mix units, so the value stays numeric and the unit gets its own column
+    const toNumber = (key: string, v: number | null) =>
+      v === null ? null : RATIO_META[key]?.unit === "currency" ? v / 100 : Number(v.toFixed(2));
+    const unitLabel = (key: string) => {
+      const u = RATIO_META[key]?.unit;
+      return u === "currency" ? currency : u === " days" ? "days" : u ?? "";
+    };
+    return {
+      title: "Business Performance Ratios",
+      scope: "entity",
+      period: getPeriodEndLabel(periodType, period, year),
+      currency,
+      landscape: true,
+      columns: [
+        { key: "ratio", label: "Ratio" },
+        { key: "value", label: getPeriodShortLabel(periodType, p0.period, p0.year), format: "number" },
+        { key: "previous", label: getPeriodShortLabel(periodType, p1.period, p1.year), format: "number" },
+        { key: "unit", label: "Unit" },
+        { key: "benchmark", label: "Benchmark" },
+        { key: "status", label: "Status" },
+        { key: "formula", label: "Formula" },
+      ],
+      sections: CATEGORY_ORDER.filter((cat) => grouped[cat].length > 0).map((cat) => ({
+        title: cat,
+        rows: grouped[cat].map((r) => ({
+          cells: {
+            ratio: r.name,
+            value: toNumber(r.key, r.value),
+            previous: toNumber(r.key, extractRatio(ratios1, r.key)),
+            unit: unitLabel(r.key),
+            benchmark: RATIO_META[r.key]?.benchmarkLabel ?? "",
+            status: STATUS_CFG[r.status]?.label ?? r.status,
+            formula: RATIO_META[r.key]?.formula ?? "",
+          },
+        })),
+      })),
+    };
+  };
+
   return (
     <div className="flex flex-col gap-6 pb-12">
       {/* Header */}
@@ -632,9 +675,8 @@ export default function PerformanceRatios() {
             Key financial ratios measuring profitability, liquidity, efficiency, and leverage
           </p>
         </div>
-        <div className="flex items-center gap-2 mt-7 shrink-0">
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Printer className="w-4 h-4" /> Print</Button>
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Download className="w-4 h-4" /> Export</Button>
+        <div className="mt-7">
+          <ReportExportButtons getPayload={buildExport} disabled={isLoading || !hasData} />
         </div>
       </div>
 

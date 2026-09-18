@@ -81,6 +81,7 @@ export default function InvoiceForm({
   const { data: configRes } = useEntityConfig();
   const entityBaseCurrency: string = (configRes as any)?.data?.baseCurrency ?? "";
   const multiCurrency: boolean = (configRes as any)?.data?.multiCurrency ?? false;
+  const defaultTaxRate: number = Number((configRes as any)?.data?.taxRate ?? 0) || 0;
 
   const { data: currencyRes } = useCurrencies(true);
   const activeCurrencies: any[] = (currencyRes as any)?.data ?? [];
@@ -103,8 +104,16 @@ export default function InvoiceForm({
       notes: invoice?.notes || "",
       projectId: invoice?.projectId || "",
       milestoneId: invoice?.milestoneId || "",
+      taxRate: (invoice as any)?.taxRate ?? undefined,
     },
   });
+
+  // New invoices start at the entity's default sales tax rate once config loads
+  useEffect(() => {
+    if (!invoice && form.getValues("taxRate") === undefined && configRes) {
+      form.setValue("taxRate", defaultTaxRate);
+    }
+  }, [configRes, defaultTaxRate]);
 
   const { fields, append, remove, replace } = useFieldArray({
     control: form.control,
@@ -115,10 +124,15 @@ export default function InvoiceForm({
   const selectedProject = projects.find((p: any) => p.id === selectedProjectId);
   const milestones = selectedProject?.milestones || [];
 
-  const subtotal = form
-    .watch("lineItems")
-    .reduce((sum, item) => sum + (item.quantity || 0) * (item.rate || 0), 0);
-  const tax = subtotal * 0.1;
+  const watchedLines = form.watch("lineItems");
+  const subtotal = watchedLines.reduce((sum, item) => sum + (item.quantity || 0) * (item.rate || 0), 0);
+  // Mirrors the server (sales-tax.util): tax applies only to taxable items
+  const taxableSubtotal = watchedLines.reduce((sum, item) => {
+    const catalogItem: any = items.find((i: any) => i.id === item.itemId);
+    return catalogItem?.isTaxable ? sum + (item.quantity || 0) * (item.rate || 0) : sum;
+  }, 0);
+  const taxRate = form.watch("taxRate") ?? 0;
+  const tax = Math.round((taxableSubtotal * taxRate) / 100);
   const total = subtotal + tax;
 
   const maxItemsSelected = form.watch("lineItems").length >= items.length;
@@ -137,6 +151,7 @@ export default function InvoiceForm({
         notes: invoice?.notes || "",
         projectId: invoice?.projectId || "",
         milestoneId: invoice?.milestoneId || "",
+        taxRate: (invoice as any)?.taxRate ?? 0,
       });
 
       const mapped = (invoice as any)?.invoiceItem
@@ -187,6 +202,7 @@ export default function InvoiceForm({
         status: status === "Draft" ? "Draft" : "Sent",
         projectId: values.projectId || null,
         milestoneId: values.milestoneId || null,
+        taxRate: values.taxRate ?? 0,
       };
 
       if (isEditMode && invoice?.id) {
@@ -533,8 +549,24 @@ export default function InvoiceForm({
                     <p className="text-base font-normal">Subtotal:</p>
                     <span className="font-semibold">{sym}{subtotal.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <p className="text-base font-normal">Tax (10%):</p>
+                  <div className="flex justify-between items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <p className="text-base font-normal">Tax</p>
+                      <Controller
+                        control={form.control}
+                        name="taxRate"
+                        render={({ field }) => (
+                          <NumberInput
+                            value={field.value}
+                            onChange={field.onChange}
+                            placeholder="0"
+                            className="w-20 h-8"
+                            disabled={isLockedForEditing}
+                          />
+                        )}
+                      />
+                      <span className="text-sm text-gray-500">% of taxable items</span>
+                    </div>
                     <span className="font-semibold">{sym}{tax.toLocaleString()}</span>
                   </div>
                   <hr />

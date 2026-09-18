@@ -5,6 +5,7 @@ import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 interface SummarySectionProps {
   subtotal: number;
   tax: number;
+  taxRate?: number;
   total: number;
   balanceDue: number;
   currency: string;
@@ -13,6 +14,7 @@ interface SummarySectionProps {
 export default function SummarySection({
   subtotal,
   tax,
+  taxRate = 0,
   total,
   balanceDue,
   currency,
@@ -33,7 +35,7 @@ export default function SummarySection({
           </span>
         </div>
         <div className="flex justify-between text-sm border-b border-gray-200 pb-2">
-          <span className="text-gray-700">Tax (10%)</span>
+          <span className="text-gray-700">Tax ({taxRate}%)</span>
           <span className="text-gray-900 font-medium">
             {sym}
             {tax.toLocaleString("en-US", {

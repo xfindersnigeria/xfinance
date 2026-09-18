@@ -7,6 +7,8 @@ import {
   IsEnum,
   ValidateNested,
   IsNumber,
+  Min,
+  Max,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -79,6 +81,13 @@ export class CreateReceiptDto {
   @Type(() => ReceiptItemDto)
   items: ReceiptItemDto[];
 
+  @ApiPropertyOptional({ example: 7.5, description: 'Tax rate (%) applied to taxable lines; defaults to the entity sales tax rate' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  taxRate?: number;
+
   @ApiProperty({
     example: 5000,
     description: 'Total amount in smallest currency unit',
@@ -142,6 +151,13 @@ export class UpdateReceiptDto {
   @ValidateNested({ each: true })
   @Type(() => ReceiptItemDto)
   items?: ReceiptItemDto[];
+
+  @ApiPropertyOptional({ example: 7.5, description: 'Tax rate (%) applied to taxable lines; defaults to the entity sales tax rate' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  taxRate?: number;
 
   @ApiPropertyOptional({
     example: ['item_1'],

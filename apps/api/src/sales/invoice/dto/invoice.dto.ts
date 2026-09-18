@@ -7,6 +7,8 @@ import {
   IsArray,
   ValidateNested,
   IsNumber,
+  Min,
+  Max,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { InvoiceStatus } from 'prisma/generated/enums';
@@ -69,6 +71,13 @@ export class CreateInvoiceDto {
   @IsOptional()
   @IsEnum(InvoiceStatus)
   status?: InvoiceStatus = InvoiceStatus.Draft; // Default to Draft
+
+  // % applied to taxable lines; falls back to the entity's default sales tax rate
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  taxRate?: number;
 }
 
 // Update Invoice DTO (for partial updates with item management)
@@ -108,6 +117,13 @@ export class UpdateInvoiceDto {
   @ValidateNested({ each: true })
   @Type(() => InvoiceItemDto)
   items?: InvoiceItemDto[];
+
+  // % applied to taxable lines; falls back to the entity's default sales tax rate
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  taxRate?: number;
 
   @IsOptional()
   @IsArray()

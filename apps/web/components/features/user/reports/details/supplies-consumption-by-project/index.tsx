@@ -1,14 +1,15 @@
 "use client";
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ChevronDown, ChevronRight, Download, Printer } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowLeft, ChevronDown, ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSuppliesConsumptionByProject } from "@/lib/api/hooks/useReports";
-import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { useEntityBaseCurrency, useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { ReportExportButtons } from "../../ReportExportButtons";
+import type { ReportExportPayload } from "@/lib/reports/export-types";
 import { SuppliesConsumptionByProjectData, SuppliesConsumptionByProjectRow } from "@/lib/api/services/reportService";
 import { ReportPeriodFilter } from "../../ReportPeriodFilter";
-import { ReportPeriodType, periodToDates, defaultPeriodValue } from "@/lib/period-utils";
+import { ReportPeriodType, periodToDates, defaultPeriodValue, getPeriodEndLabel } from "@/lib/period-utils";
 
 function fmtShort(v: number, sym: string): string {
   if (v === 0) return `${sym}0`;
@@ -53,6 +54,7 @@ function ProjectRow({ row, sym }: { row: SuppliesConsumptionByProjectRow; sym: s
 export default function SuppliesConsumptionByProject() {
   const router = useRouter();
   const sym = useEntityCurrencySymbol();
+  const currency = useEntityBaseCurrency();
   const now = new Date();
   const [periodType, setPeriodType] = useState<ReportPeriodType>("Monthly");
   const [period, setPeriod] = useState(() => defaultPeriodValue("Monthly"));
@@ -62,6 +64,37 @@ export default function SuppliesConsumptionByProject() {
   const { data: rawData, isLoading } = useSuppliesConsumptionByProject({ startDate, endDate });
   const data: SuppliesConsumptionByProjectData | null = (rawData as any)?.data ?? null;
 
+  const buildExport = (): ReportExportPayload | null => {
+    if (!data) return null;
+    return {
+      title: "Supplies Consumption by Project",
+      scope: "entity",
+      period: getPeriodEndLabel(periodType, period, year),
+      currency,
+      summary: [
+        { label: "Total Quantity", value: data.summary.totalQuantity, format: "number" },
+        { label: "Total Value", value: data.summary.totalValue, format: "amount" },
+        { label: "Projects", value: data.summary.projectCount, format: "number" },
+      ],
+      columns: [
+        { key: "name", label: "Project / Supply" },
+        { key: "qty", label: "Total Qty", format: "number" },
+        { key: "value", label: "Total Value", format: "amount" },
+      ],
+      sections: [
+        {
+          rows: [
+            ...data.rows.flatMap((r) => [
+              { kind: "header" as const, cells: { name: r.projectName, qty: r.totalQuantity, value: r.totalValue } },
+              ...r.items.map((i) => ({ indent: 1, cells: { name: i.supplyName, qty: i.quantity, value: i.totalValue } })),
+            ]),
+            { kind: "total" as const, cells: { name: "Total", qty: data.summary.totalQuantity, value: data.summary.totalValue } },
+          ],
+        },
+      ],
+    };
+  };
+
   return (
     <div className="flex flex-col gap-6 pb-12">
       <div className="flex items-start justify-between gap-4">
@@ -70,9 +103,8 @@ export default function SuppliesConsumptionByProject() {
           <h1 className="text-xl font-semibold text-slate-900">Supplies Consumption by Project</h1>
           <p className="text-sm text-slate-500 mt-0.5">Supply usage and cost grouped by project</p>
         </div>
-        <div className="flex items-center gap-2 mt-7 shrink-0">
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Printer className="w-4 h-4" /> Print</Button>
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Download className="w-4 h-4" /> Export</Button>
+        <div className="mt-7">
+          <ReportExportButtons getPayload={buildExport} disabled={isLoading || !data} />
         </div>
       </div>
 

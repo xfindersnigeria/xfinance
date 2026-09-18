@@ -1,13 +1,14 @@
 "use client";
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Download, Filter, Printer } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowLeft, Filter } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useSuppliesInventory } from "@/lib/api/hooks/useReports";
-import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { useEntityBaseCurrency, useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { ReportExportButtons } from "../../ReportExportButtons";
+import type { ReportExportPayload } from "@/lib/reports/export-types";
 import { SuppliesInventoryData, SupplyInventoryRow } from "@/lib/api/services/reportService";
 
 const STATUS_STYLE: Record<string, string> = {
@@ -40,10 +41,60 @@ function KPICard({ label, value, valueClassName }: { label: string; value: strin
 export default function SuppliesInventory() {
   const router = useRouter();
   const sym = useEntityCurrencySymbol();
+  const currency = useEntityBaseCurrency();
   const [statusFilter, setStatusFilter] = useState("All");
   const { data: rawData, isLoading } = useSuppliesInventory();
   const data: SuppliesInventoryData | null = (rawData as any)?.data ?? null;
   const rows = (data?.rows ?? []).filter(r => statusFilter === "All" || r.status === statusFilter);
+
+  const buildExport = (): ReportExportPayload | null => {
+    if (!data) return null;
+    return {
+      title: "Supplies Inventory",
+      scope: "entity",
+      period: `As of ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`,
+      currency,
+      landscape: true,
+      summary: [
+        { label: "Total Items", value: data.summary.totalItems, format: "number" },
+        { label: "Total Value", value: data.summary.totalValue, format: "amount" },
+        { label: "Low Stock", value: data.summary.lowStockCount, format: "number" },
+        { label: "Out of Stock", value: data.summary.outOfStockCount, format: "number" },
+      ],
+      notes: statusFilter !== "All" ? [`Filtered by status: ${statusFilter}`] : [],
+      columns: [
+        { key: "name", label: "Name" },
+        { key: "category", label: "Category" },
+        { key: "sku", label: "SKU" },
+        { key: "qty", label: "Qty", format: "number" },
+        { key: "minQty", label: "Min Qty", format: "number" },
+        { key: "unitPrice", label: "Unit Price", format: "amount" },
+        { key: "value", label: "Total Value", format: "amount" },
+        { key: "status", label: "Status" },
+        { key: "restock", label: "Last Restock" },
+      ],
+      sections: [
+        {
+          rows: [
+            ...rows.map((r) => ({
+              cells: {
+                name: r.name,
+                category: r.category,
+                sku: r.sku ?? "—",
+                qty: r.quantity,
+                minQty: r.minQuantity,
+                unitPrice: r.unitPrice,
+                value: r.totalValue,
+                status: r.status,
+                restock: fmtDate(r.lastRestockDate),
+              },
+            })),
+            { kind: "total" as const, cells: { name: "Total", qty: rows.reduce((s, r) => s + r.quantity, 0), value: rows.reduce((s, r) => s + r.totalValue, 0) } },
+          ],
+        },
+      ],
+    };
+  };
 
   return (
     <div className="flex flex-col gap-6 pb-12">
@@ -53,9 +104,8 @@ export default function SuppliesInventory() {
           <h1 className="text-xl font-semibold text-slate-900">Supplies Inventory</h1>
           <p className="text-sm text-slate-500 mt-0.5">Current stock levels, valuations, and status of all supply items</p>
         </div>
-        <div className="flex items-center gap-2 mt-7 shrink-0">
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Printer className="w-4 h-4" /> Print</Button>
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Download className="w-4 h-4" /> Export</Button>
+        <div className="mt-7">
+          <ReportExportButtons getPayload={buildExport} disabled={isLoading || !data} />
         </div>
       </div>
 

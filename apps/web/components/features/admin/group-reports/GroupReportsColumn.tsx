@@ -1,83 +1,38 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
-import { Column } from "@/components/local/custom/custom-table";
+import Link from "next/link";
 import { ChevronRight, FileText } from "lucide-react";
+import { Column } from "@/components/local/custom/custom-table";
 
-export const groupReportsData = [
-  {
-    id: "consolidated-pl",
-    name: "Consolidated Profit and Loss",
-    lastVisited: "A few seconds ago",
-    createdBy: "System Generated",
-  },
-  {
-    id: "consolidated-bs",
-    name: "Consolidated Balance Sheet",
-    lastVisited: "-",
-    createdBy: "System Generated",
-  },
-  {
-    id: "consolidated-cf",
-    name: "Consolidated Cash Flow Statement",
-    lastVisited: "-",
-    createdBy: "System Generated",
-  },
-  {
-    id: "consolidated-soe",
-    name: "Consolidated Statement of Changes in Equity",
-    lastVisited: "-",
-    createdBy: "System Generated",
-  },
-  {
-    id: "consolidated-fp",
-    name: "Consolidated Financial Position",
-    lastVisited: "-",
-    createdBy: "System Generated",
-  },
-  {
-    id: "ic-transactions",
-    name: "Intercompany Transactions Report",
-    lastVisited: "-",
-    createdBy: "System Generated",
-  },
-  {
-    id: "ic-reconciliation",
-    name: "Intercompany Balance Reconciliation",
-    lastVisited: "-",
-    createdBy: "System Generated",
-  },
-  {
-    id: "elimination-log",
-    name: "Elimination Entries Log",
-    lastVisited: "-",
-    createdBy: "System Generated",
-  },
-  {
-    id: "entity-revenue",
-    name: "Entity Revenue Comparison",
-    lastVisited: "-",
-    createdBy: "System Generated",
-  },
-  {
-    id: "entity-profitability",
-    name: "Entity Profitability Analysis",
-    lastVisited: "-",
-    createdBy: "System Generated",
-  },
-  {
-    id: "cross-entity-metrics",
-    name: "Cross-Entity Performance Metrics",
-    lastVisited: "-",
-    createdBy: "System Generated",
-  },
-  {
-    id: "entity-expense",
-    name: "Entity Expense Comparison",
-    lastVisited: "-",
-    createdBy: "System Generated",
-  },
-];
+export const groupCategoryLabels: Record<string, string> = {
+  consolidated: "Consolidated Statements",
+  intercompany: "Intercompany Reports",
+  comparison: "Entity Comparison",
+  analytics: "Group Analytics",
+};
+
+/**
+ * Group reports temporarily hidden from the list (the pages stay in place).
+ * Intercompany is hidden together with the Intercompany menu — see
+ * HIDDEN_GROUP_MODULE_KEYS in apps/api/src/menu/menu.service.ts. To bring it
+ * back, remove its key here (and restore its detail component in
+ * details/GroupReportDetails.tsx once intercompany data exists).
+ */
+export const HIDDEN_GROUP_REPORTS = ["intercompany-transactions"];
+
+const allGroupReports = [
+  { key: "consolidated-profit-and-loss", name: "Consolidated Profit and Loss", category: "consolidated" },
+  { key: "consolidated-balance-sheet", name: "Consolidated Balance Sheet", category: "consolidated" },
+  { key: "consolidated-cash-flow-statement", name: "Consolidated Cash Flow Statement", category: "consolidated" },
+  { key: "consolidated-financial-position", name: "Consolidated Financial Position", category: "consolidated" },
+  { key: "intercompany-transactions", name: "Intercompany Transactions Report", category: "intercompany" },
+  { key: "entity-revenue-comparison", name: "Entity Revenue Comparison", category: "comparison" },
+  { key: "entity-profitability-analysis", name: "Entity Profitability Analysis", category: "comparison" },
+  { key: "entity-expense-comparison", name: "Entity Expense Comparison", category: "comparison" },
+  { key: "group-cash-flow-forecasting", name: "Group Cash Flow Forecasting Report", category: "analytics" },
+].map((r) => ({ ...r, createdBy: "System Generated" }));
+
+export const groupReportsData = allGroupReports.filter((r) => !HIDDEN_GROUP_REPORTS.includes(r.key));
 
 export const groupReportsColumns: Column<any>[] = [
   {
@@ -85,26 +40,30 @@ export const groupReportsColumns: Column<any>[] = [
     title: "REPORT NAME",
     className: "text-xs min-w-[280px]",
     render: (value, row) => (
-      <button className="text-primary font-medium flex items-center gap-2 hover:underline cursor-pointer text-left">
+      <Link
+        prefetch
+        href={`/reports/${row.key}`}
+        className="text-primary font-medium flex items-center gap-2 hover:underline cursor-pointer"
+      >
         <FileText className="w-4 h-4 shrink-0" />
         <span>{value}</span>
-      </button>
+      </Link>
     ),
   },
-  // {
-  //   key: "lastVisited",
-  //   title: "LAST VISITED",
-  //   className: "text-xs min-w-[150px]",
-  // },
   {
     key: "createdBy",
     title: "CREATED BY",
     className: "text-xs min-w-[150px]",
+    render: (value) => <span className="text-gray-700">{value}</span>,
   },
   {
     key: "action",
     title: "",
     className: "text-xs w-8",
-    render: () => <ChevronRight className="w-4 h-4 text-gray-400" />,
+    render: (_value, row) => (
+      <Link prefetch href={`/reports/${row.key}`} className="block text-right">
+        <ChevronRight className="w-4 h-4 text-gray-400" />
+      </Link>
+    ),
   },
 ];

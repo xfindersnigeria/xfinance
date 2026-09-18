@@ -24,6 +24,10 @@ import BankAccountTransactions from "./bank-account-transactions";
 import SuppliesInventory from "./supplies-inventory";
 import SuppliesConsumptionByDepartment from "./supplies-consumption-by-department";
 import SuppliesConsumptionByProject from "./supplies-consumption-by-project";
+import CashFlowForecasting from "./cash-flow-forecasting";
+import MovementOfEquity from "./movement-of-equity";
+import SalesTaxSummary from "./sales-tax-summary";
+import TaxLiabilityReport from "./tax-liability-report";
 import { TriangleAlert } from "lucide-react";
 
 const REPORT_COMPONENTS: Record<string, React.ComponentType> = {
@@ -50,6 +54,10 @@ const REPORT_COMPONENTS: Record<string, React.ComponentType> = {
   "supplies-inventory": SuppliesInventory,
   "supplies-consumption-by-department": SuppliesConsumptionByDepartment,
   "supplies-consumption-by-project": SuppliesConsumptionByProject,
+  "cash-flow-forecasting": CashFlowForecasting,
+  "movement-of-equity": MovementOfEquity,
+  "sales-tax-summary": SalesTaxSummary,
+  "tax-liability-report": TaxLiabilityReport,
 };
 
 export default function ReportsDetails() {

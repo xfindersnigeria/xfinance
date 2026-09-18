@@ -3,8 +3,6 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
-  Printer,
-  Download,
   ChevronRight,
   ChevronDown,
   TrendingUp,
@@ -26,7 +24,9 @@ import {
   CFKPIItem,
   getAllSectionIds,
 } from "./mock-data";
-import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { useEntityBaseCurrency, useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { ReportExportButtons } from "../../ReportExportButtons";
+import type { ReportExportPayload, ReportExportRow } from "@/lib/reports/export-types";
 import { useCashFlowStatement } from "@/lib/api/hooks/useReports";
 import { CashFlowStatementData } from "@/lib/api/services/reportService";
 import {
@@ -240,6 +240,34 @@ function buildKPIItems(data: CashFlowStatementData): CFKPIItem[] {
     toKPI("Financing Cash Flow", kpis.financingCashFlow, "purple"),
     toKPI("Net Cash Increase", kpis.netCashIncrease, "blue"),
   ];
+}
+
+// ─── Export ───────────────────────────────────────────────────────────────────
+
+function cfItemsToExportRows(items: CFItem[], depth: number, showComparison: boolean): ReportExportRow[] {
+  const rows: ReportExportRow[] = [];
+  for (const item of items) {
+    const change =
+      item.actual !== null && item.comparison !== null && item.comparison !== 0
+        ? ((item.actual - item.comparison) / Math.abs(item.comparison)) * 100
+        : null;
+    const kind: ReportExportRow["kind"] =
+      item.type === "section" || item.type === "label" ? "header"
+      : item.type === "subtotal" || item.type === "cashline" ? "subtotal"
+      : item.type === "net" ? "total"
+      : "row";
+    rows.push({
+      kind,
+      indent: depth,
+      cells: {
+        line: item.label,
+        actual: item.actual,
+        ...(showComparison ? { comparison: item.comparison, change } : {}),
+      },
+    });
+    if (item.children) rows.push(...cfItemsToExportRows(item.children, depth + 1, showComparison));
+  }
+  return rows;
 }
 
 // ─── Change Cell ──────────────────────────────────────────────────────────────
@@ -645,6 +673,7 @@ const FISCAL_YEARS = getFiscalYears();
 export default function CashFlowStatement() {
   const router = useRouter();
   const sym = useEntityCurrencySymbol();
+  const currency = useEntityBaseCurrency();
 
   const now = new Date();
   const curYear = now.getFullYear();
@@ -706,6 +735,28 @@ export default function CashFlowStatement() {
     ? buildRows(cfItems, collapsed, toggleSection, effectiveShowComparison, sym)
     : [];
 
+  const buildExport = (): ReportExportPayload | null => {
+    if (!data) return null;
+    return {
+      title: "Cash Flow Statement",
+      scope: "entity",
+      period: getPeriodEndLabel(periodType, period, year),
+      currency,
+      summary: kpiItems.map((k) => ({ label: k.label, value: k.value, format: "amount" as const })),
+      columns: [
+        { key: "line", label: "Line Item" },
+        { key: "actual", label: getPeriodDisplayLabel(periodType, period, year), format: "amount" },
+        ...(effectiveShowComparison
+          ? [
+              { key: "comparison", label: compareLabel, format: "amount" as const },
+              { key: "change", label: "Change", format: "percent" as const },
+            ]
+          : []),
+      ],
+      sections: [{ rows: cfItemsToExportRows(cfItems, 0, effectiveShowComparison) }],
+    };
+  };
+
   return (
     <div className="flex flex-col gap-6 pb-10">
       {/* Page header */}
@@ -724,20 +775,8 @@ export default function CashFlowStatement() {
             activities
           </p>
         </div>
-        <div className="flex items-center gap-2 mt-6 shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-2 rounded-xl"
-            // onClick={() => window.print()}
-          >
-            <Printer className="w-4 h-4" />
-            Print
-          </Button>
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl">
-            <Download className="w-4 h-4" />
-            Export
-          </Button>
+        <div className="mt-6">
+          <ReportExportButtons getPayload={buildExport} disabled={isLoading || !data} />
         </div>
       </div>
 

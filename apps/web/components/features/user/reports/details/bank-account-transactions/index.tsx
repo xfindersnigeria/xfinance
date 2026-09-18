@@ -1,15 +1,16 @@
 "use client";
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Download, Printer } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowLeft } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useBankAccountTransactions } from "@/lib/api/hooks/useReports";
-import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { useEntityBaseCurrency, useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { ReportExportButtons } from "../../ReportExportButtons";
+import type { ReportExportPayload } from "@/lib/reports/export-types";
 import { BankAccountTransactionsData, BankAccountTransactionRow } from "@/lib/api/services/reportService";
 import { ReportPeriodFilter } from "../../ReportPeriodFilter";
-import { ReportPeriodType, periodToDates, defaultPeriodValue } from "@/lib/period-utils";
+import { ReportPeriodType, periodToDates, defaultPeriodValue, getPeriodEndLabel } from "@/lib/period-utils";
 
 function fmt(v: number, sym: string): string {
   if (v === 0) return "—";
@@ -34,6 +35,7 @@ function KPICard({ label, value, valueClassName }: { label: string; value: strin
 export default function BankAccountTransactions() {
   const router = useRouter();
   const sym = useEntityCurrencySymbol();
+  const currency = useEntityBaseCurrency();
   const now = new Date();
   const [periodType, setPeriodType] = useState<ReportPeriodType>("Monthly");
   const [period, setPeriod] = useState(() => defaultPeriodValue("Monthly"));
@@ -43,6 +45,48 @@ export default function BankAccountTransactions() {
   const { data: rawData, isLoading } = useBankAccountTransactions({ startDate, endDate });
   const data: BankAccountTransactionsData | null = (rawData as any)?.data ?? null;
 
+  const buildExport = (): ReportExportPayload | null => {
+    if (!data) return null;
+    return {
+      title: "Bank Account Transactions",
+      scope: "entity",
+      period: getPeriodEndLabel(periodType, period, year),
+      currency,
+      summary: [
+        { label: "Opening Balance", value: data.openingBalance, format: "amount" },
+        { label: "Closing Balance", value: data.closingBalance, format: "amount" },
+        { label: "Total Debits", value: data.totalDebits, format: "amount" },
+        { label: "Total Credits", value: data.totalCredits, format: "amount" },
+      ],
+      columns: [
+        { key: "date", label: "Date" },
+        { key: "description", label: "Description" },
+        { key: "reference", label: "Reference" },
+        { key: "debit", label: "Debit", format: "amount" },
+        { key: "credit", label: "Credit", format: "amount" },
+        { key: "balance", label: "Running Balance", format: "amount" },
+      ],
+      sections: [
+        {
+          rows: [
+            { kind: "subtotal" as const, cells: { description: "Opening Balance", balance: data.openingBalance } },
+            ...data.rows.map((r) => ({
+              cells: {
+                date: fmtDate(r.date),
+                description: r.description,
+                reference: r.reference ?? "",
+                debit: r.debit > 0 ? r.debit : null,
+                credit: r.credit > 0 ? r.credit : null,
+                balance: r.runningBalance,
+              },
+            })),
+            { kind: "total" as const, cells: { description: "Closing Balance", debit: data.totalDebits, credit: data.totalCredits, balance: data.closingBalance } },
+          ],
+        },
+      ],
+    };
+  };
+
   return (
     <div className="flex flex-col gap-6 pb-12">
       <div className="flex items-start justify-between gap-4">
@@ -51,9 +95,8 @@ export default function BankAccountTransactions() {
           <h1 className="text-xl font-semibold text-slate-900">Bank Account Transactions</h1>
           <p className="text-sm text-slate-500 mt-0.5">Transaction ledger for bank accounts with running balance</p>
         </div>
-        <div className="flex items-center gap-2 mt-7 shrink-0">
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Printer className="w-4 h-4" /> Print</Button>
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Download className="w-4 h-4" /> Export</Button>
+        <div className="mt-7">
+          <ReportExportButtons getPayload={buildExport} disabled={isLoading || !data} />
         </div>
       </div>
 

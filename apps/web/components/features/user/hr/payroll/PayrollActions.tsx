@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { MoreVertical, CheckCircle2, XCircle, Trash2, Eye, Pencil, Banknote, AlertTriangle } from "lucide-react";
+import { MoreVertical, CheckCircle2, XCircle, Trash2, Eye, Pencil, Banknote, AlertTriangle, BookCheck } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +14,7 @@ import ConfirmationForm from "@/components/local/shared/ConfirmationForm";
 import { MODULES } from "@/lib/types/enums";
 import { useModal } from "@/components/providers/ModalProvider";
 import { MODAL } from "@/lib/data/modal-data";
-import { useChangePayrollStatus, useDeletePayrollBatch } from "@/lib/api/hooks/useHR";
+import { useChangePayrollStatus, useDeletePayrollBatch, usePostPayrollToLedger } from "@/lib/api/hooks/useHR";
 import PayrollBatchViewModal from "./PayrollBatchViewModal";
 import PayrollBatchEditSheet from "./PayrollBatchEditSheet";
 import MarkPayrollPaidForm from "./MarkPayrollPaidForm";
@@ -24,6 +24,7 @@ export default function PayrollActions({ row }: { row: any }) {
   const { isOpen, openModal, closeModal } = useModal();
   const changeStatus = useChangePayrollStatus();
   const deleteBatch = useDeletePayrollBatch();
+  const postToLedger = usePostPayrollToLedger();
 
   const viewKey     = `${MODAL.PAYROLL_BATCH_VIEW}-${row.id}`;
   const editKey     = `${MODAL.PAYROLL_BATCH_EDIT}-${row.id}`;
@@ -33,6 +34,9 @@ export default function PayrollActions({ row }: { row: any }) {
   const canEdit = row.status !== "Approved" && row.status !== "Rejected" && row.status !== "Paid";
   const canMarkPaid = row.status === "Approved" && row.postingStatus === "Success";
   const postingFailed = row.status === "Approved" && row.postingStatus === "Failed";
+  // Approved but never reached the ledger: approved before payroll posting
+  // existed, or its posting failed. "Post to Ledger" (re)queues it.
+  const canPost = row.status === "Approved" && row.postingStatus !== "Success";
 
   const openDelayed = (key: string) => {
     setDropdownOpen(false);
@@ -83,6 +87,15 @@ export default function PayrollActions({ row }: { row: any }) {
                 <XCircle className="size-4 mr-2 text-red-500" /> Reject
               </DropdownMenuItem>
             </>
+          )}
+
+          {canPost && (
+            <DropdownMenuItem
+              disabled={postToLedger.isPending}
+              onSelect={(e) => { e.preventDefault(); setDropdownOpen(false); postToLedger.mutate(row.id); }}
+            >
+              <BookCheck className="size-4 mr-2 text-green-600" /> Post to Ledger
+            </DropdownMenuItem>
           )}
 
           {canMarkPaid && (

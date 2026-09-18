@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft, CalendarDays, ChevronDown, ChevronRight,
-  Download, Printer, TrendingDown, TrendingUp,
+  TrendingDown, TrendingUp,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBalanceSheet } from "@/lib/api/hooks/useReports";
-import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { useEntityBaseCurrency, useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { ReportExportButtons } from "../../ReportExportButtons";
+import type { ReportExportPayload, ReportExportRow } from "@/lib/reports/export-types";
 import { BSAccountLine, BSSection } from "@/lib/api/services/reportService";
 import {
   MONTHS, QUARTERS, REPORT_PERIOD_TYPES, ReportPeriodType,
@@ -172,6 +174,7 @@ function KPICard({ label, value, sub, badge }: KPICardProps) {
 export default function BalanceSheet() {
   const router = useRouter();
   const sym = useEntityCurrencySymbol();
+  const currency = useEntityBaseCurrency();
   const now = new Date();
 
   // Primary period
@@ -250,6 +253,76 @@ export default function BalanceSheet() {
           ? { label: "Good", cls: "bg-yellow-100 text-yellow-700 hover:bg-yellow-100" }
           : { label: "Poor", cls: "bg-red-100 text-red-700 hover:bg-red-100" };
 
+  const buildExport = (): ReportExportPayload | null => {
+    if (!data) return null;
+    const line = (label: string, current: number, prev: number, kind?: ReportExportRow["kind"], indent?: number): ReportExportRow => ({
+      kind,
+      indent,
+      cells: {
+        account: label,
+        current,
+        ...(showComparison ? { comparison: prev, change: changePct(current, prev) } : {}),
+      },
+    });
+    const sub = (label: string, s: BSSection): ReportExportRow[] => [
+      { kind: "header", indent: 1, cells: { account: label } },
+      ...s.accounts.map((a: BSAccountLine) => line(a.name, a.balance, a.comparison, "row", 2)),
+      line(`Total ${label}`, s.total, s.comparison, "subtotal", 1),
+    ];
+    const rows: ReportExportRow[] = [
+      { kind: "header", cells: { account: "Assets" } },
+      ...sub("Current Assets", data.assets.current),
+      ...sub("Non-Current Assets", data.assets.nonCurrent),
+      line("Total Assets", totalAssets, prevTotalAssets, "total"),
+      { kind: "header", cells: { account: "Liabilities & Equity" } },
+      ...sub("Current Liabilities", data.liabilities.current),
+      ...sub("Non-Current Liabilities", data.liabilities.longTerm),
+      line("Total Liabilities", totalLiabilities, prevTotalLiabilities, "subtotal"),
+      ...data.equity.sections.flatMap((s: BSSection) => sub(s.label, s)),
+      line("Retained Earnings", data.equity.retainedEarnings, data.equity.retainedEarningsComparison, "row", 2),
+      line("Total Equity", totalEquity, prevTotalEquity, "subtotal"),
+      line("Total Liabilities & Equity", totalLE, data.totalLiabilitiesAndEquityComparison, "total"),
+    ];
+    return {
+      title: "Balance Sheet",
+      scope: "entity",
+      period: `As of ${asOfLabel(periodType, period, year)}`,
+      currency,
+      summary: [
+        { label: "Total Assets", value: totalAssets, format: "amount" },
+        { label: "Total Liabilities", value: totalLiabilities, format: "amount" },
+        { label: "Total Equity", value: totalEquity, format: "amount" },
+        { label: "Current Ratio", value: currentRatio !== null ? Number(currentRatio.toFixed(2)) : "—", format: "number" },
+      ],
+      columns: [
+        { key: "account", label: "Account" },
+        { key: "current", label: asOfLabel(periodType, period, year), format: "amount" },
+        ...(showComparison
+          ? [
+              { key: "comparison", label: asOfLabel(periodType, cmpPeriod, cmpYear), format: "amount" as const },
+              { key: "change", label: "Change", format: "percent" as const },
+            ]
+          : []),
+      ],
+      sections: [
+        { rows },
+        {
+          title: "Key Financial Ratios",
+          columns: [
+            { key: "ratio", label: "Ratio" },
+            { key: "value", label: "Value", format: "number" },
+            { key: "basis", label: "Basis" },
+          ],
+          rows: [
+            { cells: { ratio: "Current Ratio", value: currentRatio !== null ? Number(currentRatio.toFixed(2)) : null, basis: "Current Assets ÷ Current Liabilities" } },
+            { cells: { ratio: "Debt-to-Equity Ratio", value: debtToEquity !== null ? Number(debtToEquity.toFixed(2)) : null, basis: "Total Liabilities ÷ Total Equity" } },
+            { cells: { ratio: "Equity Ratio (%)", value: equityRatio !== null ? Number(equityRatio.toFixed(1)) : null, basis: "Total Equity ÷ Total Assets" } },
+          ],
+        },
+      ],
+    };
+  };
+
   return (
     <div className="flex flex-col gap-4 pb-10">
       {/* Header */}
@@ -264,9 +337,8 @@ export default function BalanceSheet() {
           <h1 className="text-xl font-semibold">Balance Sheet</h1>
           <p className="text-sm text-primary">Statement of financial position showing assets, liabilities, and equity</p>
         </div>
-        <div className="flex items-center gap-2 mt-6 shrink-0">
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Printer className="w-4 h-4" /> Print</Button>
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Download className="w-4 h-4" /> Export</Button>
+        <div className="mt-6">
+          <ReportExportButtons getPayload={buildExport} disabled={isLoading || !data} />
         </div>
       </div>
 

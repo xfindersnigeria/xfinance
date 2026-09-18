@@ -35,6 +35,15 @@ import {
   SuppliesInventoryReportDto,
   SuppliesConsumptionByDeptDto,
   SuppliesConsumptionByProjectDto,
+  CashFlowForecastDto,
+  CashFlowForecastBucketDto,
+  MovementOfEquityDto,
+  EquityMovementRowDto,
+  SalesTaxSummaryDto,
+  SalesTaxRateRowDto,
+  SalesTaxTransactionDto,
+  TaxLiabilityReportDto,
+  TaxLiabilityRowDto,
 } from './dto/reports.dto';
 
 // Category codes from the seeded chart of accounts
@@ -1547,7 +1556,7 @@ export class ReportsService {
       where: { entityId, billDate: { lte: asOfDate }, status: { not: 'draft' as any } },
       include: {
         vendor: { select: { id: true, name: true, paymentTerms: true } },
-        paymentRecord: { select: { amount: true, paidAt: true } },
+        paymentsMade: { where: { paymentDate: { lte: asOfDate } }, select: { amount: true, paymentDate: true } },
       },
     });
 
@@ -1559,7 +1568,7 @@ export class ReportsService {
     const vendorMap = new Map<string, VendorEntry>();
 
     for (const bill of bills) {
-      const paid = bill.paymentRecord.reduce((s, p) => s + p.amount, 0);
+      const paid = bill.paymentsMade.reduce((s, p) => s + p.amount, 0);
       const outstanding = bill.total - paid;
       if (outstanding <= 0) continue;
 
@@ -1576,8 +1585,8 @@ export class ReportsService {
       if (isOverdue) v.overdue += outstanding; else v.current += outstanding;
       v.billCount++;
 
-      const lastPaid = bill.paymentRecord.reduce<Date | null>(
-        (max, p) => (!max || p.paidAt > max) ? p.paidAt : max, null,
+      const lastPaid = bill.paymentsMade.reduce<Date | null>(
+        (max, p) => (!max || p.paymentDate > max) ? p.paymentDate : max, null,
       );
       if (lastPaid && (!v.lastPaymentDate || lastPaid > v.lastPaymentDate)) v.lastPaymentDate = lastPaid;
     }
@@ -1619,13 +1628,13 @@ export class ReportsService {
   async getAgedPayables(entityId: string, asOfDate: Date): Promise<AgedPayablesDto> {
     const bills = await this.prisma.bills.findMany({
       where: { entityId, billDate: { lte: asOfDate }, status: { not: 'draft' as any } },
-      include: { vendor: { select: { name: true } }, paymentRecord: { select: { amount: true } } },
+      include: { vendor: { select: { name: true } }, paymentsMade: { where: { paymentDate: { lte: asOfDate } }, select: { amount: true } } },
     });
 
     const vendorMap = new Map<string, { name: string; current: number; d1_30: number; d31_60: number; d61_90: number; d91_120: number; d120p: number }>();
 
     for (const bill of bills) {
-      const paid = bill.paymentRecord.reduce((s, p) => s + p.amount, 0);
+      const paid = bill.paymentsMade.reduce((s, p) => s + p.amount, 0);
       const outstanding = bill.total - paid;
       if (outstanding <= 0) continue;
 
@@ -1665,7 +1674,7 @@ export class ReportsService {
       where: { entityId, billDate: { lte: endDate }, status: { not: 'draft' as any } },
       include: {
         vendor: { select: { id: true, name: true, email: true } },
-        paymentRecord: { select: { amount: true, paidAt: true } },
+        paymentsMade: { select: { amount: true, paymentDate: true } },
       },
     });
 
@@ -1693,8 +1702,8 @@ export class ReportsService {
         acc.openingBilled += bill.total;
       }
 
-      for (const pay of bill.paymentRecord) {
-        const payDate = new Date(pay.paidAt);
+      for (const pay of bill.paymentsMade) {
+        const payDate = new Date(pay.paymentDate);
         const payInPeriod = payDate >= startDate && payDate <= endDate;
         if (payInPeriod) {
           acc.periodPaid += pay.amount;
@@ -2083,6 +2092,520 @@ export class ReportsService {
       period: { startDate: startDate.toISOString(), endDate: endDate.toISOString() },
       summary: { totalQuantity: rows.reduce((s, r) => s + r.totalQuantity, 0), totalValue: rows.reduce((s, r) => s + r.totalValue, 0), projectCount: rows.length },
       rows,
+    };
+  }
+
+  // ─── Cash Flow Forecasting ───────────────────────────────────────────────────
+
+  /**
+   * Forward-looking cash forecast for one entity, in the entity's own currency.
+   * Pure per-entity: group reporting calls this per entity and converts/sums.
+   *
+   * - Opening cash: ledger balance of the "Cash and Cash Equivalents" (1110)
+   *   accounts as of `asOf` (same basis as the Balance Sheet).
+   * - Known flows: outstanding invoices (inflow) / bills (outflow) bucketed by
+   *   due date; anything already overdue is assumed settled in the first month;
+   *   items due beyond the horizon are excluded.
+   * - Recurring flows: average monthly cash receipts, approved expenses and
+   *   payroll payments over the 3 full calendar months before `asOf`. The
+   *   first (current) month gets only the remaining fraction of the month.
+   */
+  async getCashFlowForecast(entityId: string, months: number, asOf: Date): Promise<CashFlowForecastDto> {
+    const horizon = Math.min(Math.max(Math.round(months) || 3, 1), 24);
+    const LOOKBACK = 3;
+    const round = (n: number) => Math.round(n * 100) / 100;
+
+    const monthStart = (y: number, m: number) => new Date(y, m, 1);
+    const firstMonth = monthStart(asOf.getFullYear(), asOf.getMonth());
+    const horizonEnd = new Date(asOf.getFullYear(), asOf.getMonth() + horizon, 1); // exclusive
+    const lookbackStart = monthStart(asOf.getFullYear(), asOf.getMonth() - LOOKBACK);
+    const lookbackEnd = firstMonth; // exclusive
+
+    const bucketIndex = (d: Date) => (d.getFullYear() - firstMonth.getFullYear()) * 12 + (d.getMonth() - firstMonth.getMonth());
+
+    const cashAccounts = await this.prisma.account.findMany({
+      where: { entityId, subCategory: { code: '1110' } },
+      select: { id: true },
+    });
+
+    const [cashAgg, invoices, bills, receiptsAgg, expenses, payrollAgg] = await Promise.all([
+      cashAccounts.length
+        ? this.prisma.accountTransaction.aggregate({
+            where: { entityId, accountId: { in: cashAccounts.map((a) => a.id) }, status: { not: 'Failed' as any }, date: { lte: asOf } },
+            _sum: { debitAmount: true, creditAmount: true },
+          })
+        : Promise.resolve(null),
+      this.prisma.invoice.findMany({
+        where: { entityId, status: { notIn: ['Draft'] as any }, invoiceDate: { lte: asOf } },
+        select: { total: true, dueDate: true, paymentReceived: { where: { paidAt: { lte: asOf } }, select: { amount: true } } },
+      }),
+      this.prisma.bills.findMany({
+        where: { entityId, status: { not: 'draft' as any }, billDate: { lte: asOf } },
+        select: { total: true, dueDate: true, paymentsMade: { where: { paymentDate: { lte: asOf } }, select: { amount: true } } },
+      }),
+      this.prisma.receipt.aggregate({
+        where: { entityId, status: 'Completed' as any, date: { gte: lookbackStart, lt: lookbackEnd } },
+        _sum: { total: true },
+      }),
+      this.prisma.expenses.findMany({
+        where: { entityId, status: 'approved' as any, date: { gte: lookbackStart, lt: lookbackEnd } },
+        select: { amount: true, tax: true },
+      }),
+      this.prisma.payrollPayment.aggregate({
+        where: { entityId, paymentDate: { gte: lookbackStart, lt: lookbackEnd } },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    const currentCash = (cashAgg?._sum.debitAmount ?? 0) - (cashAgg?._sum.creditAmount ?? 0);
+    const avgMonthlyReceipts = (receiptsAgg._sum.total ?? 0) / LOOKBACK;
+    const avgMonthlyExpenses = expenses.reduce((s, e) => s + e.amount + (parseInt(e.tax) || 0), 0) / LOOKBACK;
+    const avgMonthlyPayroll = (payrollAgg._sum.amount ?? 0) / LOOKBACK;
+
+    const receivables = new Array(horizon).fill(0);
+    const payables = new Array(horizon).fill(0);
+    let overdueReceivables = 0;
+    let overduePayables = 0;
+
+    for (const inv of invoices) {
+      const outstanding = inv.total - inv.paymentReceived.reduce((s, p) => s + p.amount, 0);
+      if (outstanding <= 0) continue;
+      if (inv.dueDate < asOf) { overdueReceivables += outstanding; receivables[0] += outstanding; continue; }
+      if (inv.dueDate >= horizonEnd) continue;
+      receivables[Math.max(0, bucketIndex(inv.dueDate))] += outstanding;
+    }
+    for (const bill of bills) {
+      const outstanding = bill.total - bill.paymentsMade.reduce((s, p) => s + p.amount, 0);
+      if (outstanding <= 0) continue;
+      if (bill.dueDate < asOf) { overduePayables += outstanding; payables[0] += outstanding; continue; }
+      if (bill.dueDate >= horizonEnd) continue;
+      payables[Math.max(0, bucketIndex(bill.dueDate))] += outstanding;
+    }
+
+    const daysInFirst = new Date(asOf.getFullYear(), asOf.getMonth() + 1, 0).getDate();
+    const firstFraction = (daysInFirst - asOf.getDate() + 1) / daysInFirst;
+
+    const buckets: CashFlowForecastBucketDto[] = [];
+    let running = currentCash;
+    let recurringExpensesTotal = 0;
+    let recurringPayrollTotal = 0;
+    for (let i = 0; i < horizon; i++) {
+      const d = new Date(firstMonth.getFullYear(), firstMonth.getMonth() + i, 1);
+      const fraction = i === 0 ? firstFraction : 1;
+      const recurringIn = avgMonthlyReceipts * fraction;
+      const recurringExp = avgMonthlyExpenses * fraction;
+      const recurringPay = avgMonthlyPayroll * fraction;
+      recurringExpensesTotal += recurringExp;
+      recurringPayrollTotal += recurringPay;
+      const inTotal = receivables[i] + recurringIn;
+      const outTotal = payables[i] + recurringExp + recurringPay;
+      const opening = running;
+      running = opening + inTotal - outTotal;
+      buckets.push({
+        month: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+        label: d.toLocaleString('en-US', { month: 'short', year: 'numeric' }),
+        openingCash: round(opening),
+        inflows: { receivables: round(receivables[i]), recurring: round(recurringIn), total: round(inTotal) },
+        outflows: { payables: round(payables[i]), recurring: round(recurringExp + recurringPay), total: round(outTotal) },
+        net: round(inTotal - outTotal),
+        closingCash: round(running),
+      });
+    }
+
+    const totalInflows = buckets.reduce((s, b) => s + b.inflows.total, 0);
+    const totalOutflows = buckets.reduce((s, b) => s + b.outflows.total, 0);
+    const lowest = buckets.reduce<CashFlowForecastBucketDto | null>((min, b) => (!min || b.closingCash < min.closingCash ? b : min), null);
+
+    return {
+      asOfDate: asOf.toISOString(),
+      months: horizon,
+      method: {
+        lookbackMonths: LOOKBACK,
+        lookbackStart: lookbackStart.toISOString(),
+        lookbackEnd: new Date(lookbackEnd.getTime() - 1).toISOString(),
+        avgMonthlyReceipts: round(avgMonthlyReceipts),
+        avgMonthlyExpenses: round(avgMonthlyExpenses),
+        avgMonthlyPayroll: round(avgMonthlyPayroll),
+      },
+      summary: {
+        currentCash: round(currentCash),
+        totalInflows: round(totalInflows),
+        totalOutflows: round(totalOutflows),
+        netChange: round(totalInflows - totalOutflows),
+        endingCash: round(running),
+        overdueReceivables: round(overdueReceivables),
+        overduePayables: round(overduePayables),
+        lowestCash: lowest ? lowest.closingCash : round(currentCash),
+        lowestCashMonth: lowest?.label ?? null,
+      },
+      inflowBreakdown: {
+        receivables: round(receivables.reduce((s, v) => s + v, 0)),
+        recurring: round(buckets.reduce((s, b) => s + b.inflows.recurring, 0)),
+      },
+      outflowBreakdown: {
+        payables: round(payables.reduce((s, v) => s + v, 0)),
+        recurringExpenses: round(recurringExpensesTotal),
+        recurringPayroll: round(recurringPayrollTotal),
+      },
+      buckets,
+    };
+  }
+
+  // ─── Movement of Equity ──────────────────────────────────────────────────────
+
+  /**
+   * Statement of changes in equity, built on exactly the Balance Sheet basis
+   * (ledger transactions, credit-normal equity, retained earnings = cumulative
+   * revenue − expenses), so the closing total always equals the Balance
+   * Sheet's total equity at endDate.
+   */
+  async getMovementOfEquity(entityId: string, startDate: Date, endDate: Date): Promise<MovementOfEquityDto> {
+    const accounts = await this.prisma.account.findMany({
+      where: { entityId, subCategory: { category: { type: { code: { in: ['3000', '4000', '5000'] } } } } },
+      select: { id: true, subCategory: { select: { code: true, category: { select: { type: { select: { code: true } } } } } } },
+    });
+
+    const [preAggs, periodAggs, balanceSheet] = await Promise.all([
+      this.prisma.accountTransaction.groupBy({
+        by: ['accountId'],
+        where: { entityId, status: { not: 'Failed' as any }, date: { lt: startDate } },
+        _sum: { debitAmount: true, creditAmount: true },
+      }),
+      this.prisma.accountTransaction.groupBy({
+        by: ['accountId'],
+        where: { entityId, status: { not: 'Failed' as any }, date: { gte: startDate, lte: endDate } },
+        _sum: { debitAmount: true, creditAmount: true },
+      }),
+      this.getBalanceSheet(entityId, endDate),
+    ]);
+
+    // Credit-normal net (credit − debit) per account
+    const toMap = (aggs: typeof preAggs) => {
+      const m = new Map<string, number>();
+      for (const a of aggs) m.set(a.accountId, (a._sum.creditAmount ?? 0) - (a._sum.debitAmount ?? 0));
+      return m;
+    };
+    const pre = toMap(preAggs);
+    const period = toMap(periodAggs);
+
+    const COMPONENT_OF_SUB: Record<string, string> = {
+      '3110': 'shareCapital',
+      '3120': 'retainedEarnings',
+      '3130': 'retainedEarnings',
+      '3140': 'openingBalanceEquity',
+    };
+    const componentFor = (subCode: string) => COMPONENT_OF_SUB[subCode] ?? 'otherReserves';
+
+    const opening: Record<string, number> = { shareCapital: 0, retainedEarnings: 0, openingBalanceEquity: 0, otherReserves: 0 };
+    const movement = {
+      profit: { retainedEarnings: 0 } as Record<string, number>,
+      dividends: { retainedEarnings: 0 } as Record<string, number>,
+      capital: { shareCapital: 0 } as Record<string, number>,
+      openingBalances: { openingBalanceEquity: 0 } as Record<string, number>,
+      other: { retainedEarnings: 0, otherReserves: 0 } as Record<string, number>,
+    };
+
+    for (const acc of accounts) {
+      const type = acc.subCategory.category.type.code;
+      const preNet = pre.get(acc.id) ?? 0;
+      const periodNet = period.get(acc.id) ?? 0;
+      if (type === '4000' || type === '5000') {
+        // Revenue (credit-normal) adds, expenses (debit-normal) subtract — credit−debit covers both
+        opening.retainedEarnings += preNet;
+        movement.profit.retainedEarnings += periodNet;
+        continue;
+      }
+      const sub = acc.subCategory.code;
+      const comp = componentFor(sub);
+      opening[comp] += preNet;
+      if (sub === '3110') movement.capital.shareCapital += periodNet;
+      else if (sub === '3130') movement.dividends.retainedEarnings += periodNet;
+      else if (sub === '3140') movement.openingBalances.openingBalanceEquity += periodNet;
+      else if (sub === '3120') movement.other.retainedEarnings += periodNet;
+      else movement.other.otherReserves += periodNet;
+    }
+
+    const allKeys = ['shareCapital', 'retainedEarnings', 'openingBalanceEquity', 'otherReserves'];
+    const closing: Record<string, number> = {};
+    for (const k of allKeys) {
+      closing[k] = opening[k] + Object.values(movement).reduce((s, m) => s + (m[k] ?? 0), 0);
+    }
+
+    // Always show share capital + retained earnings; other columns only when used
+    const LABELS: Record<string, string> = {
+      shareCapital: 'Share Capital',
+      retainedEarnings: 'Retained Earnings',
+      openingBalanceEquity: 'Opening Balance Equity',
+      otherReserves: 'Other Reserves',
+    };
+    const keys = allKeys.filter((k) => k === 'shareCapital' || k === 'retainedEarnings' || Math.abs(opening[k]) > 0.005 || Math.abs(closing[k]) > 0.005);
+
+    const round = (n: number) => Math.round(n * 100) / 100;
+    const row = (key: EquityMovementRowDto['key'], label: string, src: Record<string, number>): EquityMovementRowDto => {
+      const amounts: Record<string, number> = {};
+      let total = 0;
+      for (const k of keys) { amounts[k] = round(src[k] ?? 0); total += src[k] ?? 0; }
+      amounts.total = round(total);
+      return { key, label, amounts };
+    };
+
+    const rows: EquityMovementRowDto[] = [
+      row('opening', 'Balance at beginning of period', opening),
+      row('profit', 'Profit / (loss) for the period', movement.profit),
+      row('dividends', 'Dividends', movement.dividends),
+      row('capital', 'Share capital issued / (withdrawn)', movement.capital),
+      row('openingBalances', 'Opening balances brought forward', movement.openingBalances),
+      row('other', 'Other movements', movement.other),
+      row('closing', 'Balance at end of period', closing),
+    ];
+
+    const openingTotal = rows[0].amounts.total;
+    const closingTotal = rows[rows.length - 1].amounts.total;
+    const balanceSheetEquity = round(balanceSheet.equity.total);
+
+    return {
+      period: { startDate: startDate.toISOString(), endDate: endDate.toISOString() },
+      components: keys.map((k) => ({ key: k, label: LABELS[k] })),
+      rows,
+      summary: {
+        openingTotal,
+        closingTotal,
+        netChange: round(closingTotal - openingTotal),
+        profitForPeriod: rows[1].amounts.total,
+      },
+      balanceSheetEquity,
+      isReconciled: Math.abs(closingTotal - balanceSheetEquity) < 1,
+    };
+  }
+
+  // ─── Sales Tax Summary ───────────────────────────────────────────────────────
+
+  /**
+   * Output VAT (invoices + income receipts, at each document's own rate) vs
+   * input VAT (bills + expenses, which record tax as an amount) for a period,
+   * from the source documents. `ledgerNetMovement` is the posted movement on
+   * the VAT account (2140) for cross-checking unposted documents.
+   */
+  async getSalesTaxSummary(entityId: string, startDate: Date, endDate: Date): Promise<SalesTaxSummaryDto> {
+    const round = (n: number) => Math.round(n * 100) / 100;
+    const trendStart = new Date(Math.min(startDate.getTime(), new Date(endDate.getFullYear(), endDate.getMonth() - 5, 1).getTime()));
+
+    const [invoices, receipts, bills, expenses, vatAccounts] = await Promise.all([
+      this.prisma.invoice.findMany({
+        where: { entityId, status: { notIn: ['Draft'] as any }, invoiceDate: { gte: trendStart, lte: endDate } },
+        select: { id: true, invoiceNumber: true, invoiceDate: true, subtotal: true, tax: true, taxRate: true, customer: { select: { name: true } } },
+      }),
+      this.prisma.receipt.findMany({
+        where: { entityId, status: 'Completed' as any, date: { gte: trendStart, lte: endDate } },
+        select: { id: true, receiptNumber: true, date: true, subtotal: true, tax: true, taxRate: true, customerName: true, customer: { select: { name: true } } },
+      }),
+      this.prisma.bills.findMany({
+        where: { entityId, status: { not: 'draft' as any }, billDate: { gte: trendStart, lte: endDate } },
+        select: { id: true, billNumber: true, billDate: true, subtotal: true, tax: true, vendor: { select: { name: true } } },
+      }),
+      this.prisma.expenses.findMany({
+        where: { entityId, status: 'approved' as any, date: { gte: trendStart, lte: endDate } },
+        select: { id: true, reference: true, date: true, amount: true, tax: true, vendorName: true, vendor: { select: { name: true } } },
+      }),
+      this.prisma.account.findMany({ where: { entityId, subCategory: { code: '2140' } }, select: { id: true } }),
+    ]);
+
+    // Taxable base of rated documents: tax only applies to taxable lines, so derive it from tax ÷ rate
+    const ratedBase = (tax: number, rate: number, subtotal: number) => (tax > 0 ? (rate > 0 ? (tax * 100) / rate : subtotal) : 0);
+
+    type Doc = SalesTaxTransactionDto & { source: SalesTaxRateRowDto['source']; when: Date };
+    const docs: Doc[] = [
+      ...invoices.map((d) => ({
+        id: d.id, when: d.invoiceDate, date: d.invoiceDate.toISOString(), type: 'Invoice' as const, direction: 'Output' as const,
+        source: 'Invoices' as const, reference: d.invoiceNumber, party: d.customer?.name ?? '',
+        rate: d.taxRate, taxableAmount: ratedBase(d.tax, d.taxRate, d.subtotal), tax: d.tax,
+      })),
+      ...receipts.map((d) => ({
+        id: d.id, when: d.date, date: d.date.toISOString(), type: 'Income Receipt' as const, direction: 'Output' as const,
+        source: 'Income Receipts' as const, reference: d.receiptNumber, party: d.customer?.name ?? d.customerName ?? '',
+        rate: d.taxRate, taxableAmount: ratedBase(d.tax, d.taxRate, d.subtotal), tax: d.tax,
+      })),
+      ...bills.map((d) => ({
+        id: d.id, when: d.billDate, date: d.billDate.toISOString(), type: 'Bill' as const, direction: 'Input' as const,
+        source: 'Bills' as const, reference: d.billNumber, party: d.vendor?.name ?? '',
+        rate: null, taxableAmount: d.tax > 0 ? d.subtotal : 0, tax: d.tax,
+      })),
+      ...expenses.map((d) => {
+        const tax = parseInt(d.tax) || 0;
+        return {
+          id: d.id, when: d.date, date: d.date.toISOString(), type: 'Expense' as const, direction: 'Input' as const,
+          source: 'Expenses' as const, reference: d.reference, party: d.vendor?.name ?? d.vendorName ?? '',
+          rate: null, taxableAmount: tax > 0 ? d.amount : 0, tax,
+        };
+      }),
+    ];
+
+    const inPeriod = docs.filter((d) => d.when >= startDate && d.when <= endDate && d.tax > 0);
+
+    const rateMap = new Map<string, SalesTaxRateRowDto>();
+    for (const d of inPeriod) {
+      const key = `${d.source}|${d.rate ?? ''}`;
+      if (!rateMap.has(key)) rateMap.set(key, { direction: d.direction, source: d.source, rate: d.rate, documentCount: 0, taxableAmount: 0, tax: 0 });
+      const r = rateMap.get(key)!;
+      r.documentCount++;
+      r.taxableAmount += d.taxableAmount;
+      r.tax += d.tax;
+    }
+    const byRate = Array.from(rateMap.values())
+      .map((r) => ({ ...r, taxableAmount: round(r.taxableAmount), tax: round(r.tax) }))
+      .sort((a, b) => (a.direction === b.direction ? (b.rate ?? 0) - (a.rate ?? 0) : a.direction === 'Output' ? -1 : 1));
+
+    const outputTax = inPeriod.filter((d) => d.direction === 'Output').reduce((s, d) => s + d.tax, 0);
+    const inputTax = inPeriod.filter((d) => d.direction === 'Input').reduce((s, d) => s + d.tax, 0);
+    const taxableSales = inPeriod.filter((d) => d.direction === 'Output').reduce((s, d) => s + d.taxableAmount, 0);
+    const taxablePurchases = inPeriod.filter((d) => d.direction === 'Input').reduce((s, d) => s + d.taxableAmount, 0);
+
+    const trend: SalesTaxSummaryDto['trend'] = [];
+    for (let i = 5; i >= 0; i--) {
+      const ms = new Date(endDate.getFullYear(), endDate.getMonth() - i, 1);
+      const me = new Date(endDate.getFullYear(), endDate.getMonth() - i + 1, 1);
+      const monthDocs = docs.filter((d) => d.when >= ms && d.when < me);
+      const out = monthDocs.filter((d) => d.direction === 'Output').reduce((s, d) => s + d.tax, 0);
+      const inp = monthDocs.filter((d) => d.direction === 'Input').reduce((s, d) => s + d.tax, 0);
+      trend.push({
+        month: `${ms.getFullYear()}-${String(ms.getMonth() + 1).padStart(2, '0')}`,
+        label: ms.toLocaleString('en-US', { month: 'short', year: 'numeric' }),
+        outputTax: round(out), inputTax: round(inp), net: round(out - inp),
+      });
+    }
+
+    let ledgerNetMovement = 0;
+    if (vatAccounts.length) {
+      const agg = await this.prisma.accountTransaction.aggregate({
+        where: { entityId, accountId: { in: vatAccounts.map((a) => a.id) }, status: { not: 'Failed' as any }, date: { gte: startDate, lte: endDate } },
+        _sum: { debitAmount: true, creditAmount: true },
+      });
+      ledgerNetMovement = (agg._sum.creditAmount ?? 0) - (agg._sum.debitAmount ?? 0);
+    }
+
+    return {
+      period: { startDate: startDate.toISOString(), endDate: endDate.toISOString() },
+      summary: {
+        outputTax: round(outputTax),
+        inputTax: round(inputTax),
+        netTaxPayable: round(outputTax - inputTax),
+        taxableSales: round(taxableSales),
+        taxablePurchases: round(taxablePurchases),
+        effectiveOutputRate: taxableSales > 0 ? round((outputTax / taxableSales) * 100) : 0,
+        ledgerNetMovement: round(ledgerNetMovement),
+      },
+      byRate,
+      trend,
+      transactions: inPeriod
+        .sort((a, b) => b.when.getTime() - a.when.getTime())
+        .slice(0, 200)
+        .map(({ when, source, ...t }) => ({ ...t, taxableAmount: round(t.taxableAmount) })),
+    };
+  }
+
+  // ─── Tax Liability Report ────────────────────────────────────────────────────
+
+  /**
+   * Tax liabilities from ledger balances of the tax payable accounts. For each
+   * tax: opening balance at startDate, accrued (credits) in the period, input
+   * VAT offset (bill/expense debits — VAT only), paid (every other debit, i.e.
+   * remittances), closing balance at endDate.
+   */
+  async getTaxLiabilityReport(entityId: string, startDate: Date, endDate: Date): Promise<TaxLiabilityReportDto> {
+    const round = (n: number) => Math.round(n * 100) / 100;
+    // dueDay: statutory remittance day of the following month (Nigeria: VAT 21st, PAYE 10th)
+    const TAXES = [
+      { key: 'vat', taxType: 'VAT (output less input)', authority: 'FIRS', sub: '2140', dueDay: 21 },
+      { key: 'paye', taxType: 'PAYE', authority: 'State Internal Revenue Service', sub: '2160', dueDay: 10 },
+      { key: 'pension', taxType: 'Pension (employee)', authority: 'Pension Fund Administrator', sub: '2170', dueDay: null },
+      { key: 'nhf', taxType: 'NHF', authority: 'Federal Mortgage Bank of Nigeria', sub: '2180', dueDay: null },
+      { key: 'nhis', taxType: 'NHIS', authority: 'NHIA', sub: '2190', dueDay: null },
+      { key: 'otherDeductions', taxType: 'Other payroll deductions', authority: 'Various', sub: '2195', dueDay: null },
+    ] as const;
+
+    const accounts = await this.prisma.account.findMany({
+      where: { entityId, subCategory: { code: { in: TAXES.map((t) => t.sub) } } },
+      select: { id: true, code: true, subCategory: { select: { code: true } } },
+    });
+    const accountsBySub = new Map<string, { id: string; code: string }[]>();
+    for (const a of accounts) {
+      const list = accountsBySub.get(a.subCategory.code) ?? [];
+      list.push({ id: a.id, code: a.code });
+      accountsBySub.set(a.subCategory.code, list);
+    }
+    const subOfAccount = new Map(accounts.map((a) => [a.id, a.subCategory.code]));
+
+    const trendStart = new Date(endDate.getFullYear(), endDate.getMonth() - 5, 1);
+    const txns = accounts.length
+      ? await this.prisma.accountTransaction.findMany({
+          where: { entityId, accountId: { in: accounts.map((a) => a.id) }, status: { not: 'Failed' as any }, date: { lte: endDate } },
+          select: { accountId: true, date: true, type: true, debitAmount: true, creditAmount: true },
+        })
+      : [];
+
+    const INPUT_TYPES = new Set(['BILL_POSTING', 'EXPENSE_POSTING']);
+    const rows: TaxLiabilityRowDto[] = TAXES.filter((t) => accountsBySub.has(t.sub)).map((t) => {
+      let opening = 0, accrued = 0, inputCredit = 0, paid = 0;
+      for (const tx of txns) {
+        if (subOfAccount.get(tx.accountId) !== t.sub) continue;
+        if (tx.date < startDate) { opening += tx.creditAmount - tx.debitAmount; continue; }
+        accrued += tx.creditAmount;
+        if (INPUT_TYPES.has(tx.type as string)) inputCredit += tx.debitAmount;
+        else paid += tx.debitAmount;
+      }
+      const closing = opening + accrued - inputCredit - paid;
+      const status: TaxLiabilityRowDto['status'] = closing > 0.5 ? 'Outstanding' : closing < -0.5 ? 'Refundable' : 'Settled';
+      return {
+        key: t.key,
+        taxType: t.taxType,
+        authority: t.authority,
+        accountCodes: (accountsBySub.get(t.sub) ?? []).map((a) => a.code),
+        openingBalance: round(opening),
+        accrued: round(accrued),
+        inputCredit: round(inputCredit),
+        paid: round(paid),
+        closingBalance: round(closing),
+        nextDueDate: t.dueDay && status === 'Outstanding'
+          ? new Date(endDate.getFullYear(), endDate.getMonth() + 1, t.dueDay).toISOString()
+          : null,
+        status,
+      };
+    });
+
+    const trend: TaxLiabilityReportDto['trend'] = [];
+    for (let i = 5; i >= 0; i--) {
+      const ms = new Date(endDate.getFullYear(), endDate.getMonth() - i, 1);
+      const monthEnd = i === 0 ? endDate : new Date(endDate.getFullYear(), endDate.getMonth() - i + 1, 0, 23, 59, 59, 999);
+      if (monthEnd < trendStart) continue;
+      const byType: Record<string, number> = {};
+      for (const t of TAXES) {
+        if (!accountsBySub.has(t.sub)) continue;
+        byType[t.key] = round(
+          txns
+            .filter((tx) => subOfAccount.get(tx.accountId) === t.sub && tx.date <= monthEnd)
+            .reduce((s, tx) => s + tx.creditAmount - tx.debitAmount, 0),
+        );
+      }
+      trend.push({
+        month: `${ms.getFullYear()}-${String(ms.getMonth() + 1).padStart(2, '0')}`,
+        label: ms.toLocaleString('en-US', { month: 'short', year: 'numeric' }),
+        total: round(Object.values(byType).reduce((s, v) => s + v, 0)),
+        byType,
+      });
+    }
+
+    return {
+      period: { startDate: startDate.toISOString(), endDate: endDate.toISOString() },
+      summary: {
+        totalLiability: round(rows.reduce((s, r) => s + Math.max(0, r.closingBalance), 0)),
+        totalAccrued: round(rows.reduce((s, r) => s + r.accrued, 0)),
+        totalPaid: round(rows.reduce((s, r) => s + r.paid, 0)),
+        totalInputCredit: round(rows.reduce((s, r) => s + r.inputCredit, 0)),
+        outstandingCount: rows.filter((r) => r.status === 'Outstanding').length,
+      },
+      rows,
+      trend,
+      missingAccounts: TAXES.filter((t) => !accountsBySub.has(t.sub)).map((t) => t.taxType),
     };
   }
 }

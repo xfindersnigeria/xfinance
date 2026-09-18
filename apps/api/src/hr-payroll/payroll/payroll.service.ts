@@ -549,6 +549,54 @@ export class PayrollService {
   }
 
   /**
+   * (Re-)queue the approval posting for an Approved batch that never reached
+   * the ledger — batches approved before payroll posting existed (still
+   * `Pending`) or whose posting failed. Runs the same validation as approval,
+   * so an unfixable batch fails here synchronously. Safe against double
+   * posting: the posting job claims the batch atomically and skips it if it
+   * has already posted.
+   */
+  async postToLedger(id: string, entityId: string, groupId: string) {
+    try {
+      const batch = await this.prisma.payrollBatch.findFirst({
+        where: { id, entityId },
+        include: { records: true },
+      });
+      if (!batch) throw new HttpException('Payroll batch not found', HttpStatus.NOT_FOUND);
+      if (batch.status !== PayrollStatus.Approved) {
+        throw new HttpException('Only an approved payroll batch can be posted to the ledger', HttpStatus.FORBIDDEN);
+      }
+      if (batch.postingStatus === 'Success') {
+        throw new HttpException('This batch has already been posted to the ledger', HttpStatus.CONFLICT);
+      }
+
+      const postingData = await this.buildPayrollApprovalPostingData(batch, entityId);
+
+      await this.prisma.payrollBatch.update({
+        where: { id },
+        data: {
+          netPayableAccountId: postingData.wagesPayableAccountId,
+          postingStatus: 'Pending',
+          errorMessage: null,
+          errorCode: null,
+        },
+      });
+
+      await this.bullmqService.addJob('post-payroll-journal', {
+        batchId: id,
+        entityId,
+        groupId,
+        postingData: { reference: batch.batchName, ...postingData },
+      }, POSTING_JOB_OPTIONS);
+
+      return { data: null, message: 'Payroll batch queued for ledger posting', statusCode: 200 };
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      throw new HttpException(error instanceof Error ? error.message : String(error), HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  /**
    * Record payment of an approved, already-posted payroll batch:
    * Dr Wages Payable (the same account credited at approval) / Cr the
    * chosen bank/cash account. Creates a PayrollPayment row (mirrors

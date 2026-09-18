@@ -1,13 +1,14 @@
 "use client";
 import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, ArrowLeft, CalendarDays, Download, Printer, TrendingDown, TrendingUp, Users } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { AlertCircle, ArrowLeft, CalendarDays, TrendingDown, TrendingUp, Users } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useReceivableSummary } from "@/lib/api/hooks/useReports";
-import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { useEntityBaseCurrency, useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { ReportExportButtons } from "../../ReportExportButtons";
+import type { ReportExportPayload } from "@/lib/reports/export-types";
 import { ReceivableSummaryData, ReceivableSummaryRow } from "@/lib/api/services/reportService";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -107,6 +108,7 @@ const tooltipStyle = {
 export default function ReceivableSummary() {
   const router = useRouter();
   const sym = useEntityCurrencySymbol();
+  const currency = useEntityBaseCurrency();
 
   const [preset, setPreset] = useState<DatePreset>("today");
   const asOfDate = resolveAsOfDate(preset);
@@ -138,6 +140,52 @@ export default function ReceivableSummary() {
   const currentPct  = data && data.totalReceivables > 0 ? Math.round((data.totalCurrent  / data.totalReceivables) * 100) : 0;
   const overduePct  = data && data.totalReceivables > 0 ? Math.round((data.totalOverdue  / data.totalReceivables) * 100) : 0;
 
+  const buildExport = (): ReportExportPayload | null => {
+    if (!data) return null;
+    return {
+      title: "Receivable Summary",
+      scope: "entity",
+      period: `As of ${new Date(asOfDate).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`,
+      currency,
+      landscape: true,
+      summary: [
+        { label: "Total Receivables", value: data.totalReceivables, format: "amount" },
+        { label: "Current", value: data.totalCurrent, format: "amount" },
+        { label: "Overdue", value: data.totalOverdue, format: "amount" },
+        { label: "Average Receivable", value: data.avgReceivable, format: "amount" },
+      ],
+      columns: [
+        { key: "customer", label: "Customer" },
+        { key: "total", label: "Total Receivable", format: "amount" },
+        { key: "current", label: "Current", format: "amount" },
+        { key: "overdue", label: "Overdue", format: "amount" },
+        { key: "invoices", label: "Invoices", format: "number" },
+        { key: "lastPayment", label: "Last Payment" },
+        { key: "creditLimit", label: "Credit Limit", format: "amount" },
+        { key: "status", label: "Status" },
+      ],
+      sections: [
+        {
+          rows: [
+            ...rows.map((r) => ({
+              cells: {
+                customer: r.customerName,
+                total: r.totalReceivable,
+                current: r.current,
+                overdue: r.overdue,
+                invoices: r.invoiceCount,
+                lastPayment: r.lastPaymentDate ? fmtDate(r.lastPaymentDate) : "—",
+                creditLimit: r.creditLimit,
+                status: r.status,
+              },
+            })),
+            { kind: "total" as const, cells: { customer: "Total", total: data.totalReceivables, current: data.totalCurrent, overdue: data.totalOverdue } },
+          ],
+        },
+      ],
+    };
+  };
+
   return (
     <div className="flex flex-col gap-6 pb-12">
       {/* Header */}
@@ -152,9 +200,8 @@ export default function ReceivableSummary() {
           <h1 className="text-xl font-semibold text-slate-900">Receivable Summary</h1>
           <p className="text-sm text-slate-500 mt-0.5">Overview of outstanding customer receivables</p>
         </div>
-        <div className="flex items-center gap-2 mt-7 shrink-0">
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Printer className="w-4 h-4" /> Print</Button>
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Download className="w-4 h-4" /> Export</Button>
+        <div className="mt-7">
+          <ReportExportButtons getPayload={buildExport} disabled={isLoading || !data} />
         </div>
       </div>
 

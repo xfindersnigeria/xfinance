@@ -173,6 +173,9 @@ export const changePayrollStatus = async (id: string, status: string) =>
     body: JSON.stringify({ status }),
   });
 
+export const postPayrollToLedger = async (id: string) =>
+  apiClient(`hr-payroll/payroll/${id}/post`, { method: "PATCH" });
+
 export const markPayrollPaid = async (id: string, cashAccountId: string) =>
   apiClient(`hr-payroll/payroll/${id}/mark-paid`, {
     method: "PATCH",

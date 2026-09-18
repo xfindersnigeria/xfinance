@@ -25,6 +25,7 @@ import { BullmqService } from '@/bullmq/bullmq.service';
 import { PdfService } from '@/pdf/pdf.service';
 import { EmailService } from '@/email/email.service';
 import { CacheService } from '@/cache/cache.service';
+import { computeSalesTax, resolveSalesTaxRate } from '../sales-tax.util';
 
 @Injectable()
 export class InvoiceService {
@@ -340,7 +341,7 @@ export class InvoiceService {
       const invoiceNumber = generateRandomInvoiceNumber({ prefix: 'INV' });
 
       // Extract items and status from body
-      const { items, status = InvoiceStatus.Draft, ...invoiceData } = body;
+      const { items, status = InvoiceStatus.Draft, taxRate: requestedTaxRate, ...invoiceData } = body;
 
       // Fetch item details to check for taxable items
       const itemDetails =
@@ -362,14 +363,12 @@ export class InvoiceService {
 
       // Calculate item totals and invoice totals
       let subtotal = 0;
-      let hasTaxableItems = false;
+      const taxLines: Array<{ total: number; taxable: boolean }> = [];
       const invoiceItemsData = (items || []).map((item) => {
         const itemDetail = itemDetails.find((i) => i.id === item.itemId);
         const total = item.rate * item.quantity;
         subtotal += total;
-        if (itemDetail?.isTaxable) {
-          hasTaxableItems = true;
-        }
+        taxLines.push({ total, taxable: !!itemDetail?.isTaxable });
         return {
           itemId: item.itemId,
           rate: item.rate,
@@ -378,8 +377,9 @@ export class InvoiceService {
         };
       });
 
-      // Calculate tax only if there are taxable items
-      const tax = hasTaxableItems ? Math.round(0.1 * subtotal) : 0; // 10% tax on taxable items
+      // Tax at the user-chosen rate (or the entity default) on taxable lines
+      const taxRate = await resolveSalesTaxRate(this.prisma, entityId, requestedTaxRate);
+      const tax = computeSalesTax(taxLines, taxRate);
       const total = subtotal + tax;
 
       // Create invoice and items in a transaction
@@ -392,6 +392,7 @@ export class InvoiceService {
             groupId,
             subtotal,
             tax,
+            taxRate,
             total,
             status,
           },
@@ -784,11 +785,12 @@ export class InvoiceService {
       }
 
       // Extract items and status from body
-      const { items, status = invoice.status, ...invoiceData } = body;
+      const { items, status = invoice.status, taxRate: requestedTaxRate, ...invoiceData } = body;
 
       // For Draft invoices, allow editing. For Sent invoices, only allow status changes
       let subtotal = invoice.subtotal;
       let tax = invoice.tax;
+      let taxRate = invoice.taxRate;
       let total = invoice.total;
       let invoiceItemsData: any[] = [];
       let hasItems = false;
@@ -817,14 +819,12 @@ export class InvoiceService {
 
         // Calculate new invoice items and totals
         subtotal = 0;
-        let hasTaxableItems = false;
+        const taxLines: Array<{ total: number; taxable: boolean }> = [];
         invoiceItemsData = items.map((item) => {
           const itemDetail = itemDetails.find((i) => i.id === item.itemId);
           const total = item.rate * item.quantity;
           subtotal += total;
-          if (itemDetail?.isTaxable) {
-            hasTaxableItems = true;
-          }
+          taxLines.push({ total, taxable: !!itemDetail?.isTaxable });
           return {
             itemId: item.itemId,
             rate: item.rate,
@@ -832,7 +832,8 @@ export class InvoiceService {
             total,
           };
         });
-        tax = hasTaxableItems ? Math.round(0.1 * subtotal) : 0;
+        taxRate = requestedTaxRate ?? invoice.taxRate;
+        tax = computeSalesTax(taxLines, taxRate);
         total = subtotal + tax;
         hasItems = true;
       }
@@ -863,6 +864,7 @@ export class InvoiceService {
             status,
             subtotal,
             tax,
+            taxRate,
             total,
           },
           include: {

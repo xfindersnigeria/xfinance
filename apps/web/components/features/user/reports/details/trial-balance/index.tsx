@@ -1,8 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, CalendarDays, ChevronDown, ChevronRight, Download, Printer } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowLeft, CalendarDays, ChevronDown, ChevronRight } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -13,7 +12,9 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useTrialBalance } from "@/lib/api/hooks/useReports";
-import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { useEntityBaseCurrency, useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { ReportExportButtons } from "../../ReportExportButtons";
+import type { ReportExportPayload, ReportExportRow } from "@/lib/reports/export-types";
 import { TBSection, TBAccountLine } from "@/lib/api/services/reportService";
 import {
   MONTHS,
@@ -209,6 +210,7 @@ function SectionRows({
 export default function TrialBalance() {
   const router = useRouter();
   const sym = useEntityCurrencySymbol();
+  const currency = useEntityBaseCurrency();
 
   const now = new Date();
   const curYear = now.getFullYear();
@@ -239,6 +241,65 @@ export default function TrialBalance() {
 
   const periodLabel = getPeriodEndLabel(periodType, period, year);
 
+  const buildExport = (): ReportExportPayload | null => {
+    if (!tb) return null;
+    const rows: ReportExportRow[] = [];
+    for (const section of (tb.sections ?? []) as TBSection[]) {
+      const label = SECTION_LABEL[section.typeCode] ?? section.typeName;
+      rows.push({ kind: "header", cells: { cls: label } });
+      for (const acc of section.accounts) {
+        rows.push({
+          indent: 1,
+          cells: {
+            cls: acc.linkedType,
+            type: acc.typeName,
+            heading: acc.subCategoryName,
+            notes: acc.name,
+            opening: acc.openingBalance,
+            debit: acc.debitAmount,
+            credit: acc.creditAmount,
+            closing: acc.closingBalance,
+          },
+        });
+      }
+      rows.push({
+        kind: "subtotal",
+        cells: {
+          cls: `Total ${label}`,
+          opening: section.totalOpeningBalance,
+          debit: section.totalDebit,
+          credit: section.totalCredit,
+          closing: section.totalClosingBalance,
+        },
+      });
+    }
+    rows.push({ kind: "total", cells: { cls: "Grand Total", debit: tb.grandTotalDebit, credit: tb.grandTotalCredit } });
+    return {
+      title: "Trial Balance",
+      scope: "entity",
+      period: periodLabel,
+      currency,
+      landscape: true,
+      summary: [
+        { label: "Total Debit", value: tb.grandTotalDebit, format: "amount" },
+        { label: "Total Credit", value: tb.grandTotalCredit, format: "amount" },
+        { label: "Status", value: tb.isBalanced ? "In Balance" : `Out of Balance (difference ${tb.difference.toLocaleString("en", { minimumFractionDigits: 2 })})` },
+      ],
+      columns: [
+        { key: "cls", label: "Class" },
+        { key: "type", label: "Acct Type" },
+        { key: "heading", label: "Account Heading" },
+        { key: "notes", label: "Notes" },
+        { key: "opening", label: "Opening Bal", format: "amount" },
+        { key: "debit", label: "Debit", format: "amount" },
+        { key: "credit", label: "Credit", format: "amount" },
+        { key: "closing", label: "Closing Bal", format: "amount" },
+      ],
+      sections: [{ rows }],
+      notes: ["SPP = Special Purpose Portfolio · PAL = Profit and Loss"],
+    };
+  };
+
   return (
     <div className="flex flex-col gap-4 pb-10">
       {/* Header */}
@@ -254,13 +315,8 @@ export default function TrialBalance() {
           <h1 className="text-xl font-semibold">Trial Balance</h1>
           <p className="text-sm text-primary">Summarised debit and credit balances by account</p>
         </div>
-        <div className="flex items-center gap-2 mt-6 shrink-0">
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl">
-            <Printer className="w-4 h-4" /> Print
-          </Button>
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl">
-            <Download className="w-4 h-4" /> Export
-          </Button>
+        <div className="mt-6">
+          <ReportExportButtons getPayload={buildExport} disabled={isLoading || !tb} />
         </div>
       </div>
 

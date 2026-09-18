@@ -1,18 +1,20 @@
 "use client";
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Download, Printer, TrendingUp, TrendingDown } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowLeft, TrendingUp, TrendingDown } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useSalesByCustomer } from "@/lib/api/hooks/useReports";
-import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { useEntityBaseCurrency, useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 import { SalesByCustomerData, SalesByCustomerRow } from "@/lib/api/services/reportService";
 import { ReportPeriodFilter } from "../../ReportPeriodFilter";
+import { ReportExportButtons } from "../../ReportExportButtons";
+import type { ReportExportPayload } from "@/lib/reports/export-types";
 import {
   ReportPeriodType,
   periodToDates,
   defaultPeriodValue,
+  getPeriodEndLabel,
 } from "@/lib/period-utils";
 import {
   ResponsiveContainer,
@@ -101,6 +103,7 @@ const tooltipStyle = {
 export default function SalesByCustomer() {
   const router = useRouter();
   const sym = useEntityCurrencySymbol();
+  const currency = useEntityBaseCurrency();
   const now = new Date();
 
   const [periodType, setPeriodType] = useState<ReportPeriodType>("Quarterly");
@@ -121,6 +124,50 @@ export default function SalesByCustomer() {
   // All rows for pie (limit to 10 for readability)
   const pieData = rows.slice(0, 10).map(r => ({ name: r.customerName, value: r.totalSales }));
 
+  const buildExport = (): ReportExportPayload | null => {
+    if (!data) return null;
+    return {
+      title: "Sales by Customer",
+      scope: "entity",
+      period: getPeriodEndLabel(periodType, period, year),
+      currency,
+      summary: summary
+        ? [
+            { label: "Total Income", value: summary.totalSales, format: "amount" },
+            { label: "Total Invoices", value: summary.totalInvoices, format: "number" },
+            { label: "Average Invoice", value: summary.avgInvoice, format: "amount" },
+          ]
+        : [],
+      columns: [
+        { key: "customer", label: "Customer" },
+        { key: "sales", label: "Total Income", format: "amount" },
+        { key: "invoices", label: "Invoices", format: "number" },
+        { key: "avg", label: "Avg Invoice", format: "amount" },
+        { key: "growth", label: "Growth", format: "percent" },
+        { key: "share", label: "% of Total", format: "percent" },
+      ],
+      sections: [
+        {
+          rows: [
+            ...rows.map((r) => ({
+              cells: {
+                customer: r.customerName,
+                sales: r.totalSales,
+                invoices: r.invoiceCount,
+                avg: r.avgInvoice,
+                growth: r.growth,
+                share: r.percentOfTotal,
+              },
+            })),
+            ...(summary
+              ? [{ kind: "total" as const, cells: { customer: "Total", sales: summary.totalSales, invoices: summary.totalInvoices, avg: summary.avgInvoice } }]
+              : []),
+          ],
+        },
+      ],
+    };
+  };
+
   return (
     <div className="flex flex-col gap-6 pb-12">
       {/* Header */}
@@ -135,9 +182,8 @@ export default function SalesByCustomer() {
           <h1 className="text-xl font-semibold text-slate-900">Sales by Customer</h1>
           <p className="text-sm text-slate-500 mt-0.5">Revenue breakdown by customer with growth analysis</p>
         </div>
-        <div className="flex items-center gap-2 mt-7 shrink-0">
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Printer className="w-4 h-4" /> Print</Button>
-          <Button variant="outline" size="sm" className="gap-2 rounded-xl"><Download className="w-4 h-4" /> Export</Button>
+        <div className="mt-7">
+          <ReportExportButtons getPayload={buildExport} disabled={isLoading || !data} />
         </div>
       </div>
 

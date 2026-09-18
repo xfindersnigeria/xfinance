@@ -7,6 +7,7 @@ import { ReceiptStatus, PaymentMethod } from 'prisma/generated/enums';
 import { generateRandomInvoiceNumber } from '@/auth/utils/helper';
 import { BullmqService } from '@/bullmq/bullmq.service';
 import { CacheService } from '@/cache/cache.service';
+import { computeSalesTax, resolveSalesTaxRate } from '../sales-tax.util';
 
 @Injectable()
 export class ReceiptService {
@@ -21,7 +22,7 @@ export class ReceiptService {
   async createReceipt(body: CreateReceiptDto, entityId: string, groupId: string) {
     try {
       const receiptNumber = generateRandomInvoiceNumber({ prefix: 'RCT' });
-      const { items, depositTo, ...receiptData } = body;
+      const { items, depositTo, taxRate: requestedTaxRate, ...receiptData } = body;
 
       if (!depositTo) {
         throw new BadRequestException('depositTo (cash/bank account) is required');
@@ -49,14 +50,13 @@ export class ReceiptService {
 
       // Calculate item totals and receipt totals
       let subtotal = 0;
-      let hasTaxableItems = false;
+      const taxLines: Array<{ total: number; taxable: boolean }> = [];
       const receiptItemsData = (items || []).map((item) => {
         const itemDetail = itemDetails.find((i) => i.id === item.itemId);
         const total = item.rate * item.quantity;
         subtotal += total;
-        if (itemDetail?.isTaxable) {
-          hasTaxableItems = true;
-        }
+        // Free-text lines have no catalog flag — the user's rate applies to them
+        taxLines.push({ total, taxable: item.itemId ? !!itemDetail?.isTaxable : true });
         return {
           itemId: item.itemId || undefined,
           itemName: item.itemId ? undefined : item.itemName,
@@ -66,8 +66,9 @@ export class ReceiptService {
         };
       });
       
-      // Calculate tax only if there are taxable items (10% like invoices)
-      const tax = hasTaxableItems ? Math.round(0.1 * subtotal) : 0;
+      // Tax at the user-chosen rate (or the entity default) on taxable lines
+      const taxRate = await resolveSalesTaxRate(this.prisma, entityId, requestedTaxRate);
+      const tax = computeSalesTax(taxLines, taxRate);
       const total = subtotal + tax;
 
       // Create receipt and items in a transaction
@@ -80,6 +81,7 @@ export class ReceiptService {
             receiptNumber,
             subtotal,
             tax,
+            taxRate,
             total,
             depositTo,
           },
@@ -299,13 +301,24 @@ export class ReceiptService {
         );
       }
 
-      const { items, ...receiptData } = body;
+      const { items, taxRate: requestedTaxRate, ...receiptData } = body;
+
+      const realItemIds = (items || []).map((i) => i.itemId).filter((id): id is string => !!id);
+      const itemDetails = realItemIds.length > 0
+        ? await this.prisma.items.findMany({
+            where: { id: { in: realItemIds }, entityId },
+            select: { id: true, isTaxable: true },
+          })
+        : [];
 
       // Calculate new receipt items and totals
       let subtotal = 0;
+      const taxLines: Array<{ total: number; taxable: boolean }> = [];
       const receiptItemsData = (items || []).map((item) => {
         const total = item.rate * item.quantity;
         subtotal += total;
+        const itemDetail = itemDetails.find((i) => i.id === item.itemId);
+        taxLines.push({ total, taxable: item.itemId ? !!itemDetail?.isTaxable : true });
         return {
           itemId: item.itemId || undefined,
           itemName: item.itemId ? undefined : item.itemName,
@@ -314,7 +327,9 @@ export class ReceiptService {
           total,
         };
       });
-      const tax = 0;
+      // Previously hardcoded to 0, silently dropping VAT on every edit
+      const taxRate = requestedTaxRate ?? receipt.taxRate;
+      const tax = computeSalesTax(taxLines, taxRate);
       const total = subtotal + tax;
 
       // Replace all receipt items and update receipt in a transaction
@@ -341,6 +356,7 @@ export class ReceiptService {
             ...receiptData,
             subtotal,
             tax,
+            taxRate,
             total,
           },
           include: {
