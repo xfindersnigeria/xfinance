@@ -1,3 +1,5 @@
+import { createId } from '@paralleldrive/cuid2';
+import { BulkRowError, importRowId, parseImportDate, rowKeyOf } from '../../lib/bulk-import.util';
 import { PrismaService } from '@/prisma/prisma.service';
 import { HttpException, HttpStatus, Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { CreateReceiptDto, UpdateReceiptDto, BulkImportReceiptsDto } from './dto/receipt.dto';
@@ -491,67 +493,111 @@ export class ReceiptService {
         );
       }
 
-      const created: string[] = [];
-      for (const item of body.items) {
-        const receiptNumber = generateRandomInvoiceNumber({ prefix: 'BRCT' });
-        const itemName = item.reference
-          ? `${item.description} — Ref: ${item.reference}`
-          : item.description;
-        const amount = Math.round(item.amount);
+      // Per-row validation: bad rows are reported, never abort the batch.
+      const importId = body.importId || createId();
+      const errors: BulkRowError[] = [];
+      const valid: { id: string; rowKey: string; amount: number; receipt: any; item: any }[] = [];
+      const seen = new Set<string>();
 
-        const receipt = await this.prisma.$transaction(async (tx) => {
-          const rec = await tx.receipt.create({
-            data: {
-              date: new Date(item.date),
-              receiptNumber,
-              paymentMethod: 'Bank_Transfer' as any,
-              depositTo: body.depositTo,
-              subtotal: amount,
-              tax: 0,
-              total: amount,
-              status: 'Completed' as any,
-              customerName: item.customerName || undefined,
-              entityId,
-              groupId,
-            },
-          });
+      body.items.forEach((item, index) => {
+        const rowKey = rowKeyOf(item ?? {}, index);
+        const fail = (message: string) => errors.push({ row: rowKey, message });
+        if (!item) return fail('Empty row');
+        if (seen.has(rowKey)) return fail('Duplicate row key in this request');
+        seen.add(rowKey);
+        const date = parseImportDate(item.date);
+        if (!date) return fail(`Invalid date "${item.date ?? ''}" — use YYYY-MM-DD`);
+        const amount = Math.round(Number(item.amount));
+        if (!Number.isFinite(amount) || amount <= 0) return fail('Amount must be greater than zero');
+        if (!item.description || !String(item.description).trim()) return fail('Description is required');
 
-          await tx.receiptItem.create({
-            data: {
-              itemName,
-              rate: amount,
-              quantity: 1,
-              total: amount,
-              receiptId: rec.id,
-            },
-          });
-
-          return rec;
-        });
-
-        await this.bullmqService.addJob('post-receipt-journal', {
-          receiptId: receipt.id,
-          receiptData: {
-            receiptNumber: receipt.receiptNumber,
-            entityId,
-            groupId,
+        const id = importRowId('brct', importId, rowKey);
+        valid.push({
+          id,
+          rowKey,
+          amount,
+          receipt: {
+            id,
+            date,
+            receiptNumber: generateRandomInvoiceNumber({ prefix: 'BRCT' }),
+            paymentMethod: 'Bank_Transfer' as any,
+            depositTo: body.depositTo,
             subtotal: amount,
             tax: 0,
             total: amount,
-            depositTo: body.depositTo,
-            items: [{ quantity: 1, rate: amount, total: amount }],
+            status: 'Completed' as any,
+            customerName: item.customerName || undefined,
+            entityId,
+            groupId,
+          },
+          item: {
+            id: `${id}_i`,
+            itemName: item.reference
+              ? `${item.description} — Ref: ${item.reference}`
+              : item.description,
+            rate: amount,
+            quantity: 1,
+            total: amount,
+            receiptId: id,
           },
         });
+      });
 
-        created.push(receipt.id);
+      // Rows already written by an earlier attempt are skipped, so a retry is safe.
+      const existing = new Set(
+        (
+          await this.prisma.receipt.findMany({
+            where: { id: { in: valid.map((v) => v.id) }, entityId },
+            select: { id: true },
+          })
+        ).map((r) => r.id),
+      );
+      const fresh = valid.filter((v) => !existing.has(v.id));
+
+      if (fresh.length) {
+        // Receipts and their lines land together or not at all.
+        await this.prisma.$transaction([
+          this.prisma.receipt.createMany({
+            data: fresh.map((v) => v.receipt),
+            skipDuplicates: true,
+          }),
+          this.prisma.receiptItem.createMany({
+            data: fresh.map((v) => v.item),
+            skipDuplicates: true,
+          }),
+        ]);
+        await this.bullmqService.addBulkJobs(
+          fresh.map((v) => ({
+            name: 'post-receipt-journal',
+            data: {
+              receiptId: v.id,
+              receiptData: {
+                receiptNumber: v.receipt.receiptNumber,
+                entityId,
+                groupId,
+                subtotal: v.amount,
+                tax: 0,
+                total: v.amount,
+                depositTo: body.depositTo,
+                items: [{ quantity: 1, rate: v.amount, total: v.amount }],
+              },
+            },
+            opts: { jobId: `post-receipt-${v.id}` },
+          })),
+        );
+        await this.cacheService.invalidateEntityDashboardCache(entityId);
       }
 
-      await this.cacheService.invalidateEntityDashboardCache(entityId);
-
       return {
-        imported: created.length,
-        total: body.items.reduce((sum, i) => sum + Math.round(i.amount), 0),
-        message: `${created.length} income receipt(s) imported and queued for posting`,
+        importId,
+        imported: fresh.length,
+        alreadyImported: existing.size,
+        failed: errors,
+        total: fresh.reduce((sum, v) => sum + v.amount, 0),
+        importedKeys: valid.map((v) => v.rowKey),
+        message: errors.length
+          ? `${fresh.length} income receipt(s) imported, ${errors.length} row(s) need fixing`
+          : `${fresh.length} income receipt(s) imported and queued for posting`,
       };
     } catch (error) {
       if (error instanceof HttpException) throw error;

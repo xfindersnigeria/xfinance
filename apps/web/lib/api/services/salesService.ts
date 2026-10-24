@@ -169,9 +169,11 @@ export interface BulkIncomeItem {
   amount: number;
   reference?: string;
   customerName?: string;
+  key?: string;
 }
 
 export interface BulkImportReceiptsPayload {
+  importId?: string;
   depositTo: string;
   items: BulkIncomeItem[];
 }

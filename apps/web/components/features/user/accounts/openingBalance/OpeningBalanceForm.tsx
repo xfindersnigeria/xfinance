@@ -21,6 +21,7 @@ import { Plus, Trash2, Calendar, Loader2 } from "lucide-react";
 import { useSetOpeningBalances } from "@/lib/api/hooks/useAccounts";
 import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 import { Account } from "@/lib/api/hooks/types/accountsTypes";
+import { useFormDraft } from "@/lib/drafts/useFormDraft";
 
 // Zod schema for Opening Balance Line
 const openingBalanceLineSchema = z.object({
@@ -127,6 +128,7 @@ export default function OpeningBalanceForm({
       };
       console.log("Submitting payload:", payload);
       await setOpeningBalances.mutateAsync(payload);
+      await discardDraft();
     } catch (error) {
       // error handled below
     }
@@ -158,6 +160,12 @@ export default function OpeningBalanceForm({
     [getAccountTypeForId]
   );
 
+  const { banner: draftBanner, discardDraft } = useFormDraft(form, {
+    feature: "opening-balance",
+    label: "opening balance entry",
+    enabled: true,
+  });
+
   return (
     <div className="w-full space-y-6 bg-white p-6 rounded-lg shadow-sm">
       <div>
@@ -170,6 +178,7 @@ export default function OpeningBalanceForm({
       </div>
 
       <Form {...form}>
+        {draftBanner}
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           {/* Opening Balance Date, Fiscal Year, and Notes */}
           <div className="bg-blue-50 p-6 rounded-lg border border-blue-200 space-y-4">

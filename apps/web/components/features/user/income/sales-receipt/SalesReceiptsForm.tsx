@@ -37,6 +37,7 @@ import { paymentMethodOptions } from "../payment-received/PaymentReceivedForm";
 import { fmtAmount, useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 import { useModal } from "@/components/providers/ModalProvider";
 import { MODAL } from "@/lib/data/modal-data";
+import { useFormDraft } from "@/lib/drafts/useFormDraft";
 
 export const receiptSchema = z.object({
   customerId: z.string().optional(),
@@ -254,15 +255,23 @@ export default function SalesReceiptsForm({
         };
 
         await createReceipt.mutateAsync(payload);
+        await discardDraft();
       }
     } catch (error) {
       // error handled below
     }
   };
 
+  const { banner: draftBanner, discardDraft } = useFormDraft(form, {
+    feature: "receipt",
+    label: "receipt",
+    enabled: !isEditMode,
+  });
+
   return (
     <div className="w-full">
       <Form {...form}>
+        {draftBanner}
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-2">
           <div className="bg-blue-50 p-4 rounded-xl">
             <h6 className="font-medium text-sm mb-2">Customer & Date</h6>

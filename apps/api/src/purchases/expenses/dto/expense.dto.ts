@@ -205,6 +205,11 @@ export class ExpenseDto extends CreateExpenseDto {
 }
 
 export class BulkExpenseItemDto {
+  @ApiPropertyOptional({ description: 'Stable client row key (spreadsheet row) used for idempotency and error reporting' })
+  @IsOptional()
+  @IsString()
+  key?: string;
+
   @ApiProperty({ example: '2025-11-24', description: 'Transaction date (ISO string)' })
   @IsString()
   date: string;
@@ -237,6 +242,11 @@ export class BulkImportExpensesDto {
   @ApiProperty({ description: 'Bank linked GL account to credit (payment account)', example: 'acc_xyz' })
   @IsString()
   paymentAccountId: string;
+
+  @ApiPropertyOptional({ description: 'Client-generated id for this import; re-sending it never duplicates rows' })
+  @IsOptional()
+  @IsString()
+  importId?: string;
 
   @ApiProperty({ type: [BulkExpenseItemDto] })
   @IsArray()

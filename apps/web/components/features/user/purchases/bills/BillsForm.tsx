@@ -45,6 +45,7 @@ import { CreatableCombobox } from "@/components/ui/creatable-combobox";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TaxSelect, useDefaultTax } from "@/components/local/shared/TaxSelect";
 import { useTaxOptions } from "@/lib/api/hooks/useTax";
+import { useFormDraft } from "@/lib/drafts/useFormDraft";
 
 const lineItemSchema = z.object({
   name: z.string().min(1, "Item name required"),
@@ -311,6 +312,7 @@ export default function BillsForm({
         }
 
         await createBill.mutateAsync(formData);
+        await discardDraft();
       }
 
       form.reset();
@@ -324,9 +326,16 @@ export default function BillsForm({
     }
   };
 
+  const { banner: draftBanner, discardDraft } = useFormDraft(form, {
+    feature: "bill",
+    label: "bill",
+    enabled: !isEditMode,
+  });
+
   return (
     <FormProvider {...form}>
       <Form {...form}>
+        {draftBanner}
         <form
           className="max-w-lg mx-auto space-y-6"
           onSubmit={form.handleSubmit((v) => onSubmit(v))}

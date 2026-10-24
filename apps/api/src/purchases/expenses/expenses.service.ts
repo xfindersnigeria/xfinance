@@ -1,3 +1,5 @@
+import { createId } from '@paralleldrive/cuid2';
+import { BulkRowError, importRowId, parseImportDate, rowKeyOf } from '../../lib/bulk-import.util';
 import { ExpenseStatus } from './../../../prisma/generated/enums';
 import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
@@ -717,65 +719,104 @@ export class ExpensesService {
         throw new HttpException('Payment account does not belong to this entity', HttpStatus.FORBIDDEN);
       }
 
-      const expenseAccountIds = [...new Set(body.items.map((i) => i.expenseAccountId))];
+      const expenseAccountIds = [...new Set(body.items.map((i) => i?.expenseAccountId).filter(Boolean))];
       const expenseAccounts = await this.prisma.account.findMany({
         where: { id: { in: expenseAccountIds }, entityId },
         select: { id: true },
       });
       const validAccountIds = new Set(expenseAccounts.map((a) => a.id));
-      const invalidItem = body.items.find((i) => !validAccountIds.has(i.expenseAccountId));
-      if (invalidItem) {
-        throw new HttpException(
-          `Expense account ${invalidItem.expenseAccountId} not found or does not belong to this entity`,
-          HttpStatus.BAD_REQUEST,
-        );
-      }
 
-      const created: string[] = [];
-      for (const item of body.items) {
-        const reference = generateRandomInvoiceNumber({ prefix: 'BEXP' });
-        const descriptionWithPayee = item.payee
-          ? `${item.description} — ${item.payee}`
-          : item.description;
+      // Validate every row up front: a bad row is reported back, it never
+      // aborts the batch or leaves it half-written.
+      const importId = body.importId || createId();
+      const errors: BulkRowError[] = [];
+      const valid: { id: string; rowKey: string; data: any }[] = [];
+      const seen = new Set<string>();
 
-        const expense = await this.prisma.expenses.create({
+      body.items.forEach((item, index) => {
+        const rowKey = rowKeyOf(item ?? {}, index);
+        const fail = (message: string) => errors.push({ row: rowKey, message });
+        if (!item) return fail('Empty row');
+        if (seen.has(rowKey)) return fail('Duplicate row key in this request');
+        seen.add(rowKey);
+        const date = parseImportDate(item.date);
+        if (!date) return fail(`Invalid date "${item.date ?? ''}" — use YYYY-MM-DD`);
+        const amount = Math.round(Number(item.amount));
+        if (!Number.isFinite(amount) || amount <= 0) return fail('Amount must be greater than zero');
+        if (!item.description || !String(item.description).trim()) return fail('Description is required');
+        if (!validAccountIds.has(item.expenseAccountId)) {
+          return fail('Expense account not found or does not belong to this entity');
+        }
+
+        const id = importRowId('bexp', importId, rowKey);
+        valid.push({
+          id,
+          rowKey,
           data: {
-            date: new Date(item.date),
-            description: descriptionWithPayee,
-            reference: item.reference || reference,
+            id,
+            date,
+            description: item.payee ? `${item.description} — ${item.payee}` : item.description,
+            reference: item.reference || generateRandomInvoiceNumber({ prefix: 'BEXP' }),
             expenseAccountId: item.expenseAccountId,
             paymentAccountId: body.paymentAccountId,
             paymentMethod: 'Bank_Transfer' as any,
-            amount: Math.round(item.amount),
+            amount,
             tax: '0',
             status: 'approved' as any,
             entityId,
             groupId,
           },
         });
+      });
 
-        await this.bullmqService.addJob('post-expense-journal', {
-          expenseId: expense.id,
-          expenseData: {
-            reference: expense.reference,
-            entityId,
-            groupId,
-            amount: expense.amount,
-            tax: 0,
-            expenseAccountId: expense.expenseAccountId,
-            paymentAccountId: expense.paymentAccountId,
-          },
+      // Rows already written by an earlier attempt of this same import are
+      // skipped (not re-created, not re-posted), so a retry is always safe.
+      const existing = new Set(
+        (
+          await this.prisma.expenses.findMany({
+            where: { id: { in: valid.map((v) => v.id) }, entityId },
+            select: { id: true },
+          })
+        ).map((e) => e.id),
+      );
+      const fresh = valid.filter((v) => !existing.has(v.id));
+
+      if (fresh.length) {
+        await this.prisma.expenses.createMany({
+          data: fresh.map((v) => v.data),
+          skipDuplicates: true,
         });
-
-        created.push(expense.id);
+        await this.bullmqService.addBulkJobs(
+          fresh.map((v) => ({
+            name: 'post-expense-journal',
+            data: {
+              expenseId: v.id,
+              expenseData: {
+                reference: v.data.reference,
+                entityId,
+                groupId,
+                amount: v.data.amount,
+                tax: 0,
+                expenseAccountId: v.data.expenseAccountId,
+                paymentAccountId: v.data.paymentAccountId,
+              },
+            },
+            opts: { jobId: `post-expense-${v.id}` },
+          })),
+        );
+        await this.cacheService.invalidateEntityDashboardCache(entityId);
       }
 
-      await this.cacheService.invalidateEntityDashboardCache(entityId);
-
       return {
-        imported: created.length,
-        total: body.items.reduce((sum, i) => sum + Math.round(i.amount), 0),
-        message: `${created.length} expense(s) imported and queued for posting`,
+        importId,
+        imported: fresh.length,
+        alreadyImported: existing.size,
+        failed: errors,
+        total: fresh.reduce((sum, v) => sum + v.data.amount, 0),
+        importedKeys: valid.map((v) => v.rowKey),
+        message: errors.length
+          ? `${fresh.length} expense(s) imported, ${errors.length} row(s) need fixing`
+          : `${fresh.length} expense(s) imported and queued for posting`,
       };
     } catch (error) {
       if (error instanceof HttpException) throw error;

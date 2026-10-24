@@ -9,6 +9,13 @@ export class BullmqService {
     await this.queue.add(name, data, options);
   }
 
+  /** Enqueue many jobs in one Redis round-trip. */
+  async addBulkJobs(
+    jobs: { name: string; data: any; opts?: any }[],
+  ): Promise<void> {
+    if (jobs.length) await this.queue.addBulk(jobs);
+  }
+
   /**
    * Remove all jobs from the queue (active, waiting, delayed, completed, failed, etc.)
    */

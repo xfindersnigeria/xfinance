@@ -197,6 +197,11 @@ export class UpdateReceiptDto {
 }
 
 export class BulkIncomeItemDto {
+  @ApiPropertyOptional({ description: 'Stable client row key (spreadsheet row) used for idempotency and error reporting' })
+  @IsOptional()
+  @IsString()
+  key?: string;
+
   @ApiProperty({ example: '2025-11-24', description: 'Transaction date (ISO string)' })
   @IsString()
   date: string;
@@ -225,6 +230,11 @@ export class BulkImportReceiptsDto {
   @ApiProperty({ description: 'Cash/bank GL account to deposit into', example: 'acc_xyz' })
   @IsString()
   depositTo: string;
+
+  @ApiPropertyOptional({ description: 'Client-generated id for this import; re-sending it never duplicates rows' })
+  @IsOptional()
+  @IsString()
+  importId?: string;
 
   @ApiProperty({ type: [BulkIncomeItemDto] })
   @IsArray()

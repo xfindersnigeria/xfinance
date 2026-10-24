@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -36,6 +36,7 @@ import {
 import { useCreateVendor, useUpdateVendor } from "@/lib/api/hooks/usePurchases";
 import { useAccounts } from "@/lib/api/hooks/useAccounts";
 import { toast } from "sonner";
+import { useFormDraft } from "@/lib/drafts/useFormDraft";
 // --- Zod Schemas ---
 const basicInfoSchema = z.object({
   vendorType: z.string().min(1, "Vendor type is required"),
@@ -79,7 +80,6 @@ const vendorSchema = z.object({
 
 type VendorFormType = z.infer<typeof vendorSchema>;
 
-const LOCAL_STORAGE_KEY = "vendor-form-data";
 
 const defaultValues: VendorFormType = {
   basicInfo: {
@@ -128,24 +128,11 @@ export default function VendorsForm({ onSuccess }: { onSuccess?: () => void }) {
     mode: "onChange",
   });
 
-  // Load from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (saved) {
-      try {
-        form.reset(JSON.parse(saved));
-      } catch {}
-    }
-    // eslint-disable-next-line
-  }, []);
-
-  // Save to localStorage on change
-  useEffect(() => {
-    const sub = form.watch((data) => {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
-    });
-    return () => sub.unsubscribe();
-  }, [form]);
+  // Autosaved draft (IndexedDB, per user + entity) — restored on request.
+  const { banner: draftBanner, discardDraft } = useFormDraft(form, {
+    feature: "vendor",
+    label: "vendor",
+  });
 
   // Step validation
   const validateStep = async () => {
@@ -211,7 +198,7 @@ export default function VendorsForm({ onSuccess }: { onSuccess?: () => void }) {
 
       await createVendor.mutateAsync(payload);
       // toast.success("Vendor created successfully");
-      localStorage.removeItem(LOCAL_STORAGE_KEY);
+      await discardDraft();
       setLoading(false);
       onSuccess?.();
     } catch (error) {
@@ -223,6 +210,7 @@ export default function VendorsForm({ onSuccess }: { onSuccess?: () => void }) {
   return (
     <FormProvider {...form}>
       <Form {...form}>
+        {draftBanner}
         <form
           onSubmit={form.handleSubmit(onSubmit)}
           className="max-w-xl mx-auto"

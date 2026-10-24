@@ -46,6 +46,7 @@ import { BudgetPeriodTypeEnum } from "@/lib/api/hooks/types/accountsTypes";
 import type { Account, BudgetHeaderDetail } from "@/lib/api/hooks/types/accountsTypes";
 import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
 import { MONTHS, QUARTERS, getFiscalYearLabels } from "@/lib/period-utils";
+import { useFormDraft } from "@/lib/drafts/useFormDraft";
 
 const FISCAL_YEARS = getFiscalYearLabels();
 
@@ -216,6 +217,7 @@ export default function SetBudgetForm({ existingBudget, onSuccess }: SetBudgetFo
         await updateBudget.mutateAsync({ id: existingBudget.id, data: payload });
       } else {
         await createBudget.mutateAsync(payload);
+        await discardDraft();
       }
       onSuccess?.();
     } catch {
@@ -230,11 +232,18 @@ export default function SetBudgetForm({ existingBudget, onSuccess }: SetBudgetFo
 
   const isPending = createBudget.isPending || updateBudget.isPending;
 
+  const { banner: draftBanner, discardDraft } = useFormDraft(form, {
+    feature: "budget",
+    label: "budget",
+    enabled: !isEditMode,
+  });
+
   return (
     <div className="w-full space-y-6">
       <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleFileChange} />
 
       <Form {...form}>
+        {draftBanner}
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           {/* Budget Period */}
           <div className="bg-green-50 p-5 rounded-lg border border-green-200 space-y-4">

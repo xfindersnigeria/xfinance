@@ -207,9 +207,11 @@ export interface BulkExpenseItem {
   reference?: string;
   payee?: string;
   expenseAccountId: string;
+  key?: string;
 }
 
 export interface BulkImportExpensesPayload {
+  importId?: string;
   paymentAccountId: string;
   items: BulkExpenseItem[];
 }

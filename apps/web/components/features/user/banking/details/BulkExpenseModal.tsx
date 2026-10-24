@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import {
   Dialog,
@@ -28,6 +28,11 @@ import { toast } from "sonner";
 import { useAccounts } from "@/lib/api/hooks/useAccounts";
 import { useBulkImportExpenses } from "@/lib/api/hooks/usePurchases";
 import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { useDraft } from "@/lib/drafts/useDraft";
+import { BulkResult, newImportId, rowProblem } from "@/lib/drafts/importRows";
+import { DraftBanner } from "@/components/local/shared/DraftBanner";
+
+const PAGE_SIZE = 200;
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -40,6 +45,8 @@ interface ParsedRow {
   payee: string;
   category: string;
   expenseAccountId: string;
+  /** Message from the client check or the server for this row. */
+  error?: string;
 }
 
 type Step = "upload" | "map" | "preview" | "done";
@@ -174,7 +181,9 @@ export default function BulkExpenseModal({
   const [sheetRows, setSheetRows] = useState<(string | number)[][]>([]);
   const [mapping, setMapping] = useState<Record<TargetKey, string>>({ date: "", description: "", amount: "", reference: "", payee: "", category: "" });
   const [rows, setRows] = useState<ParsedRow[]>([]);
-  const [importResult, setImportResult] = useState<{ imported: number; total: number } | null>(null);
+  const [importResult, setImportResult] = useState<{ imported: number; total: number; failed: number } | null>(null);
+  const [importId, setImportId] = useState(() => newImportId());
+  const [limit, setLimit] = useState(PAGE_SIZE);
 
   const { data: expenseAccountsData } = useAccounts({ type: "Expenses" });
   const expenseAccounts: any[] = (expenseAccountsData?.data as any) || [];
@@ -183,7 +192,34 @@ export default function BulkExpenseModal({
 
   // ── Reset ────────────────────────────────────────────────────────────────
 
+  // Work in progress is autosaved so a failed save, a closed modal or a
+  // refresh never loses a long import. Only a clean save clears it.
+  const draftValue = useMemo(
+    () => (step === "map" || step === "preview" ? { step, headers, sheetRows, mapping, rows, importId } : null),
+    [step, headers, sheetRows, mapping, rows, importId],
+  );
+  const { saved: savedDraft, discard: discardDraft, dismissOffer } = useDraft({
+    feature: "bulk-expense",
+    scope: paymentAccountId,
+    enabled: open,
+    value: draftValue,
+  });
+
+  function resumeDraft() {
+    if (!savedDraft) return;
+    const d: any = savedDraft.data;
+    setHeaders(d.headers);
+    setSheetRows(d.sheetRows);
+    setMapping(d.mapping);
+    setRows(d.rows);
+    setImportId(d.importId);
+    setStep(d.step);
+    dismissOffer();
+  }
+
   function reset() {
+    setImportId(newImportId());
+    setLimit(PAGE_SIZE);
     setStep("upload");
     setDragOver(false);
     setHeaders([]);
@@ -193,6 +229,7 @@ export default function BulkExpenseModal({
     setImportResult(null);
   }
 
+  // Closing keeps the draft (it lives in IndexedDB); it only clears the form.
   function handleClose(v: boolean) {
     if (!v) reset();
     onOpenChange(v);
@@ -224,6 +261,14 @@ export default function BulkExpenseModal({
   const requiredMapped = TARGET_FIELDS.filter((f) => f.required).every((f) => mapping[f.key]);
   const autoCount = Object.values(mapping).filter(Boolean).length;
 
+  // Pre-select an expense account when the file's category names one.
+  function matchAccount(category: string): string {
+    const c = category.trim().toLowerCase();
+    if (!c) return "";
+    const hit = expenseAccounts.find((a: any) => String(a.name).toLowerCase() === c);
+    return hit?.id ?? "";
+  }
+
   function buildRows() {
     return sheetRows
       .filter((r) => r.some((c) => c !== "" && c !== null))
@@ -242,22 +287,29 @@ export default function BulkExpenseModal({
           reference: String(get("reference") || ""),
           payee: String(get("payee") || ""),
           category: String(get("category") || ""),
-          expenseAccountId: "",
+          expenseAccountId: matchAccount(String(get("category") || "")),
         };
       });
   }
 
   function goToPreview() {
     if (!requiredMapped) return;
-    setRows(buildRows());
+    setRows(buildRows().map((r) => ({ ...r, error: rowProblem(r) ?? undefined })));
+    setLimit(PAGE_SIZE);
     setStep("preview");
   }
 
   // ── Preview step ─────────────────────────────────────────────────────────
 
   const unassigned = rows.filter((r) => !r.expenseAccountId).length;
-  const total = rows.reduce((s, r) => s + r.amount, 0);
-  const canImport = unassigned === 0 && rows.length > 0;
+  const invalid = rows.filter((r) => r.error).length;
+  const ready = rows.filter((r) => r.expenseAccountId && !r.error);
+  const total = ready.reduce((s, r) => s + r.amount, 0);
+  const canImport = ready.length > 0;
+
+  function assignAll(accountId: string) {
+    setRows((prev) => prev.map((r) => (r.expenseAccountId ? r : { ...r, expenseAccountId: accountId })));
+  }
 
   function setRowAccount(idx: number, accountId: string) {
     setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, expenseAccountId: accountId } : r)));
@@ -270,9 +322,11 @@ export default function BulkExpenseModal({
   async function handleImport() {
     if (!canImport) return;
     try {
-      const result: any = await bulkImport.mutateAsync({
+      const result: BulkResult = await bulkImport.mutateAsync({
+        importId,
         paymentAccountId,
-        items: rows.map((r) => ({
+        items: ready.map((r) => ({
+          key: String(r._rowIdx),
           date: r.date,
           description: r.description,
           amount: Math.round(r.amount),
@@ -280,11 +334,27 @@ export default function BulkExpenseModal({
           payee: r.payee || undefined,
           expenseAccountId: r.expenseAccountId,
         })),
-      });
-      setImportResult({ imported: result?.imported ?? rows.length, total: result?.total ?? Math.round(total) });
-      setStep("done");
+      } as any);
+
+      const failedByRow = new Map(result.failed.map((f) => [f.row, f.message]));
+      const done = new Set(result.importedKeys.filter((k) => !failedByRow.has(k)));
+      // Imported rows leave the list; failed ones stay (flagged) so they can be fixed and re-sent.
+      const remaining = rows
+        .filter((r) => !done.has(String(r._rowIdx)))
+        .map((r) => ({ ...r, error: failedByRow.get(String(r._rowIdx)) ?? r.error }));
+
+      const imported = result.imported + result.alreadyImported;
+      if (remaining.length === 0) {
+        await discardDraft();
+        setImportResult({ imported, total: result.total, failed: 0 });
+        setStep("done");
+      } else {
+        setRows(remaining);
+        toast.warning(`${imported} imported — ${remaining.length} row${remaining.length !== 1 ? "s" : ""} left to review`);
+      }
     } catch {
-      // error toast handled in hook
+      // Error toast comes from the hook. Rows, mapping and the draft are untouched —
+      // the user can retry (same importId, so nothing double-posts) or come back later.
     }
   }
 
@@ -297,6 +367,15 @@ export default function BulkExpenseModal({
           <DialogTitle className="text-lg font-bold">Bulk Expense Upload</DialogTitle>
           <p className="text-xs text-gray-500">{accountLabel}</p>
         </DialogHeader>
+
+        {savedDraft && step === "upload" && (
+          <DraftBanner
+            savedAt={savedDraft.savedAt}
+            label="expense import"
+            onResume={resumeDraft}
+            onDiscard={discardDraft}
+          />
+        )}
 
         <StepIndicator current={step} />
 
@@ -407,11 +486,16 @@ export default function BulkExpenseModal({
           <div className="space-y-3">
             <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-green-100 text-green-700 font-medium">
-                {rows.length - unassigned} valid
+                {ready.length} ready
               </div>
               {unassigned > 0 && (
                 <div className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 font-medium">
                   {unassigned} unassigned
+                </div>
+              )}
+              {invalid > 0 && (
+                <div className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-red-100 text-red-700 font-medium">
+                  {invalid} need fixing
                 </div>
               )}
               <div className="text-xs text-gray-500 font-medium">
@@ -421,7 +505,20 @@ export default function BulkExpenseModal({
             </div>
 
             {unassigned > 0 && (
-              <p className="text-xs text-amber-600">Select an expense account for each transaction before importing.</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-xs text-amber-600">Select an expense account for each transaction, or</p>
+                <div className="w-56">
+                  <SearchableCombobox
+                    value=""
+                    onChange={assignAll}
+                    placeholder="Set account for all unassigned..."
+                    searchPlaceholder="Search accounts..."
+                    emptyMessage="No accounts found."
+                    triggerClassName="h-7 text-xs"
+                    options={expenseAccounts.map((a: any) => ({ value: a.id, label: `${a.code} ${a.name}` }))}
+                  />
+                </div>
+              </div>
             )}
 
             <div className="rounded-xl border overflow-hidden">
@@ -435,12 +532,13 @@ export default function BulkExpenseModal({
                 <span />
               </div>
               <div className="divide-y max-h-64 overflow-y-auto">
-                {rows.map((r, i) => (
-                  <div key={i} className="grid grid-cols-[2rem_1fr_1fr_6rem_8rem_2rem] min-w-150 items-center px-3 py-2.5 gap-2 hover:bg-gray-50">
+                {rows.slice(0, limit).map((r, i) => (
+                  <div key={r._rowIdx} className="grid grid-cols-[2rem_1fr_1fr_6rem_8rem_2rem] min-w-150 items-center px-3 py-2.5 gap-2 hover:bg-gray-50">
                     <span className="text-xs text-gray-400">{r._rowIdx}</span>
                     <div>
                       <p className="text-xs font-medium text-gray-800 truncate">{r.description}</p>
                       <p className="text-xs text-gray-400 font-mono">{r.date}</p>
+                      {r.error && <p className="text-xs text-red-600">{r.error}</p>}
                     </div>
                     <span className="text-xs text-gray-600 truncate">{r.payee || "—"}</span>
                     <span className={`text-xs font-semibold ${r.amount > 0 ? "text-red-600" : "text-gray-400"}`}>
@@ -463,6 +561,11 @@ export default function BulkExpenseModal({
                     </button>
                   </div>
                 ))}
+                {rows.length > limit && (
+                  <button className="w-full py-2 text-xs text-primary underline" onClick={() => setLimit((l) => l + PAGE_SIZE)}>
+                    Show more ({rows.length - limit} hidden)
+                  </button>
+                )}
               </div>
               </div>
             </div>
@@ -476,7 +579,7 @@ export default function BulkExpenseModal({
                 className="gap-1.5 bg-primary text-white"
               >
                 <Upload className="w-3.5 h-3.5" />
-                {bulkImport.isPending ? "Importing..." : `Import ${rows.length} Expense${rows.length !== 1 ? "s" : ""}`}
+                {bulkImport.isPending ? "Importing..." : `Import ${ready.length} Expense${ready.length !== 1 ? "s" : ""}`}
               </Button>
             </div>
           </div>

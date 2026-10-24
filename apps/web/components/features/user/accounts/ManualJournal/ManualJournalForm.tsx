@@ -23,6 +23,7 @@ import { Plus, Trash2, Loader2 } from "lucide-react";
 import { useCreateJournal } from "@/lib/api/hooks/useAccounts";
 import { Account } from "@/lib/api/hooks/types/accountsTypes";
 import { useEntityCurrencySymbol } from "@/lib/api/hooks/useCurrencyFormat";
+import { useFormDraft } from "@/lib/drafts/useFormDraft";
 
 // Zod schema for Journal Entry Line
 const journalLineSchema = z.object({
@@ -109,6 +110,7 @@ export default function ManualJournalForm({ accounts = [], onSuccess }: ManualJo
   useEffect(() => {
     if (createJournal.isSuccess) {
       toast.success("Journal entry saved successfully");
+      void discardDraft();
       form.reset({
         date: new Date().toISOString().split("T")[0],
         description: "",
@@ -128,6 +130,12 @@ export default function ManualJournalForm({ accounts = [], onSuccess }: ManualJo
     append({ accountId: "", debit: undefined, credit: undefined, description: "" });
   }, [append]);
 
+  const { banner: draftBanner, discardDraft } = useFormDraft(form, {
+    feature: "manual-journal",
+    label: "journal entry",
+    enabled: true,
+  });
+
   return (
     <div className="w-full space-y-6 bg-white p-6 rounded-lg shadow-sm">
       <div>
@@ -135,6 +143,7 @@ export default function ManualJournalForm({ accounts = [], onSuccess }: ManualJo
       </div>
 
       <Form {...form}>
+        {draftBanner}
         <form className="space-y-6">
           {/* Date */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

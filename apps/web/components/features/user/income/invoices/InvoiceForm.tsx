@@ -39,6 +39,7 @@ import { getCurrencyByCode } from "@/lib/utils/currencies";
 import { CreatableCombobox } from "@/components/ui/creatable-combobox";
 import { TaxSelect, useDefaultTax } from "@/components/local/shared/TaxSelect";
 import { computeTaxTotals } from "@/lib/tax/totals";
+import { useFormDraft } from "@/lib/drafts/useFormDraft";
 
 type InvoiceFormData = z.infer<typeof invoiceSchema>;
 
@@ -228,15 +229,23 @@ export default function InvoiceForm({
         await updateInvoice.mutateAsync({ id: invoice.id, data: payload });
       } else {
         await createInvoice.mutateAsync(payload);
+        await discardDraft();
       }
     } catch (error) {
       // error handled by hook
     }
   };
 
+  const { banner: draftBanner, discardDraft } = useFormDraft(form, {
+    feature: "invoice",
+    label: "invoice",
+    enabled: !isEditMode,
+  });
+
   return (
     <div className="w-full max-w-lg mx-auto">
       <Form {...form}>
+        {draftBanner}
         <form
           onSubmit={form.handleSubmit((v) => onSubmit(v))}
           className="space-y-4"
